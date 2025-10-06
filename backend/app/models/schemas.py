@@ -55,7 +55,6 @@ class Delivery:
     courier: Optional[Courrier] = None  # Courrier assigned to this delivery, if any
     hour_departure : Optional[time] = None
 
-    
 
 @dataclass
 class Tour: 

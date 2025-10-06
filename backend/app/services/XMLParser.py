@@ -1,5 +1,5 @@
 import xml.etree.ElementTree as ET
-from backend.app.models.schemas import Delivery, Intersection,RoadSegment
+from backend.app.models.schemas import Delivery, Intersection,RoadSegment,Map
 
 class XMLParser:
     # simple class-level counter to generate unique delivery IDs (D1, D2, ...)
@@ -75,3 +75,4 @@ class XMLParser:
 
 # Example usage:
 # deliveries = XMLParser.parse_pickup_delivery('fichierXMLPickupDelivery.xml')
+# map_data = XMLParser.parse_map('fichierXMLMap.xml')
