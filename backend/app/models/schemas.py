@@ -29,8 +29,21 @@ class DeliveryRequest:
 class Courrier:
     id: str                   # ex: "C1"
     current_location: Intersection
-    name : str 
-    phone_numer : str
+    name : str
+    phone_number : str
+
+@dataclass
+class RoadSegment:
+    start: Intersection
+    end: Intersection
+    length_m: float           # longueur (metres)
+    travel_time_s: int        # tempsTrajet (secondes)
+    steet_name: str
+
+    def calculate_time(self) -> int:
+        """Calculate travel time based on speed (in km/h)."""
+        return int(self.length_m / (DEFAULT_SPEED_KMH*1000/3600))
+
 
 @dataclass
 class Delivery:
@@ -42,17 +55,7 @@ class Delivery:
     courier: Optional[Courrier] = None  # Courrier assigned to this delivery, if any
     hour_departure : Optional[time] = None
 
-@dataclass
-class RoadSegment:
-    start: Intersection
-    end: Intersection
-    length_m: float           # longueur (metres)
-    travel_time_s: int        # tempsTrajet (secondes)
-
-    def calculate_time(self) -> int:
-        """Calculate travel time based on speed (in meters per second)."""
-        return int(self.length_m / DEFAULT_SPEED_KMH)
-
+    
 
 @dataclass
 class Tour: 
@@ -76,8 +79,8 @@ class Tour:
 class Map:
     intersections: Dict[str, Intersection] = field(default_factory=dict)  # key: intersection id
     road_segments: List[RoadSegment] = field(default_factory=list)
-    deliveries: List[Delivery] = field(default_factory=list)
     couriers: List[Courrier] = field(default_factory=list)
+    adjacency_list: Dict[str, List[Tuple[Intersection, RoadSegment]]] = field(default_factory=dict)
 
     def add_intersection(self, intersection: Intersection):
         self.intersections[intersection.id] = intersection
