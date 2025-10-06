@@ -4,51 +4,51 @@ skinparam linetype ortho
 title Pickup & Delivery Bike Tours - Use Case Diagram
 
 skinparam usecase {
-  BackgroundColor<<core>> #EEF7FF
-  BorderColor #2B6CB0
+    BackgroundColor<<core>> #EEF7FF
+    BorderColor #2B6CB0
 }
 
 left to right direction
 
 actor Dispatcher
-actor Biker
+actor Courier
 
 rectangle "Tour Planning System" as System {
 
-  usecase UC_Load         as "Load City Map (XML)" <<core>>
-  usecase UC_DisplayMap   as "Display Map" <<core>>
-  usecase UC_SetCouriers  as "Set Number of Couriers"
+    usecase UC_Load         as "Load City Map (XML)" <<core>>
+    usecase UC_DisplayMap   as "Display Map" <<core>>
+    usecase UC_SetCouriers  as "Set Number of Couriers"
 
-  usecase UC_Receive        as "Receive Delivery Request" <<core>>
-  usecase UC_SelectCourier as "Select Courier"
-  usecase UC_Pickup_Delivery       as "Select Pickup and Delivery Location"
-  usecase UC_ServiceTimes as "Set Service Times"
+    usecase UC_Receive        as "Receive Delivery Request" <<core>>
+    usecase UC_SelectCourier as "Select Courier"
+    usecase UC_Pickup_Delivery       as "Select Pickup and Delivery Location"
+    usecase UC_ServiceTimes as "Set Service Times"
 
-  usecase UC_Compute      as "Compute Best Tour" <<core>>
-  usecase UC_DisplayTour  as "Display Tour on Map"
+    usecase UC_Compute      as "Compute Best Tour" <<core>>
+    usecase UC_DisplayTour  as "Display Tour on Map"
 
-  usecase UC_AskOther     as "Ask to Select Another Courier"
-  usecase UC_Reject       as "Reject Delivery Request"
+    usecase UC_AskOther     as "Ask to Select Another Courier"
+    usecase UC_Reject       as "Reject Delivery Request"
 
-  usecase UC_Save         as "Save Current Tours to File"
-  usecase UC_Restore      as "Restore Tours from File"
+    usecase UC_Save         as "Save Current Tours to File"
+    usecase UC_Restore      as "Restore Tours from File"
 
-  usecase UC_Execute      as "Execute Assigned Tour"
+    usecase UC_Execute      as "Execute Assigned Tour"
 
-  usecase UC_AddBikers as "Add a biker"
+    usecase UC_AddCouriers as "Add a Courier"
 }
 
 ' Actor → Use cases
-Dispatcher --> UC_Load
-Dispatcher --> UC_DisplayMap
-Dispatcher --> UC_SetCouriers
-Dispatcher --> UC_AddBikers
+Dispatcher -[#blue]-> UC_Load
+Dispatcher -[#blue]-> UC_DisplayMap
+Dispatcher -[#blue]-> UC_SetCouriers
+Dispatcher -[#blue]-> UC_AddCouriers
 
-Dispatcher --> UC_Receive
-Dispatcher --> UC_Save
-Dispatcher --> UC_Restore
+Dispatcher -[#blue]-> UC_Receive
+Dispatcher -[#blue]-> UC_Save
+Dispatcher -[#blue]-> UC_Restore
 
-Biker --> UC_Execute
+Courier -[#green]-> UC_Execute
 
 
 ' Includes (decomposition)
@@ -63,11 +63,11 @@ UC_Compute --> UC_DisplayTour
 
 ' Dispatcher interacts when infeasible
 UC_Compute .> UC_AskOther : <<extend>>\n[No feasible tour]
-Dispatcher --> UC_AskOther
+Dispatcher -[#blue]-> UC_AskOther
 
 ' If still none available, reject
 UC_AskOther .> UC_Reject : <<extend>>\n[No alternative courier]
-Dispatcher --> UC_Reject
+Dispatcher -[#blue]-> UC_Reject
 
 ' Map display is also available after load/restore
 UC_Load --> UC_DisplayMap
@@ -85,7 +85,7 @@ note right of UC_Compute
 end note
 
 note right of UC_Execute
-Biker follows the assigned tour and
+Courier follows the assigned tour and
 returns to the warehouse at the end.
 end note
 
