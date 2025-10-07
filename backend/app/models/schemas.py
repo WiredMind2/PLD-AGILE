@@ -38,7 +38,7 @@ class RoadSegment:
     end: Intersection
     length_m: float           # longueur (metres)
     travel_time_s: int        # tempsTrajet (secondes)
-    steet_name: str
+    street_name: str
 
     def calculate_time(self) -> int:
         """Calculate travel time based on speed (in km/h)."""
@@ -76,19 +76,31 @@ class Tour:
 
 @dataclass
 class Map:
-    intersections: Dict[str, Intersection] = field(default_factory=dict)  # key: intersection id
+    intersections: List[Intersection] = field(default_factory=list)
     road_segments: List[RoadSegment] = field(default_factory=list)
     couriers: List[Courrier] = field(default_factory=list)
+    deliveries: List[Delivery] = field(default_factory=list)
     adjacency_list: Dict[str, List[Tuple[Intersection, RoadSegment]]] = field(default_factory=dict)
 
-    def add_intersection(self, intersection: Intersection):
+    # ----------------- Méthodes de construction -----------------
+    def add_intersection(self, intersection: Intersection) -> None:
         self.intersections[intersection.id] = intersection
 
-    def add_road_segment(self, segment: RoadSegment):
+    def add_road_segment(self, segment: RoadSegment) -> None:
         self.road_segments.append(segment)
 
-    def add_delivery(self, delivery: Delivery):
+    def add_delivery(self, delivery: Delivery) -> None:
         self.deliveries.append(delivery)
 
-    def add_courier(self, courier: Courrier):
+    def add_courier(self, courier: Courrier) -> None:
         self.couriers.append(courier)
+
+    def build_adjacency(self) -> None:
+        """Construit la liste d’adjacence orientée (origine -> destination)."""
+        self.adjacency_list.clear()
+        for seg in self.road_segments:
+            # Ignore poliment les segments référant un noeud absent
+            dst = self.intersections.get(seg.destination_id)
+            if dst is None:
+                continue
+            self.adjacency_list.setdefault(seg.origin_id, []).append((dst, seg))
