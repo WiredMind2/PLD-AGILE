@@ -55,32 +55,6 @@ export default function Home(): JSX.Element {
             <Sparkles className="mr-2 h-5 w-5" />
             Begin Your Journey
           </Button>
-          <Button 
-            size="lg" 
-            variant="outline"
-            className="border-purple-200 text-purple-600 hover:bg-purple-50 dark:border-purple-800 dark:text-purple-400 dark:hover:bg-purple-950"
-          >
-            <Route className="mr-2 h-5 w-5" />
-            Learn More
-          </Button>
-        </div>
-        
-        <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-2xl">
-          <div className="text-center p-4 rounded-lg bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm border border-blue-200 dark:border-blue-800">
-            <Route className="h-8 w-8 text-blue-500 mx-auto mb-2" />
-            <h3 className="font-semibold text-blue-600 dark:text-blue-400">Smart Routes</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">AI-powered optimization</p>
-          </div>
-          <div className="text-center p-4 rounded-lg bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm border border-purple-200 dark:border-purple-800">
-            <Bike className="h-8 w-8 text-purple-500 mx-auto mb-2" />
-            <h3 className="font-semibold text-purple-600 dark:text-purple-400">Eco-Friendly</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Bicycle delivery focus</p>
-          </div>
-          <div className="text-center p-4 rounded-lg bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm border border-cyan-200 dark:border-cyan-800">
-            <MapPin className="h-8 w-8 text-cyan-500 mx-auto mb-2" />
-            <h3 className="font-semibold text-cyan-600 dark:text-cyan-400">Real-Time</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Live tracking & updates</p>
-          </div>
         </div>
       </div>
     </div>

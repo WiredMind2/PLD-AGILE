@@ -7,7 +7,7 @@ import { ThemeToggle } from '@/components/ui/theme-toggle'
 
 export default function MainView(): JSX.Element {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-cyan-50 dark:from-gray-950 dark:via-blue-950 dark:to-purple-950">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-cyan-50 dark:from-gray-950 ">
       {/* Header */}
       <div className="sticky top-0 z-50 w-full border-b border-blue-200/50 dark:border-gray-800/50 bg-white/80 dark:bg-gray-950/80 backdrop-blur-lg supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-gray-950/60">
         <div className="container flex h-16 items-center justify-between px-6">
@@ -26,11 +26,11 @@ export default function MainView(): JSX.Element {
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <Button size="sm" variant="outline" className="gap-2 border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400">
+            <Button size="sm" variant="outline" className="gap-2 border-blue-200 text-blue-600 dark:border-blue-800 dark:text-blue-400">
               <Upload className="h-4 w-4" />
               Load Map (XML)
             </Button>
-            <Button size="sm" variant="outline" className="gap-2 border-cyan-200 text-cyan-600 hover:bg-cyan-50 dark:border-cyan-800 dark:text-cyan-400">
+            <Button size="sm" variant="outline" className="gap-2 border-cyan-200 text-cyan-600  dark:border-cyan-800 dark:text-cyan-400">
               <Save className="h-4 w-4" />
               Save Tours
             </Button>
@@ -112,7 +112,7 @@ export default function MainView(): JSX.Element {
                   </div>
                   <p className="text-lg font-medium text-blue-600 dark:text-blue-400">No Map Loaded</p>
                   <p className="text-sm text-blue-500 dark:text-blue-500">Load an XML file to display the city map</p>
-                  <Button variant="outline" className="mt-2 border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400">
+                  <Button variant="outline" className="mt-2 border-blue-200 text-blue-600 dark:border-blue-800 dark:text-blue-400">
                     <Upload className="mr-2 h-4 w-4" />
                     Load XML Map
                   </Button>
@@ -139,9 +139,9 @@ export default function MainView(): JSX.Element {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Number of Couriers:</span>
                     <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-purple-200 text-purple-600 hover:bg-purple-50">-</Button>
+                      <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-purple-200 text-purple-600">-</Button>
                       <span className="text-lg font-semibold w-8 text-center text-purple-700 dark:text-purple-300">1</span>
-                      <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-purple-200 text-purple-600 hover:bg-purple-50">+</Button>
+                      <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-purple-200 text-purple-600">+</Button>
                     </div>
                   </div>
                   <div className="text-xs text-purple-500 dark:text-purple-400">
