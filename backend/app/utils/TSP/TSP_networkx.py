@@ -1,9 +1,15 @@
+"""
+THIS FILE REQUIRES networkx TO BE INSTALLED.
+SHOULD NOT BE USED IN FINAL VERSION.
+"""
+
 import heapq
 try:
     from .Astar import Astar
 except ImportError:
     from Astar import Astar
 
+import networkx as nx
 
 
 class TSP():
@@ -73,29 +79,37 @@ class TSP():
         return None, float('inf')
 
     def _build_metric_complete_graph(self, graph):
-        """Return a lightweight dict-of-dicts distance matrix from the shortest-paths graph.
+        """Convert the provided shortest-paths dict-of-dicts into a complete metric networkx Graph.
 
-        The returned object is a mapping u -> v -> float cost. Raises ValueError if any pair is unreachable.
+        `graph` is expected to be mapping u -> {v: {'cost': w, ...}, ...}
+        Missing or infinite edges will be treated as absent and raise ValueError if graph is not metric/complete.
         """
+        G = nx.Graph()
         nodes = list(graph.keys())
-        D = {u: {} for u in nodes}
         for u in nodes:
-            for v in nodes:
-                if u == v:
-                    D[u][v] = 0.0
-                    continue
+            G.add_node(u)
+
+        for i, u in enumerate(nodes):
+            for v in nodes[i+1:]:
                 cost = graph[u].get(v, {}).get('cost', float('inf'))
                 if cost == float('inf'):
+                    # If missing, try the reverse direction
                     cost = graph[v].get(u, {}).get('cost', float('inf'))
                 if cost == float('inf'):
                     raise ValueError(f"Graph is not complete/metric between {u} and {v}")
-                D[u][v] = float(cost)
-        return D
+                G.add_edge(u, v, weight=cost)
+        return G
 
-    def solve_multi_start_nn_2opt(self, nodes=None):
-        """Return a tour and cost using Multi-start Nearest-Neighbor + 2-opt heuristic.
+    def solve_christofides(self, nodes=None):
+        """Return a tour and cost using Christofides algorithm (approx 1.5-approx for metric TSP).
 
-        This is fast, deterministic for a given set of starts, and gives good-quality tours for metric TSPs.
+        Steps:
+        1. Build metric complete graph from computed shortest-paths.
+        2. Compute MST.
+        3. Find odd-degree vertices of MST.
+        4. Compute minimum-weight perfect matching on the induced subgraph of odd-degree vertices.
+        5. Combine MST and matching to make Eulerian multigraph, find Eulerian circuit.
+        6. Shortcut repeated vertices to obtain Hamiltonian tour.
         """
         if nodes is not None:
             self.astar.nodes = nodes
@@ -103,63 +117,64 @@ class TSP():
             self.astar.load_data()
 
         sp_graph = self.astar.compute_shortest_paths_graph()
-        D = self._build_metric_complete_graph(sp_graph)
+        G = self._build_metric_complete_graph(sp_graph)
 
-        nodes_list = list(D.keys())
+        # 1. MST
+        T = nx.minimum_spanning_tree(G, weight='weight')
 
-        def tour_cost(tour):
-            c = 0.0
-            for i in range(len(tour)-1):
-                c += D[tour[i]][tour[i+1]]
-            return c
+        # 2. Odd degree vertices
+        odd_nodes = [v for v, d in T.degree() if d % 2 == 1]
 
-        def nearest_neighbor(start):
-            unvisited = set(nodes_list)
-            tour = [start]
-            unvisited.remove(start)
-            cur = start
-            while unvisited:
-                nxt = min(unvisited, key=lambda x: D[cur][x])
-                tour.append(nxt)
-                unvisited.remove(nxt)
-                cur = nxt
-            tour.append(start)
-            return tour
+        # 3. Induced subgraph on odd degree vertices (complete within these nodes via G)
+        M = nx.Graph()
+        for i, u in enumerate(odd_nodes):
+            for v in odd_nodes[i+1:]:
+                w = G[u][v]['weight']
+                M.add_edge(u, v, weight=w)
 
-        def two_opt(tour):
-            improved = True
-            n = len(tour)
-            while improved:
-                improved = False
-                for i in range(1, n - 2):
-                    for j in range(i+1, n - 1):
-                        # compute delta for swapping (i..j)
-                        a, b = tour[i-1], tour[i]
-                        c, d = tour[j], tour[(j+1) % n]
-                        delta = D[a][c] + D[b][d] - D[a][b] - D[c][d]
-                        if delta < -1e-12:
-                            # perform 2-opt: reverse segment i..j
-                            tour[i:j+1] = reversed(tour[i:j+1])
-                            improved = True
-                # loop until no improvement
-            return tour
+        # 4. Minimum weight perfect matching on M (returns set of edges)
+        matching = nx.algorithms.matching.min_weight_matching(M, weight='weight')
 
-        best_tour = None
-        best_cost = float('inf')
+        # 5. Combine edges of T and matching to form a multigraph
+        multigraph = nx.MultiGraph()
+        multigraph.add_nodes_from(T.nodes())
+        multigraph.add_edges_from(T.edges(data=True))
+        # add matching edges (as single edges)
+        for u, v in matching:
+            multigraph.add_edge(u, v, weight=G[u][v]['weight'])
 
-        # multi-start: try each node as start up to a limit
-        max_starts = min(len(nodes_list), 10)
-        starts = nodes_list if len(nodes_list) <= max_starts else nodes_list[:max_starts]
+        # 6. Find Eulerian circuit
+        if not nx.is_eulerian(multigraph):
+            # should be Eulerian by construction, but ensure it
+            # connect components if necessary (shouldn't happen for connected G)
+            multigraph = nx.eulerize(multigraph)
 
-        for s in starts:
-            t = nearest_neighbor(s)
-            t = two_opt(t)
-            c = tour_cost(t)
-            if c < best_cost:
-                best_cost = c
-                best_tour = t
+        euler_circuit = list(nx.eulerian_circuit(multigraph))
 
-        return best_tour, best_cost
+        # 7. Shortcut repeated vertices to get Hamiltonian tour
+        tour = []
+        seen = set()
+        for u, v in euler_circuit:
+            if u not in seen:
+                tour.append(u)
+                seen.add(u)
+            # last edge's v possibly added on next iteration
+        # ensure all nodes included
+        for n in G.nodes():
+            if n not in seen:
+                tour.append(n)
+
+        # close tour
+        if tour and tour[0] != tour[-1]:
+            tour.append(tour[0])
+
+        # compute total cost
+        total = 0.0
+        for i in range(len(tour)-1):
+            u, v = tour[i], tour[i+1]
+            total += G[u][v]['weight']
+
+        return tour, total
 
     def expand_tour_with_paths(self, tour, sp_graph):
         """Expand a compact tour (list of location nodes) into the full node-level route
@@ -192,7 +207,7 @@ if __name__ == "__main__":
     tsp = TSP()
     tsp.astar.load_data()
     sp_graph = tsp.astar.compute_shortest_paths_graph()
-    path, cost = tsp.solve_multi_start_nn_2opt()
+    path, cost = tsp.solve_christofides()
     print("Compact tour:", path)
     print("Compact cost:", cost)
 
