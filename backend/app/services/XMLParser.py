@@ -14,7 +14,9 @@ class XMLParser:
         return f"D{cls._id_counter}"
     
     @staticmethod           
-    def parse_deliveries(xml_text):
+    def parse_deliveries(file_path):
+        with open(file_path, 'r', encoding='utf-8') as f:
+            xml_text = f.read()
         root = ET.fromstring(xml_text)
 
         # Grab hourDeparture from <entrepot ... heureDepart="...">
@@ -37,7 +39,9 @@ class XMLParser:
         return deliveries
     
     @staticmethod
-    def parse_map(xml_text):
+    def parse_map(file_path):
+        with open(file_path, 'r', encoding='utf-8') as f:
+            xml_text = f.read()
         root = ET.fromstring(xml_text)
         # --- 1) Intersections ---
         intersections: List[Intersection] = []
