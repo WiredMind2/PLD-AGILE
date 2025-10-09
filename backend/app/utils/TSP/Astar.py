@@ -70,7 +70,7 @@ class Astar:
 
         self.adj = {}
         for src, dst, metric, factor, penalty in self.edges:
-            self.adj.setdefault(src, {})
+            # compute cost for this directed edge
             a = self.nodes[src]
             b = self.nodes[dst]
 
@@ -84,9 +84,31 @@ class Astar:
                 base = self._euclid(a, b)
 
             cost = round(base * float(factor) + float(penalty), 3)
+
+            # add src -> dst
+            self.adj.setdefault(src, {})
             prev = self.adj[src].get(dst)
             if prev is None or cost < prev:
                 self.adj[src][dst] = cost
+
+            # also add a reverse edge dst -> src with the same metric parameters
+            # compute cost for reverse (using swapped points and same factor/penalty)
+            a_rev = self.nodes[dst]
+            b_rev = self.nodes[src]
+            if metric == "euclid":
+                base_rev = self._euclid(a_rev, b_rev)
+            elif metric == "manhattan":
+                base_rev = self._manhattan(a_rev, b_rev)
+            elif metric == "mixed":
+                base_rev = self.alpha * self._euclid(a_rev, b_rev) + (1.0 - self.alpha) * self._manhattan(a_rev, b_rev)
+            else:
+                base_rev = self._euclid(a_rev, b_rev)
+
+            cost_rev = round(base_rev * float(factor) + float(penalty), 3)
+            self.adj.setdefault(dst, {})
+            prev_rev = self.adj[dst].get(src)
+            if prev_rev is None or cost_rev < prev_rev:
+                self.adj[dst][src] = cost_rev
 
     def _euclid(self, a: Tuple[float, float], b: Tuple[float, float]) -> float:
         return math.hypot(a[0] - b[0], a[1] - b[1])
