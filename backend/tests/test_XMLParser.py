@@ -1,10 +1,10 @@
 from pathlib import Path
 import pytest
-from backend.app.services.XMLParser import XMLParser
-from backend.app.models.schemas import DEFAULT_SPEED_KMH, Delivery
+from app.services.XMLParser import XMLParser
+from app.models.schemas import DEFAULT_SPEED_KMH, Delivery
 import tempfile
 import os
-from backend.app.models.schemas import Intersection, RoadSegment, Map
+from app.models.schemas import Intersection, RoadSegment, Map
 
 @pytest.fixture(autouse=True)
 def reset_id_counter():
