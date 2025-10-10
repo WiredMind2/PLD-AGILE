@@ -1,7 +1,12 @@
 from typing import List, Optional
 import xml.etree.ElementTree as ET
 
-from app.models.schemas import DEFAULT_SPEED_KMH, Delivery, Intersection, RoadSegment, Map
+try:
+    from app.models.schemas import DEFAULT_SPEED_KMH, Delivery, Intersection, RoadSegment, Map
+except ImportError:
+    import sys, os
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    from models.schemas import DEFAULT_SPEED_KMH, Delivery, Intersection, RoadSegment, Map
 
 class XMLParser:
     # simple class-level counter to generate unique delivery IDs (D1, D2, ...)
