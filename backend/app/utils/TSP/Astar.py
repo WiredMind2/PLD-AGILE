@@ -3,7 +3,12 @@ import math
 from typing import Dict, Tuple, List, Optional
 import xml.etree.ElementTree as ET
 import os
-from app.services.XMLParser import XMLParser
+try:
+    from app.services.XMLParser import XMLParser
+except ImportError:
+    import sys
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+    from services.XMLParser import XMLParser
 
 
 class Astar:
@@ -23,7 +28,7 @@ class Astar:
         # optional structures used by load_data()
         self.edges = []
 
-    def load_data(self, xml_file_path: str = None):
+    def load_data(self, xml_file_path: Optional[str] = None):
         """
         Load data from an XML file using XMLParser.
         If no file is specified, use a default file.
@@ -51,18 +56,26 @@ class Astar:
             # Build self.adj from road segments
             self.adj = {}
             for segment in map_data.road_segments:
-                # XMLParser returns start/end as strings (IDs), not Intersection objects
-                start_id = segment.start  # already a string ID
-                end_id = segment.end      # already a string ID
-                
+                # start/end may be either a string ID or an Intersection object.
+                start_id = getattr(segment.start, 'id', segment.start)
+                end_id = getattr(segment.end, 'id', segment.end)
+
+                # Normalize to strings
+                try:
+                    start_id = str(start_id)
+                    end_id = str(end_id)
+                except Exception:
+                    # Skip malformed segment
+                    continue
+
                 # Verify that source and destination nodes exist
                 if start_id in self.nodes and end_id in self.nodes:
                     if start_id not in self.adj:
                         self.adj[start_id] = {}
-                    
+
                     # Use the segment length as the cost
                     cost = float(segment.length_m)
-                    
+
                     # If there's already an edge between these nodes, keep the shortest
                     existing_cost = self.adj[start_id].get(end_id)
                     if existing_cost is None or cost < existing_cost:
