@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.api.api_v1.api import api_router
+from app.utils.TSP.Astar import Astar
 
 
 @asynccontextmanager
@@ -54,6 +55,11 @@ async def health_check():
 
 
 if __name__ == "__main__":
+    # Test de la classe Astar
+    astar = Astar(0.5)
+    result = astar.print_for_test()
+    
+    print("\n=== Démarrage du serveur FastAPI ===")
     import uvicorn
     uvicorn.run(
         "main:app",
