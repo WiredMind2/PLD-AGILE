@@ -2,7 +2,7 @@ from typing import List, Tuple
 import xml.etree.ElementTree as ET
 
 from traitlets import Dict
-from backend.app.models.schemas import DEFAULT_SPEED_KMH, Delivery, Intersection,RoadSegment,Map
+from app.models.schemas import DEFAULT_SPEED_KMH, Delivery, Intersection, RoadSegment, Map
 
 class XMLParser:
     # simple class-level counter to generate unique delivery IDs (D1, D2, ...)

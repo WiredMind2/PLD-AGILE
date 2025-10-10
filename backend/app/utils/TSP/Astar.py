@@ -2,6 +2,8 @@ import heapq
 import math
 from typing import Dict, Tuple, List, Optional
 import xml.etree.ElementTree as ET
+import os
+from app.services.XMLParser import XMLParser
 
 
 class Astar:
@@ -21,72 +23,59 @@ class Astar:
         # structures optionnelles utilisées par load_data()
         self.edges = []
 
-    def load_data(self):
+    def load_data(self, xml_file_path: str = None):
         """
-        Initialise des données factices (exemples) dans self.nodes et self.edges,
-        puis construit self.adj (matrice d'adjacence avec coûts).
+        Charge les données d'un fichier XML en utilisant XMLParser.
+        Si aucun fichier n'est spécifié, utilise un fichier par défaut.
         """
-        self.nodes = {
-            "1": (0.0, 0.0),
-            "2": (1.0, 2.0),
-            "3": (4.0, 2.0),
-            "4": (3.5, -1.0),
-            "5": (-1.0, 1.0),
-            "6": (2.0, 0.5),
-            "7": (0.5, -2.0),
-            "8": (5.5, 0.0),
-            "9": (6.0, 2.5),
-            "10": (-2.0, 0.5),
-            "11": (1.0, 4.0),
-        }
+        if xml_file_path is None:
+            # Utilise un fichier XML par défaut depuis le répertoire du projet
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.join(current_dir, "..", "..", "..", "..")
+            xml_file_path = os.path.join(project_root, "fichiersXMLPickupDelivery", "petitPlan.xml")
+        
+        try:
+            # Lire le contenu du fichier XML
+            with open(xml_file_path, 'r', encoding='utf-8') as file:
+                xml_content = file.read()
+            
+            # Parser les données avec XMLParser
+            map_data = XMLParser.parse_map(xml_content)
+            
+            # Construire self.nodes à partir des intersections
+            self.nodes = {}
+            for intersection in map_data.intersections:
+                # Utiliser (longitude, latitude) comme coordonnées (x, y)
+                self.nodes[intersection.id] = (intersection.longitude, intersection.latitude)
+            
+            # Construire self.adj à partir des segments de route
+            self.adj = {}
+            for segment in map_data.road_segments:
+                # XMLParser retourne start/end comme des strings (IDs), pas des objets Intersection
+                start_id = segment.start  # C'est déjà un string ID
+                end_id = segment.end      # C'est déjà un string ID
+                
+                # Vérifier que les nœuds source et destination existent
+                if start_id in self.nodes and end_id in self.nodes:
+                    if start_id not in self.adj:
+                        self.adj[start_id] = {}
+                    
+                    # Utiliser la longueur du segment comme coût
+                    cost = float(segment.length_m)
+                    
+                    # Si il y a déjà un arc entre ces nœuds, garder le plus court
+                    existing_cost = self.adj[start_id].get(end_id)
+                    if existing_cost is None or cost < existing_cost:
+                        self.adj[start_id][end_id] = cost
+            
+            print(f"Données chargées: {len(self.nodes)} nœuds, {sum(len(adj) for adj in self.adj.values())} arcs")
+            
+        except FileNotFoundError:
+            print(f"Fichier XML non trouvé: {xml_file_path}")
+        except Exception as e:
+            print(f"Erreur lors du chargement du fichier XML: {e}")
 
-        self.edges = [
-            ("1", "2", "euclid", 1.0, 0.0),
-            ("2", "3", "euclid", 1.0, 0.0),
-            ("3", "8", "euclid", 1.0, 0.0),
-            ("8", "9", "euclid", 1.0, 0.0),
-            ("9", "3", "euclid", 1.2, 0.3),
-            ("2", "11", "euclid", 1.0, 0.0),
-            ("11", "2", "euclid", 1.0, 0.0),
-            ("1", "7", "euclid", 1.1, 0.0),
-            ("7", "4", "euclid", 1.3, 0.5),
-            ("4", "3", "euclid", 1.0, 0.0),
-            ("5", "1", "euclid", 1.2, 0.2),
-            ("10", "5", "euclid", 1.0, 0.0),
-            ("5", "10", "euclid", 1.0, 0.0),
-            ("6", "2", "manhattan", 1.0, 0.0),
-            ("2", "6", "euclid", 0.9, 0.0),
-            ("6", "4", "euclid", 1.0, 0.0),
-            ("4", "8", "euclid", 1.1, 0.2),
-            ("8", "4", "euclid", 1.0, 0.0),
-            ("3", "6", "mixed", 0.8, 0.0),
-            ("6", "11", "manhattan", 1.0, 0.0),
-            ("11", "6", "euclid", 1.1, 0.0),
-            ("7", "1", "euclid", 1.5, 0.7),
-            ("9", "8", "euclid", 1.0, 0.0),
-            ("10", "1", "euclid", 1.3, 0.2),
-            ("5", "2", "mixed", 0.9, 0.1),
-        ]
-
-        self.adj = {}
-        for src, dst, metric, factor, penalty in self.edges:
-            self.adj.setdefault(src, {})
-            a = self.nodes[src]
-            b = self.nodes[dst]
-
-            if metric == "euclid":
-                base = self._euclid(a, b)
-            elif metric == "manhattan":
-                base = self._manhattan(a, b)
-            elif metric == "mixed":
-                base = self.alpha * self._euclid(a, b) + (1.0 - self.alpha) * self._manhattan(a, b)
-            else:
-                base = self._euclid(a, b)
-
-            cost = round(base * float(factor) + float(penalty), 3)
-            prev = self.adj[src].get(dst)
-            if prev is None or cost < prev:
-                self.adj[src][dst] = cost
+  
 
     def _euclid(self, a: Tuple[float, float], b: Tuple[float, float]) -> float:
         return math.hypot(a[0] - b[0], a[1] - b[1])
@@ -185,10 +174,10 @@ class Astar:
 
     def print_for_test(self) -> Dict[str, Dict[str, Dict]]:
         """
-        For testing only (temporary).
+        Pour les tests seulement (temporaire).
 
-        Loads dummy data, computes all shortest paths via multipleTarget_astar,
-        prints the results and returns the obtained dictionary.
+        Charge les données depuis un fichier XML via XMLParser, calcule tous les plus courts 
+        chemins via multipleTarget_astar, affiche les résultats et retourne le dictionnaire obtenu.
         """
         if not self.nodes:
             self.load_data()
@@ -201,20 +190,31 @@ class Astar:
             except Exception:
                 return k
 
-        for src in sorted(result.keys(), key=_sort_key):
-            print(f"From {src}:")
+        # Afficher seulement un échantillon pour éviter une sortie trop longue
+        sorted_sources = sorted(result.keys(), key=_sort_key)
+        max_display = min(5, len(sorted_sources))  # Limiter à 5 sources max
+        
+        print(f"=== Résultats A* (affichage des {max_display} premiers nœuds sur {len(sorted_sources)}) ===")
+        for i, src in enumerate(sorted_sources[:max_display]):
+            print(f"\nDepuis {src}:")
             tgt_map = result[src]
-            for tgt, info in sorted(tgt_map.items(), key=lambda it: _sort_key(it[0])):
+            sorted_targets = sorted(tgt_map.items(), key=lambda it: _sort_key(it[0]))
+            max_targets = min(5, len(sorted_targets))  # Limiter à 5 destinations max
+            
+            for j, (tgt, info) in enumerate(sorted_targets[:max_targets]):
                 path = info.get("path")
                 cost = info.get("cost", float("inf"))
                 if path is None:
-                    print(f"  to {tgt}: unreachable (cost=inf)")
+                    print(f"  vers {tgt}: inaccessible (cost=inf)")
                 else:
-                    print(f"  to {tgt}: cost={cost}, path={' -> '.join(path)}")
+                    print(f"  vers {tgt}: cost={cost:.2f}m, path={' -> '.join(path)}")
+            
+            if len(sorted_targets) > max_targets:
+                print(f"  ... et {len(sorted_targets) - max_targets} autres destinations")
+        
+        if len(sorted_sources) > max_display:
+            print(f"\n... et {len(sorted_sources) - max_display} autres sources")
+            
         return result
-        
-       
-        
-        
         
     
