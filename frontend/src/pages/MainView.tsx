@@ -4,8 +4,77 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Map, Truck, Clock, Save, Plus, Route, Upload, MapPin, Timer, Package, Activity } from 'lucide-react'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
+import React, { useEffect, useState } from 'react'
+import { uploadMap, getState, addRequest, computeTours, saveState } from '@/lib/api'
 
 export default function MainView(): JSX.Element {
+  const [couriersCount, setCouriersCount] = useState<number>(0)
+  const [requestsCount, setRequestsCount] = useState<number>(0)
+
+  useEffect(() => {
+    void hydrate()
+  }, [])
+
+  async function hydrate() {
+    try {
+      const st = await getState()
+      setCouriersCount((st.couriers || []).length)
+      setRequestsCount((st.deliveries || []).length)
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  async function onLoadMap() {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.xml'
+    input.onchange = async () => {
+      const f = input.files && input.files[0]
+      if (!f) return
+      try {
+        await uploadMap(f)
+        await hydrate()
+        alert('Map uploaded')
+      } catch (err: any) {
+        alert('Upload failed: ' + err?.message)
+      }
+    }
+    input.click()
+  }
+
+  async function onNewRequest() {
+    const pickup = window.prompt('Pickup node id (e.g. N1)')
+    const delivery = window.prompt('Delivery node id (e.g. N2)')
+    if (!pickup || !delivery) return
+    try {
+      await addRequest({ pickup_addr: pickup, delivery_addr: delivery, pickup_service_s: 60, delivery_service_s: 60 })
+      await hydrate()
+      alert('Request added')
+    } catch (err: any) {
+      alert('Add request failed: ' + err?.message)
+    }
+  }
+
+  async function onOptimize() {
+    try {
+      await computeTours()
+      await hydrate()
+      alert('Tours computed')
+    } catch (err: any) {
+      alert('Compute failed: ' + err?.message)
+    }
+  }
+
+  async function onSaveTours() {
+    try {
+      await saveState()
+      alert('State saved')
+    } catch (err: any) {
+      alert('Save failed: ' + err?.message)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-cyan-50 dark:from-gray-950 ">
       {/* Header */}
@@ -26,15 +95,15 @@ export default function MainView(): JSX.Element {
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <Button size="sm" variant="outline" className="gap-2 border-blue-200 text-blue-600 dark:border-blue-800 dark:text-blue-400">
+            <Button size="sm" variant="outline" onClick={onLoadMap} className="gap-2 border-blue-200 text-blue-600 dark:border-blue-800 dark:text-blue-400">
               <Upload className="h-4 w-4" />
               Load Map (XML)
             </Button>
-            <Button size="sm" variant="outline" className="gap-2 border-cyan-200 text-cyan-600  dark:border-cyan-800 dark:text-cyan-400">
+            <Button size="sm" variant="outline" onClick={onSaveTours} className="gap-2 border-cyan-200 text-cyan-600  dark:border-cyan-800 dark:text-cyan-400">
               <Save className="h-4 w-4" />
               Save Tours
             </Button>
-            <Button size="sm" className="gap-2 bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white shadow-lg">
+            <Button size="sm" onClick={onOptimize} className="gap-2 bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white shadow-lg">
               <Route className="h-4 w-4" />
               Optimize Tours
             </Button>
@@ -52,7 +121,7 @@ export default function MainView(): JSX.Element {
               <Truck className="h-4 w-4 text-blue-200" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">1</div>
+              <div className="text-2xl font-bold">{couriersCount}</div>
               <p className="text-xs text-blue-200">Bicycle couriers</p>
             </CardContent>
           </Card>
@@ -63,7 +132,7 @@ export default function MainView(): JSX.Element {
               <Package className="h-4 w-4 text-purple-200" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">0</div>
+              <div className="text-2xl font-bold">{requestsCount}</div>
               <p className="text-xs text-purple-200">Active requests</p>
             </CardContent>
           </Card>
@@ -195,7 +264,7 @@ export default function MainView(): JSX.Element {
                 </CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" className="gap-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg">
+                <Button size="sm" onClick={onNewRequest} className="gap-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg">
                   <Plus className="h-4 w-4" />
                   New Delivery Request
                 </Button>
