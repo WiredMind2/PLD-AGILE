@@ -1,4 +1,5 @@
 from typing import List, Optional
+import os
 import xml.etree.ElementTree as ET
 
 try:
@@ -27,7 +28,12 @@ class XMLParser:
         pickup_addr and delivery_addr may be strings (IDs) or Intersection
         objects. This function preserves the raw attribute value (string).
         """
-        root: ET.Element = ET.fromstring(xml_text)
+        # allow passing either an XML string or a path to an XML file
+        if isinstance(xml_text, str) and os.path.isfile(xml_text):
+            tree = ET.parse(xml_text)
+            root: ET.Element = tree.getroot()
+        else:
+            root: ET.Element = ET.fromstring(xml_text)
 
         # Grab hourDeparture from <entrepot ... heureDepart="...">
         entrepot: Optional[ET.Element] = root.find('entrepot')
@@ -62,7 +68,12 @@ class XMLParser:
         with start/end set to the raw node id strings. Upstream code may
         expect Intersection objects; adapt as needed.
         """
-        root: ET.Element = ET.fromstring(xml_text)
+        # allow passing either an XML string or a path to an XML file
+        if isinstance(xml_text, str) and os.path.isfile(xml_text):
+            tree = ET.parse(xml_text)
+            root: ET.Element = tree.getroot()
+        else:
+            root: ET.Element = ET.fromstring(xml_text)
 
         # --- 1) Intersections ---
         intersections: List[Intersection] = []

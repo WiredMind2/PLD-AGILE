@@ -96,7 +96,9 @@ def test_parse_map_parses_nodes_and_troncons(tmp_path: Path):
 
 
 def test_parse_from_real_file(tmp_path: Path):
-    reset_id_counter()
+    # the autouse fixture already resets the counter for the test; if we need to
+    # ensure it here, reset directly on the class rather than calling the fixture
+    XMLParser._id_counter = 0
     deliveries = XMLParser.parse_deliveries(str(file_path_deliveries))
     assert len(deliveries) == 5  # assuming the test XML has 5 deliveries
 
