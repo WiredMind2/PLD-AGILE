@@ -4,103 +4,170 @@ SHOULD NOT BE USED IN FINAL VERSION.
 """
 
 import heapq
+import os
+import sys
+from typing import Dict, List, Optional
 try:
-    from .Astar import Astar
-except ImportError:
-    from Astar import Astar
+    import networkx as nx
+except Exception:
+    raise
 
-import networkx as nx
+try:
+    from app.services.XMLParser import XMLParser
+except Exception:
+    # fallback for direct script execution / tests
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+    from services.XMLParser import XMLParser
 
 
 class TSP():
     def __init__(self):
-        self.astar = Astar()
+        # No A* dependency here. We'll build a NetworkX graph from XML map
+        # data and use NetworkX shortest-path routines which are C-optimized
+        # and much faster than the Python A* implementation for this workload.
+        self.graph = None
 
-    def solve(self, nodes=None):
-        if nodes is not None:
-            self.astar.nodes = nodes
-        else:
-            self.astar.load_data()
-        graph = self.astar.compute_shortest_paths_graph()
+    def _build_networkx_map_graph(self, xml_file_path: str | None = None):
+        """Parse the XML map and return a directed NetworkX graph and the node list.
 
-        # Use the first node in the graph as the start
-        try:
-            start = next(iter(graph))
-        except StopIteration:
-            return None, float('inf')
+        The returned graph uses edge attribute 'weight' with the segment length (meters).
+        """
+        if xml_file_path is None:
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.join(current_dir, "..", "..", "..", "..")
+            xml_file_path = os.path.join(project_root, "fichiersXMLPickupDelivery", "petitPlan.xml")
 
-        # We'll push entries containing the full ordered path so we can return a valid tour.
-        # Heap entries: (cost, tie, current_node, visited_frozenset, path_list)
-        import itertools
-        counter = itertools.count()
+        with open(xml_file_path, 'r', encoding='utf-8') as f:
+            xml_text = f.read()
 
-        n_nodes = len(graph)
-        start_entry = (0.0, next(counter), start, frozenset([start]), [start])
-        heap = [start_entry]
+        map_data = XMLParser.parse_map(xml_text)
 
-        while heap:
-            cost, _, node, visited, path = heapq.heappop(heap)
+        G = nx.DiGraph()
+        # Add nodes (use intersection ids as strings)
+        for inter in map_data.intersections:
+            G.add_node(str(inter.id))
 
-            # If we've visited all nodes, try to close the tour back to start
-            if len(visited) == n_nodes:
-                back_cost = graph[node].get(start, {}).get('cost', float('inf'))
-                if back_cost != float('inf'):
-                    return path + [start], cost + back_cost
-                # no edge back to start from this node, continue searching
+        # Add directed edges with weight = length_m
+        for seg in map_data.road_segments:
+            start_id = str(getattr(seg.start, 'id', seg.start))
+            end_id = str(getattr(seg.end, 'id', seg.end))
+            try:
+                weight = float(seg.length_m)
+            except Exception:
+                weight = float('inf')
+            # If node ids are present, add the edge
+            if start_id in G.nodes and end_id in G.nodes:
+                # If multiple edges exist, keep the smallest weight
+                prev = G.get_edge_data(start_id, end_id, default=None)
+                if prev is None or weight < prev.get('weight', float('inf')):
+                    G.add_edge(start_id, end_id, weight=weight, street_name=seg.street_name)
 
-            for neighbor, data in graph[node].items():
-                edge_cost = data.get('cost', float('inf'))
-                if edge_cost == float('inf'):
-                    continue
-                # Allow revisiting nodes (to go back along a segment), but track which
-                # distinct nodes have been seen in `visited`. If neighbor was already
-                # seen, `new_visited` remains the same; otherwise we add it.
-                if neighbor in visited:
-                    new_visited = visited
-                else:
-                    new_visited = visited | {neighbor}
+        return G, list(G.nodes())
 
-                new_path = path + [neighbor]
-                new_cost = cost + edge_cost
-
-                # Prune states we've already reached cheaper or equal before. Keyed by
-                # (node, visited_set) so revisiting is allowed but we avoid endless loops.
-                if not hasattr(self, '_tsp_best_cost'):
-                    self._tsp_best_cost = {}
-
-                state_key = (neighbor, new_visited)
-                prev_best = self._tsp_best_cost.get(state_key, float('inf'))
-                if new_cost >= prev_best:
-                    continue
-
-                self._tsp_best_cost[state_key] = new_cost
-                heapq.heappush(heap, (new_cost, next(counter), neighbor, new_visited, new_path))
-
-        return None, float('inf')
+    # The previous brute-force `solve` was removed in favour of the
+    # Christofides-based polynomial-time solver (renamed to `solve`).
 
     def _build_metric_complete_graph(self, graph):
-        """Convert the provided shortest-paths dict-of-dicts into a complete metric networkx Graph.
+        """Build a symmetric metric complete graph from a directed sp_graph.
 
-        `graph` is expected to be mapping u -> {v: {'cost': w, ...}, ...}
-        Missing or infinite edges will be treated as absent and raise ValueError if graph is not metric/complete.
+        Steps:
+        - Initialize directed cost matrix from `graph` entries.
+        - Run Floyd–Warshall closure to compute shortest directed path costs.
+        - Select the largest mutually-reachable undirected component (pairs with finite costs both ways).
+        - Symmetrize distances by taking min(cost(u,v), cost(v,u)) and return a NetworkX Graph.
+
+        Unlike earlier code, this function will not raise on missing pairs; instead it
+        restricts the metric to the largest mutually-reachable component so callers
+        may 'ignore' problematic nodes that prevent a complete metric.
         """
-        G = nx.Graph()
+        INF = float('inf')
         nodes = list(graph.keys())
+        if not nodes:
+            return nx.Graph()
+
+        # Initialize cost matrix C[u][v]
+        C = {u: {v: (0.0 if u == v else INF) for v in nodes} for u in nodes}
         for u in nodes:
+            for v, info in graph.get(u, {}).items():
+                try:
+                    c = float(info.get('cost', INF))
+                except Exception:
+                    c = INF
+                if c < C[u].get(v, INF):
+                    C[u][v] = c
+
+        # Floyd–Warshall: closure to get shortest directed costs
+        for k in nodes:
+            row_k = C[k]
+            for i in nodes:
+                ik = C[i][k]
+                if ik == INF:
+                    continue
+                row_i = C[i]
+                base = ik
+                for j in nodes:
+                    kj = row_k[j]
+                    if kj == INF:
+                        continue
+                    nd = base + kj
+                    if nd < row_i[j]:
+                        row_i[j] = nd
+
+        # Build undirected adjacency for mutual reachability
+        adj_mutual = {u: set() for u in nodes}
+        for u in nodes:
+            for v in nodes:
+                if u == v:
+                    continue
+                if C[u][v] != INF and C[v][u] != INF:
+                    adj_mutual[u].add(v)
+
+        # Find connected components in the undirected mutual graph
+        seen = set()
+        components = []
+        for u in nodes:
+            if u in seen:
+                continue
+            stack = [u]
+            comp = set()
+            while stack:
+                x = stack.pop()
+                if x in comp:
+                    continue
+                comp.add(x)
+                seen.add(x)
+                for nb in adj_mutual.get(x, ()):  # neighbors
+                    if nb not in comp:
+                        stack.append(nb)
+            components.append(comp)
+
+        if not components:
+            # No mutual reachability; return empty graph
+            return nx.Graph()
+
+        # choose the largest component
+        components.sort(key=len, reverse=True)
+        largest = components[0]
+        if len(largest) < 2:
+            # Nothing useful to build
+            return nx.Graph()
+
+        chosen_nodes = list(largest)
+
+        # Symmetrize to metric: D[u][v] = min(C[u][v], C[v][u]) for chosen nodes
+        G = nx.Graph()
+        for u in chosen_nodes:
             G.add_node(u)
 
-        for i, u in enumerate(nodes):
-            for v in nodes[i+1:]:
-                cost = graph[u].get(v, {}).get('cost', float('inf'))
-                if cost == float('inf'):
-                    # If missing, try the reverse direction
-                    cost = graph[v].get(u, {}).get('cost', float('inf'))
-                if cost == float('inf'):
-                    raise ValueError(f"Graph is not complete/metric between {u} and {v}")
-                G.add_edge(u, v, weight=cost)
+        for i, u in enumerate(chosen_nodes):
+            for v in chosen_nodes[i+1:]:
+                d = float(min(C[u][v], C[v][u]))
+                # by construction via mutual reachability, d should be finite
+                G.add_edge(u, v, weight=d)
+
         return G
 
-    def solve_christofides(self, nodes=None):
+    def solve(self, nodes=None, must_visit=None):
         """Return a tour and cost using Christofides algorithm (approx 1.5-approx for metric TSP).
 
         Steps:
@@ -111,12 +178,45 @@ class TSP():
         5. Combine MST and matching to make Eulerian multigraph, find Eulerian circuit.
         6. Shortcut repeated vertices to obtain Hamiltonian tour.
         """
-        if nodes is not None:
-            self.astar.nodes = nodes
+        # Compute pairwise shortest-paths among the TSP nodes using networkx
+        G_map, all_nodes = self._build_networkx_map_graph()
+        # Support `must_visit` similar to the removed solve(): if provided,
+        # take the union of `nodes` and `must_visit` so the solver computes
+        # pairwise distances among required locations and any extra nodes
+        # provided for connectivity.
+        if must_visit is not None:
+            if nodes is not None:
+                nodes_list = list(dict.fromkeys(list(nodes) + list(must_visit)))
+            else:
+                nodes_list = list(dict.fromkeys(list(must_visit)))
         else:
-            self.astar.load_data()
+            nodes_list = list(nodes) if nodes is not None else list(all_nodes)
 
-        sp_graph = self.astar.compute_shortest_paths_graph()
+        # Validate and filter out missing nodes in the map graph
+        missing = [n for n in nodes_list if n not in G_map.nodes()]
+        if missing:
+            print(f"Warning: {len(missing)} requested TSP nodes not present in map (examples: {missing[:5]})")
+            nodes_list = [n for n in nodes_list if n in G_map.nodes()]
+
+        # Build sp_graph similar to solve()
+        sp_graph = {}
+        for src in nodes_list:
+            try:
+                # NetworkX returns (distances: dict[node, float], paths: dict[node, list[node]])
+                lengths, paths = nx.single_source_dijkstra(G_map, src, weight='weight')
+                # help static type checkers
+                lengths = dict(lengths)  # type: Dict[str, float]
+                paths = dict(paths)      # type: Dict[str, List[str]]
+            except Exception:
+                lengths = {}  # type: Dict[str, float]
+                paths = {}    # type: Dict[str, List[str]]
+            sp_graph[src] = {}
+            for tgt in nodes_list:
+                if tgt == src:
+                    sp_graph[src][tgt] = {'path': [src], 'cost': 0.0}
+                else:
+                    sp_graph[src][tgt] = {'path': paths.get(tgt), 'cost': lengths.get(tgt, float('inf'))}
+
         G = self._build_metric_complete_graph(sp_graph)
 
         # 1. MST
@@ -133,7 +233,9 @@ class TSP():
                 M.add_edge(u, v, weight=w)
 
         # 4. Minimum weight perfect matching on M (returns set of edges)
-        matching = nx.algorithms.matching.min_weight_matching(M, weight='weight')
+        # use explicit import to satisfy static analyzers
+        from networkx.algorithms import matching as nx_matching
+        matching = nx_matching.min_weight_matching(M, weight='weight')
 
         # 5. Combine edges of T and matching to form a multigraph
         multigraph = nx.MultiGraph()
@@ -205,19 +307,9 @@ if __name__ == "__main__":
     # Example usage
 
     tsp = TSP()
-    tsp.astar.load_data()
-    sp_graph = tsp.astar.compute_shortest_paths_graph()
-    path, cost = tsp.solve_christofides()
+    path, cost = tsp.solve()
     print("Compact tour:", path)
     print("Compact cost:", cost)
-
-    try:
-        full_route, full_cost = tsp.expand_tour_with_paths(path, sp_graph)
-        print("Expanded route:", full_route)
-        print("Expanded cost:", full_cost)
-        if abs(full_cost - cost) > 1e-6:
-            print("Warning: expanded cost differs from compact cost!")
-        else:
-            print("Expanded cost matches compact cost.")
-    except ValueError as e:
-        print("Could not expand tour:", e)
+    # If you want to expand the compact tour to the full node-level route,
+    # recompute the pairwise sp_graph (as in solve_christofides) and call
+    # expand_tour_with_paths(). Keeping example minimal here.

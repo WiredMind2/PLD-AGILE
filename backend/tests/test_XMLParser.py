@@ -1,24 +1,26 @@
 import pytest
 from pathlib import Path
-from backend.app.services.XMLParser import XMLParser
-from backend.app.models import schemas as schemas_module
-from backend.app.models.schemas import DEFAULT_SPEED_KMH
+from app.services.XMLParser import XMLParser
+from app.models.schemas import DEFAULT_SPEED_KMH
 
 project_root = Path(__file__).resolve().parents[2]
-file_path_plan = project_root/"fichiersXMLPickupDelivery"/"petitPlan.xml"
-file_path_deliveries = project_root/"fichiersXMLPickupDelivery"/"demandeMoyen5.xml"
+file_path_plan = project_root / "fichiersXMLPickupDelivery" / "petitPlan.xml"
+file_path_deliveries = project_root / "fichiersXMLPickupDelivery" / "demandeMoyen5.xml"
 
+
+@pytest.fixture(autouse=True)
 def reset_id_counter():
     XMLParser._id_counter = 0
 
+
 def test_generate_id_increments():
-    reset_id_counter()
+    # autouse fixture resets the counter; don't call it directly.
     assert XMLParser.generate_id() == "D1"
     assert XMLParser.generate_id() == "D2"
     assert XMLParser.generate_id() == "D3"
 
+
 def test_parse_deliveries_parses_correctly(tmp_path: Path):
-    reset_id_counter()
     xml = """<?xml version="1.0" encoding="UTF-8"?>
 <root>
   <entrepot heureDepart="08:30"/>
@@ -49,6 +51,7 @@ def test_parse_deliveries_parses_correctly(tmp_path: Path):
     assert getattr(d2, "delivery_service_s") == 15
     assert getattr(d2, "hour_departure") == "08:30"
 
+
 def test_parse_map_parses_nodes_and_troncons(tmp_path: Path):
     xml = """<?xml version="1.0" encoding="UTF-8"?>
 <carte>
@@ -63,11 +66,10 @@ def test_parse_map_parses_nodes_and_troncons(tmp_path: Path):
     mp = XMLParser.parse_map(str(p))
 
     # Map should contain intersections and road segments
-    intersections = getattr(mp, "_0", None) if hasattr(mp, "_0") else getattr(mp, "intersections", None)
-    road_segments = getattr(mp, "_1", None) if hasattr(mp, "_1") else getattr(mp, "road_segments", None)
+    intersections = getattr(mp, "intersections", None)
+    road_segments = getattr(mp, "road_segments", None)
     # fallback: the Map implementation in project may expose attributes differently; try common names
     if intersections is None:
-        # try attribute names used in simple dataclass tuple-like Map(...)
         intersections = mp[0] if isinstance(mp, (list, tuple)) else getattr(mp, "intersections", [])
     if road_segments is None:
         road_segments = mp[1] if isinstance(mp, (list, tuple)) else getattr(mp, "road_segments", [])
@@ -79,8 +81,13 @@ def test_parse_map_parses_nodes_and_troncons(tmp_path: Path):
     # one road segment
     assert len(road_segments) == 1
     seg = road_segments[0]
-    assert getattr(seg, "start") == "N1"
-    assert getattr(seg, "end") == "N2"
+    # support either Intersection objects or raw node-id strings
+    start_obj = getattr(seg, "start")
+    end_obj = getattr(seg, "end")
+    start_id = getattr(start_obj, 'id', start_obj)
+    end_id = getattr(end_obj, 'id', end_obj)
+    assert start_id == "N1"
+    assert end_id == "N2"
     assert pytest.approx(getattr(seg, "length_m")) == 1200.0
 
     expected_travel_time = 1200.0 / (DEFAULT_SPEED_KMH * 1000.0 / 3600.0)
@@ -89,14 +96,15 @@ def test_parse_map_parses_nodes_and_troncons(tmp_path: Path):
 
 
 def test_parse_from_real_file(tmp_path: Path):
-    reset_id_counter()
+    # the autouse fixture already resets the counter for the test; if we need to
+    # ensure it here, reset directly on the class rather than calling the fixture
+    XMLParser._id_counter = 0
     deliveries = XMLParser.parse_deliveries(str(file_path_deliveries))
     assert len(deliveries) == 5  # assuming the test XML has 5 deliveries
 
     mp = XMLParser.parse_map(str(file_path_plan))
-    print(mp)
-    intersections = getattr(mp, "_0", None) if hasattr(mp, "_0") else getattr(mp, "intersections", None)
-    road_segments = getattr(mp, "_1", None) if hasattr(mp, "_1") else getattr(mp, "road_segments", None)
+    intersections = getattr(mp, "intersections", None)
+    road_segments = getattr(mp, "road_segments", None)
     if intersections is None:
         intersections = mp[0] if isinstance(mp, (list, tuple)) else getattr(mp, "intersections", [])
     if road_segments is None:
