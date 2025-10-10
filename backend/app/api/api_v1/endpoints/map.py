@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status, UploadFile
 
 from app.models.schemas import Map
 
-from app.services import XMLParser
+from app.services.XMLParser import XMLParser
 
 router = APIRouter(prefix="/map")
 
@@ -12,7 +12,7 @@ async def upload_map(file: UploadFile):
     try:
         data = await file.read()
         text = data.decode("utf-8")
-        map = XMLParser.parse_map(map)
+        map = XMLParser.parse_map(text)
         return map
         
     except Exception as e:

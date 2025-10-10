@@ -121,3 +121,24 @@ html, body, #root {
     @apply bg-background text-foreground;
   }
 }
+
+/* Ensure Leaflet map stays below navbar */
+.delivery-map-container {
+  z-index: 1 !important;
+}
+
+.leaflet-container {
+  z-index: 1 !important;
+}
+
+.leaflet-control-container {
+  z-index: 2 !important;
+}
+
+.leaflet-popup {
+  z-index: 3 !important;
+}
+
+.leaflet-tooltip {
+  z-index: 4 !important;
+}
