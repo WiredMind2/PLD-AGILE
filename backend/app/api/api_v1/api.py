@@ -3,4 +3,4 @@ from fastapi import APIRouter
 
 api_router = APIRouter()
 
-api_router.include_router(map.router, prefix="/map")
+api_router.include_router(map.router, tags=["map"])

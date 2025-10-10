@@ -2,14 +2,123 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Map, Truck, Clock, Save, Plus, Route, Upload, MapPin, Timer, Package, Activity } from 'lucide-react'
+import { Map, Truck, Clock, Save, Plus, Route, Upload, Timer, Package, Activity } from 'lucide-react'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
+import DeliveryMap, { DeliveryPoint } from '@/components/ui/delivery-map'
+import { useState, useRef } from 'react'
+import { useDeliveryApp } from '@/hooks/useDeliveryApp'
 
 export default function MainView(): JSX.Element {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([45.764043, 4.835659]);
+  
+  const { 
+    loading, 
+    error, 
+    uploadMap,
+    clearError 
+  } = useDeliveryApp();
+
+  const [deliveryPoints, setDeliveryPoints] = useState<DeliveryPoint[]>();
+
+  const handlePointClick = (point: any) => {
+    console.log('Clicked delivery point:', point);
+  };
+
+  const handleMapUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      try {
+        const mapData = await uploadMap(file);
+        console.log('Map uploaded successfully:', mapData);
+        
+        // Convert map data to delivery points for visualization
+        const points = [
+          // Add all intersections from the map as default nodes
+          ...(mapData.intersections || []).map(intersection => ({
+            id: intersection.id,
+            position: [intersection.latitude, intersection.longitude] as [number, number],
+            address: `Node ${intersection.id}`,
+            type: 'default' as const,
+            status: 'active' as const
+          })),
+          // Add couriers if available
+          ...(mapData.couriers || []).map(courier => ({
+            id: `courier-${courier.id}`,
+            position: [courier.current_location.latitude, courier.current_location.longitude] as [number, number],
+            address: `Courier: ${courier.name}`,
+            type: 'courier' as const,
+            status: 'active' as const
+          })),
+          // Add delivery pickup points
+          ...(mapData.deliveries || []).map(delivery => ({
+            id: `pickup-${delivery.id}`,
+            position: [delivery.pickup_addr.latitude, delivery.pickup_addr.longitude] as [number, number],
+            address: 'Pickup Location',
+            type: 'warehouse' as const,
+            status: 'pending' as const
+          })),
+          // Add delivery destination points
+          ...(mapData.deliveries || []).map(delivery => ({
+            id: `delivery-${delivery.id}`,
+            position: [delivery.delivery_addr.latitude, delivery.delivery_addr.longitude] as [number, number],
+            address: 'Delivery Location',
+            type: 'delivery' as const,
+            status: 'pending' as const
+          }))
+        ];
+        
+        console.log('Generated delivery points:', points);
+        setDeliveryPoints(points);
+        
+        // Set map center to the first intersection if available
+        if (mapData.intersections && mapData.intersections.length > 0) {
+          const firstIntersection = mapData.intersections[0];
+          setMapCenter([firstIntersection.latitude, firstIntersection.longitude]);
+          console.log('Map center updated to:', [firstIntersection.latitude, firstIntersection.longitude]);
+        }
+        
+      } catch (error) {
+        console.error('Failed to upload map:', error);
+      }
+    }
+    // Reset the input value so the same file can be uploaded again
+    event.target.value = '';
+  };
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-cyan-50 dark:from-gray-950 ">
+      {/* Hidden file input for map upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xml"
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
+      
       {/* Header */}
       <div className="sticky top-0 z-50 w-full border-b border-blue-200/50 dark:border-gray-800/50 bg-white/80 dark:bg-gray-950/80 backdrop-blur-lg supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-gray-950/60">
+        {/* Error display */}
+        {error && (
+          <div className="bg-red-100 dark:bg-red-900/30 border-b border-red-200 dark:border-red-800 px-6 py-2">
+            <div className="flex items-center justify-between">
+              <p className="text-red-700 dark:text-red-300 text-sm">{error}</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearError}
+                className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200"
+              >
+                ×
+              </Button>
+            </div>
+          </div>
+        )}
+        
         <div className="container flex h-16 items-center justify-between px-6">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
@@ -26,9 +135,15 @@ export default function MainView(): JSX.Element {
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <Button size="sm" variant="outline" className="gap-2 border-blue-200 text-blue-600 dark:border-blue-800 dark:text-blue-400">
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="gap-2 border-blue-200 text-blue-600 dark:border-blue-800 dark:text-blue-400"
+              onClick={handleMapUpload}
+              disabled={loading}
+            >
               <Upload className="h-4 w-4" />
-              Load Map (XML)
+              {loading ? 'Loading...' : 'Load Map (XML)'}
             </Button>
             <Button size="sm" variant="outline" className="gap-2 border-cyan-200 text-cyan-600  dark:border-cyan-800 dark:text-cyan-400">
               <Save className="h-4 w-4" />
@@ -104,7 +219,7 @@ export default function MainView(): JSX.Element {
                 Load XML city map and visualize optimized bicycle delivery routes
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            {/*<CardContent>
               <div className="h-[60vh] w-full bg-gradient-to-br from-blue-100/50 via-purple-100/50 to-cyan-100/50 dark:from-blue-900/30 dark:via-purple-900/30 dark:to-cyan-900/30 rounded-lg border-2 border-dashed border-blue-300/50 dark:border-blue-700/50 flex items-center justify-center">
                 <div className="text-center space-y-2">
                   <div className="relative">
@@ -118,6 +233,16 @@ export default function MainView(): JSX.Element {
                   </Button>
                 </div>
               </div>
+            </CardContent>*/}
+            <CardContent>
+              <DeliveryMap
+                points={deliveryPoints}
+                center={mapCenter}
+                zoom={14}
+                height="500px"
+                showRouting={true}
+                onPointClick={handlePointClick}
+              />
             </CardContent>
           </Card>
 

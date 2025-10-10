@@ -48,11 +48,6 @@ package "Backend (FastAPI)" BACKEND_COLOR {
     }
 }
 
-' External Files
-package "Data Files" {
-    component [XMLMapFiles]
-    component [SavedToursFiles]
-}
 
 ' Frontend to Backend Communication
 [APIClient] ..> [MapController] : HTTP/REST
@@ -82,32 +77,5 @@ package "Data Files" {
 [Map] --> [RoadSegment]
 [Tour] --> [Courier]
 [Tour] --> [DeliveryRequest]
-
-' File dependencies
-[XMLParser] --> [XMLMapFiles]
-[FileHandler] --> [SavedToursFiles]
-
-note top of "Frontend (React)"
-  Simple React UI:
-  - Map display
-  - Add delivery requests
-  - Show optimized tours
-  - Load/save files
-end note
-
-note top of "Backend (FastAPI)"
-  FastAPI REST API:
-  - Load XML maps
-  - Optimize delivery tours
-  - Manage couriers
-  - File operations
-end note
-
-note right of "Models"
-  Core business objects:
-  - 15 km/h speed
-  - 8 AM start time
-  - Pickup + Delivery pairs
-end note
 
 @enduml

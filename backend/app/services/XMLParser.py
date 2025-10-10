@@ -108,5 +108,8 @@ class XMLParser:
             )
             road_segments.append(road_seg)
 
-        return Map(intersections, road_segments)
+        return Map(
+            intersections=intersections, 
+            road_segments=road_segments,
+        )
 
