@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
+from pydantic.dataclasses import dataclass, Field
 from typing import Dict, List, Tuple, Optional
 from datetime import time
 import xml.etree.ElementTree as ET
@@ -59,7 +59,7 @@ class Delivery:
 @dataclass
 class Tour: 
     courier: Courrier
-    deliveries: List[Delivery] = field(default_factory=list)
+    deliveries: List[Delivery] = Field(default_factory=list)
     total_travel_time_s: int = 0
     total_service_time_s: int = 0
     total_distance_m: float = 0.0
@@ -76,11 +76,11 @@ class Tour:
 
 @dataclass
 class Map:
-    intersections: List[Intersection] = field(default_factory=list)
-    road_segments: List[RoadSegment] = field(default_factory=list)
-    couriers: List[Courrier] = field(default_factory=list)
-    deliveries: List[Delivery] = field(default_factory=list)
-    adjacency_list: Dict[str, List[Tuple[Intersection, RoadSegment]]] = field(default_factory=dict)
+    intersections: List[Intersection] = Field(default_factory=list)
+    road_segments: List[RoadSegment] = Field(default_factory=list)
+    couriers: List[Courrier] = Field(default_factory=list)
+    deliveries: List[Delivery] = Field(default_factory=list)
+    adjacency_list: Dict[str, List[Tuple[Intersection, RoadSegment]]] = Field(default_factory=dict)
 
     # ----------------- Méthodes de construction -----------------
     def add_intersection(self, intersection: Intersection) -> None:
