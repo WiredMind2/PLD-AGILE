@@ -1,6 +1,7 @@
 from __future__ import annotations
-from pydantic.dataclasses import dataclass, Field
 from typing import Dict, List, Tuple, Optional
+from pydantic.dataclasses import dataclass
+from pydantic import Field
 from datetime import time
 
 
@@ -47,12 +48,16 @@ class RoadSegment:
 @dataclass
 class Delivery:
     id: str                   # ex: "D1"
-    pickup_addr: Intersection
-    delivery_addr: Intersection
+    # addresses may be represented as node-id strings in some places or
+    # full Intersection objects elsewhere. Allow both to make parsing
+    # convenient for tests and incremental construction.
+    pickup_addr: str | Intersection
+    delivery_addr: str | Intersection
     pickup_service_s: int     # dureeEnlevement (secondes)
     delivery_service_s: int   # dureeLivraison (secondes)
     courier: Optional[Courrier] = None  # Courrier assigned to this delivery, if any
-    hour_departure : Optional[time] = None
+    # tests expect the raw hour string like "08:30"; accept str here
+    hour_departure : Optional[str] = None
 
 
 @dataclass
@@ -67,9 +72,11 @@ class Tour:
 
     def add_delivery(self, delivery: Delivery):
         self.deliveries.append(delivery)
-        self.total_service_time_s += delivery.pickup_service_s + delivery.delivery_service_s + delivery.calculate_time()
+        # service time is pickup + delivery durations
+        self.total_service_time_s += delivery.pickup_service_s + delivery.delivery_service_s
+        # total_travel_time_s is cumulative travel; deliveries don't contain travel distance here
         if delivery.courier == self.courier:
-            self.total_travel_time_s += delivery.pickup_service_s + delivery.delivery_service_s + delivery.calculate_time()
+            self.total_travel_time_s += delivery.pickup_service_s + delivery.delivery_service_s
         # Note: total_distance_m should be updated based on actual route calculation
 
 
@@ -83,7 +90,8 @@ class Map:
 
     # ----------------- Méthodes de construction -----------------
     def add_intersection(self, intersection: Intersection) -> None:
-        self.intersections[intersection.id] = intersection
+        # intersections is a list; append new intersection
+        self.intersections.append(intersection)
 
     def add_road_segment(self, segment: RoadSegment) -> None:
         self.road_segments.append(segment)
@@ -97,9 +105,18 @@ class Map:
     def build_adjacency(self) -> None:
         """Construit la liste d’adjacence orientée (origine -> destination)."""
         self.adjacency_list.clear()
+        # build a lookup of intersections by id
+        inter_by_id = {str(i.id): i for i in self.intersections}
         for seg in self.road_segments:
-            # Ignore poliment les segments référant un noeud absent
-            dst = self.intersections.get(seg.destination_id)
-            if dst is None:
+            # start/end may be Intersection objects or raw ids
+            start_id = getattr(seg.start, 'id', seg.start)
+            end_id = getattr(seg.end, 'id', seg.end)
+            if start_id is None or end_id is None:
                 continue
-            self.adjacency_list.setdefault(seg.origin_id, []).append((dst, seg))
+            start_id = str(start_id)
+            end_id = str(end_id)
+            dst = inter_by_id.get(end_id)
+            if dst is None:
+                # unknown destination; skip
+                continue
+            self.adjacency_list.setdefault(start_id, []).append((dst, seg))

@@ -6,6 +6,7 @@ SHOULD NOT BE USED IN FINAL VERSION.
 import heapq
 import os
 import sys
+from typing import Dict, List, Optional
 try:
     import networkx as nx
 except Exception:
@@ -63,109 +64,8 @@ class TSP():
 
         return G, list(G.nodes())
 
-    def solve(self, nodes=None, must_visit=None):
-        # Build NetworkX map graph and compute pairwise shortest paths among
-        # requested TSP nodes (or all nodes if `nodes` is None).
-        G, all_nodes = self._build_networkx_map_graph()
-
-        # Determine the set of TSP-relevant nodes. If `must_visit` is provided
-        # we treat that as the set of locations the tour must pass through
-        # (compute pairwise SP among these). If both `nodes` and `must_visit`
-        # are provided we take the union so the solver has the connectivity it
-        # may need to traverse between required locations.
-        if must_visit is not None:
-            # union with nodes if provided so connectivity nodes may be present
-            if nodes is not None:
-                nodes_list = list(dict.fromkeys(list(nodes) + list(must_visit)))
-            else:
-                nodes_list = list(dict.fromkeys(list(must_visit)))
-        else:
-            if nodes is not None:
-                nodes_list = list(nodes)
-            else:
-                nodes_list = list(all_nodes)
-
-        # Validate node ids exist in the map graph
-        missing = [n for n in nodes_list if n not in G.nodes()]
-        if missing:
-            print(f"Warning: {len(missing)} requested TSP nodes not present in map (examples: {missing[:5]})")
-            # filter them out
-            nodes_list = [n for n in nodes_list if n in G.nodes()]
-
-        graph = {}
-        total = len(nodes_list)
-        for i, src in enumerate(nodes_list):
-            try:
-                lengths, paths = nx.single_source_dijkstra(G, src, weight='weight')
-            except Exception:
-                lengths, paths = {}, {}
-
-            graph[src] = {}
-            for tgt in nodes_list:
-                if tgt == src:
-                    graph[src][tgt] = {'path': [src], 'cost': 0.0}
-                else:
-                    cost = lengths.get(tgt, float('inf'))
-                    path = paths.get(tgt)
-                    graph[src][tgt] = {'path': path, 'cost': cost}
-
-            if i < 5 or (i + 1) % 50 == 0 or i == total - 1:
-                print(f"computed pairwise from {i+1}/{total} nodes (src={src})")
-
-        # Use the first node in the graph as the start
-        try:
-            start = next(iter(graph))
-        except StopIteration:
-            return None, float('inf')
-
-        # We'll push entries containing the full ordered path so we can return a valid tour.
-        # Heap entries: (cost, tie, current_node, visited_frozenset, path_list)
-        import itertools
-        counter = itertools.count()
-
-        n_nodes = len(graph)
-        start_entry = (0.0, next(counter), start, frozenset([start]), [start])
-        heap = [start_entry]
-
-        while heap:
-            cost, _, node, visited, path = heapq.heappop(heap)
-
-            # If we've visited all nodes, try to close the tour back to start
-            if len(visited) == n_nodes:
-                back_cost = graph[node].get(start, {}).get('cost', float('inf'))
-                if back_cost != float('inf'):
-                    return path + [start], cost + back_cost
-                # no edge back to start from this node, continue searching
-
-            for neighbor, data in graph[node].items():
-                edge_cost = data.get('cost', float('inf'))
-                if edge_cost == float('inf'):
-                    continue
-                # Allow revisiting nodes (to go back along a segment), but track which
-                # distinct nodes have been seen in `visited`. If neighbor was already
-                # seen, `new_visited` remains the same; otherwise we add it.
-                if neighbor in visited:
-                    new_visited = visited
-                else:
-                    new_visited = visited | {neighbor}
-
-                new_path = path + [neighbor]
-                new_cost = cost + edge_cost
-
-                # Prune states we've already reached cheaper or equal before. Keyed by
-                # (node, visited_set) so revisiting is allowed but we avoid endless loops.
-                if not hasattr(self, '_tsp_best_cost'):
-                    self._tsp_best_cost = {}
-
-                state_key = (neighbor, new_visited)
-                prev_best = self._tsp_best_cost.get(state_key, float('inf'))
-                if new_cost >= prev_best:
-                    continue
-
-                self._tsp_best_cost[state_key] = new_cost
-                heapq.heappush(heap, (new_cost, next(counter), neighbor, new_visited, new_path))
-
-        return None, float('inf')
+    # The previous brute-force `solve` was removed in favour of the
+    # Christofides-based polynomial-time solver (renamed to `solve`).
 
     def _build_metric_complete_graph(self, graph):
         """Build a symmetric metric complete graph from a directed sp_graph.
@@ -267,7 +167,7 @@ class TSP():
 
         return G
 
-    def solve_christofides(self, nodes=None):
+    def solve(self, nodes=None, must_visit=None):
         """Return a tour and cost using Christofides algorithm (approx 1.5-approx for metric TSP).
 
         Steps:
@@ -280,14 +180,19 @@ class TSP():
         """
         # Compute pairwise shortest-paths among the TSP nodes using networkx
         G_map, all_nodes = self._build_networkx_map_graph()
-        # Allow callers to pass a `must_visit`-style list via `nodes` param or
-        # by passing an iterable that is the exact list of required nodes. For
-        # backward compatibility `nodes` remains accepted. If callers want to
-        # pass an explicit required set while keeping additional candidate
-        # nodes for connectivity they can pass the union as `nodes`.
-        nodes_list = list(nodes) if nodes is not None else list(all_nodes)
+        # Support `must_visit` similar to the removed solve(): if provided,
+        # take the union of `nodes` and `must_visit` so the solver computes
+        # pairwise distances among required locations and any extra nodes
+        # provided for connectivity.
+        if must_visit is not None:
+            if nodes is not None:
+                nodes_list = list(dict.fromkeys(list(nodes) + list(must_visit)))
+            else:
+                nodes_list = list(dict.fromkeys(list(must_visit)))
+        else:
+            nodes_list = list(nodes) if nodes is not None else list(all_nodes)
 
-        # Validate and filter out missing nodes
+        # Validate and filter out missing nodes in the map graph
         missing = [n for n in nodes_list if n not in G_map.nodes()]
         if missing:
             print(f"Warning: {len(missing)} requested TSP nodes not present in map (examples: {missing[:5]})")
@@ -297,9 +202,14 @@ class TSP():
         sp_graph = {}
         for src in nodes_list:
             try:
+                # NetworkX returns (distances: dict[node, float], paths: dict[node, list[node]])
                 lengths, paths = nx.single_source_dijkstra(G_map, src, weight='weight')
+                # help static type checkers
+                lengths = dict(lengths)  # type: Dict[str, float]
+                paths = dict(paths)      # type: Dict[str, List[str]]
             except Exception:
-                lengths, paths = {}, {}
+                lengths = {}  # type: Dict[str, float]
+                paths = {}    # type: Dict[str, List[str]]
             sp_graph[src] = {}
             for tgt in nodes_list:
                 if tgt == src:
@@ -323,7 +233,9 @@ class TSP():
                 M.add_edge(u, v, weight=w)
 
         # 4. Minimum weight perfect matching on M (returns set of edges)
-        matching = nx.algorithms.matching.min_weight_matching(M, weight='weight')
+        # use explicit import to satisfy static analyzers
+        from networkx.algorithms import matching as nx_matching
+        matching = nx_matching.min_weight_matching(M, weight='weight')
 
         # 5. Combine edges of T and matching to form a multigraph
         multigraph = nx.MultiGraph()
@@ -395,7 +307,7 @@ if __name__ == "__main__":
     # Example usage
 
     tsp = TSP()
-    path, cost = tsp.solve_christofides()
+    path, cost = tsp.solve()
     print("Compact tour:", path)
     print("Compact cost:", cost)
     # If you want to expand the compact tour to the full node-level route,
