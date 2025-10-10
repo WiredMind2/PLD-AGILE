@@ -2,7 +2,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple, Optional
 from datetime import time
-import xml.etree.ElementTree as ET
 
 
 DEFAULT_SPEED_KMH: float = 15.0
