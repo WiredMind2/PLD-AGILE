@@ -1,6 +1,7 @@
 from typing import List, Tuple
 import xml.etree.ElementTree as ET
 
+from traitlets import Dict
 from app.models.schemas import DEFAULT_SPEED_KMH, Delivery, Intersection, RoadSegment, Map
 
 class XMLParser:
