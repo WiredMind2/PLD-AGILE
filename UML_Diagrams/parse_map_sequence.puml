@@ -1,0 +1,36 @@
+@startuml parse_map_sequence
+title parse_map() Method
+
+participant Client
+participant XMLParser
+participant File
+participant Intersection
+participant RoadSegment
+participant Map
+
+Client -> XMLParser: parse_map(file_path)
+XMLParser -> File: read XML file
+File --> XMLParser: xml_content
+
+XMLParser -> XMLParser: parse XML root
+
+loop for each noeud element
+    XMLParser -> XMLParser: extract node data
+    XMLParser -> Intersection: new Intersection()
+    Intersection --> XMLParser: intersection object
+    XMLParser -> XMLParser: add to intersections list
+end
+
+loop for each troncon element
+    XMLParser -> XMLParser: extract segment data
+    XMLParser -> XMLParser: calculate travel_time_s
+    XMLParser -> RoadSegment: new RoadSegment()
+    RoadSegment --> XMLParser: road segment object
+    XMLParser -> XMLParser: add to road segments list
+end
+
+XMLParser -> Map: new Map(intersections, RoadSegments)
+Map --> XMLParser: map object
+XMLParser --> Client: Map
+
+@enduml
