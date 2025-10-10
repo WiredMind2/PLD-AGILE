@@ -111,7 +111,7 @@ package "app.utils.TSP" {
     }
 
     note right of TSP : Two implementations:\n- TSP.py (standard)\n- TSP_networkx.py (with NetworkX)
-
+    TSP ..> Astar : uses
 }
 
 ' ========== CONFIGURATION CLASS ==========
@@ -159,8 +159,10 @@ XMLParser ..> Intersection : creates
 XMLParser ..> RoadSegment : creates
 
 ' Algorithm dependencies
-TSP ||--|| Astar : uses
+Astar ||--|| XMLParser : uses
 Astar ..> Intersection : operates on
+
+
 
 ' Notes
 note top of Map : Central container for all geographic\nand delivery data with adjacency graph
