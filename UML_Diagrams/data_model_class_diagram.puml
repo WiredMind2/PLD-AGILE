@@ -127,7 +127,7 @@ package "app.core" {
         +DEBUG: bool
         +DATABASE_URL: str
         --
-        {nested} Config
+        +Config: class
     }
 
 }
@@ -135,22 +135,23 @@ package "app.core" {
 ' ========== RELATIONSHIPS ==========
 
 ' Core relationships
-Courrier ||--|| Intersection : current_location
-RoadSegment ||--|| Intersection : start
-RoadSegment ||--|| Intersection : end
-Delivery ||--|| Intersection : pickup_addr
-Delivery ||--|| Intersection : delivery_addr
-Delivery }o--|| Courrier : courier
+Courrier -- Intersection : current_location
+RoadSegment <-- Intersection : end/start
+Delivery -- Intersection : pickup_addr
+Delivery -- Intersection : delivery_addr
+Delivery -- Courrier : courier
 
 ' Tour relationships
-Tour ||--|| Courrier : courier
-Tour ||--o{ Delivery : deliveries
+Tour ..> Courrier : affected to
+Tour --> Delivery : contains one or many
 
 ' Map relationships (composition)
-Map ||--o{ Intersection : intersections
-Map ||--o{ RoadSegment : road_segments
-Map ||--o{ Courrier : couriers
-Map ||--o{ Delivery : deliveries
+Map -- Intersection : intersections
+Map -- RoadSegment : road_segments
+
+
+Map <-- Courrier : can display
+Map --> Delivery : displays
 
 ' Service dependencies
 XMLParser ..> Map : creates
@@ -159,7 +160,7 @@ XMLParser ..> Intersection : creates
 XMLParser ..> RoadSegment : creates
 
 ' Algorithm dependencies
-Astar ||--|| XMLParser : uses
+Astar ..> XMLParser : uses
 Astar ..> Intersection : operates on
 
 
