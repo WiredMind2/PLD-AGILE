@@ -1,106 +1,106 @@
-from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Dict, List, Tuple, Optional
-from datetime import time
-import xml.etree.ElementTree as ET
+import pytest
+from pathlib import Path
+from backend.app.services.XMLParser import XMLParser
+from backend.app.models import schemas as schemas_module
+from backend.app.models.schemas import DEFAULT_SPEED_KMH
+
+project_root = Path(__file__).resolve().parents[2]
+file_path_plan = project_root/"fichiersXMLPickupDelivery"/"petitPlan.xml"
+file_path_deliveries = project_root/"fichiersXMLPickupDelivery"/"demandeMoyen5.xml"
+
+def reset_id_counter():
+    XMLParser._id_counter = 0
+
+def test_generate_id_increments():
+    reset_id_counter()
+    assert XMLParser.generate_id() == "D1"
+    assert XMLParser.generate_id() == "D2"
+    assert XMLParser.generate_id() == "D3"
+
+def test_parse_deliveries_parses_correctly(tmp_path: Path):
+    reset_id_counter()
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <entrepot heureDepart="08:30"/>
+  <livraison adresseLivraison="A1" adresseEnlevement="P1" dureeEnlevement="10" dureeLivraison="20"/>
+  <livraison adresseLivraison="A2" adresseEnlevement="P2" dureeEnlevement="5" dureeLivraison="15"/>
+</root>
+"""
+    p = tmp_path / "deliveries.xml"
+    p.write_text(xml, encoding="utf-8")
+
+    deliveries = XMLParser.parse_deliveries(str(p))
+    # two deliveries
+    assert len(deliveries) == 2
+
+    d1, d2 = deliveries
+    # check types/attributes expected by the parser-created objects
+    assert getattr(d1, "id") == "D1"
+    assert getattr(d1, "delivery_addr") == "A1"
+    assert getattr(d1, "pickup_addr") == "P1"
+    assert getattr(d1, "pickup_service_s") == 10
+    assert getattr(d1, "delivery_service_s") == 20
+    assert getattr(d1, "hour_departure") == "08:30"
+
+    assert getattr(d2, "id") == "D2"
+    assert getattr(d2, "delivery_addr") == "A2"
+    assert getattr(d2, "pickup_addr") == "P2"
+    assert getattr(d2, "pickup_service_s") == 5
+    assert getattr(d2, "delivery_service_s") == 15
+    assert getattr(d2, "hour_departure") == "08:30"
+
+def test_parse_map_parses_nodes_and_troncons(tmp_path: Path):
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<carte>
+  <noeud id="N1" latitude="48.8566" longitude="2.3522"/>
+  <noeud id="N2" latitude="45.7640" longitude="4.8357"/>
+  <troncon origine="N1" destination="N2" longueur="1200" nomRue="Rue de Test"/>
+</carte>
+"""
+    p = tmp_path / "map.xml"
+    p.write_text(xml, encoding="utf-8")
+
+    mp = XMLParser.parse_map(str(p))
+
+    # Map should contain intersections and road segments
+    intersections = getattr(mp, "_0", None) if hasattr(mp, "_0") else getattr(mp, "intersections", None)
+    road_segments = getattr(mp, "_1", None) if hasattr(mp, "_1") else getattr(mp, "road_segments", None)
+    # fallback: the Map implementation in project may expose attributes differently; try common names
+    if intersections is None:
+        # try attribute names used in simple dataclass tuple-like Map(...)
+        intersections = mp[0] if isinstance(mp, (list, tuple)) else getattr(mp, "intersections", [])
+    if road_segments is None:
+        road_segments = mp[1] if isinstance(mp, (list, tuple)) else getattr(mp, "road_segments", [])
+
+    assert len(intersections) == 2
+    ids = {getattr(n, "id") for n in intersections}
+    assert ids == {"N1", "N2"}
+
+    # one road segment
+    assert len(road_segments) == 1
+    seg = road_segments[0]
+    assert getattr(seg, "start") == "N1"
+    assert getattr(seg, "end") == "N2"
+    assert pytest.approx(getattr(seg, "length_m")) == 1200.0
+
+    expected_travel_time = 1200.0 / (DEFAULT_SPEED_KMH * 1000.0 / 3600.0)
+    assert pytest.approx(getattr(seg, "travel_time_s"), rel=1e-6) == expected_travel_time
+    assert getattr(seg, "street_name") == "Rue de Test"
 
 
-DEFAULT_SPEED_KMH: float = 15.0
-DEFAULT_START_TIME: time = time(hour=8, minute=0)
+def test_parse_from_real_file(tmp_path: Path):
+    reset_id_counter()
+    deliveries = XMLParser.parse_deliveries(str(file_path_deliveries))
+    assert len(deliveries) == 5  # assuming the test XML has 5 deliveries
 
-# ---------- Modèle CARTE (reseau) ----------
+    mp = XMLParser.parse_map(str(file_path_plan))
+    print(mp)
+    intersections = getattr(mp, "_0", None) if hasattr(mp, "_0") else getattr(mp, "intersections", None)
+    road_segments = getattr(mp, "_1", None) if hasattr(mp, "_1") else getattr(mp, "road_segments", None)
+    if intersections is None:
+        intersections = mp[0] if isinstance(mp, (list, tuple)) else getattr(mp, "intersections", [])
+    if road_segments is None:
+        road_segments = mp[1] if isinstance(mp, (list, tuple)) else getattr(mp, "road_segments", [])
 
-@dataclass
-class Intersection:
-    id: str           # ex: "25175791"
-    latitude: float
-    longitude: float
-
-
-@dataclass
-class DeliveryRequest:
-    pickup_addr: str          # adresseEnlevement (string, id noeud)
-    delivery_addr: str        # adresseLivraison (string, id noeud)
-    pickup_service_s: int     # dureeEnlevement (secondes)
-    delivery_service_s: int   # dureeLivraison (secondes)
-
-
-@dataclass
-class Courrier:
-    id: str                   # ex: "C1"
-    current_location: Intersection
-    name : str
-    phone_number : str
-
-@dataclass
-class RoadSegment:
-    start: Intersection
-    end: Intersection
-    length_m: float           # longueur (metres)
-    travel_time_s: int        # tempsTrajet (secondes)
-    street_name: str
-
-    def calculate_time(self) -> int:
-        """Calculate travel time based on speed (in km/h)."""
-        return int(self.length_m / (DEFAULT_SPEED_KMH*1000/3600))
-
-
-@dataclass
-class Delivery:
-    id: str                   # ex: "D1"
-    pickup_addr: Intersection
-    delivery_addr: Intersection
-    pickup_service_s: int     # dureeEnlevement (secondes)
-    delivery_service_s: int   # dureeLivraison (secondes)
-    courier: Optional[Courrier] = None  # Courrier assigned to this delivery, if any
-    hour_departure : Optional[time] = None
-
-
-@dataclass
-class Tour: 
-    courier: Courrier
-    deliveries: List[Delivery] = field(default_factory=list)
-    total_travel_time_s: int = 0
-    total_service_time_s: int = 0
-    total_distance_m: float = 0.0
-    start_time: Optional[time] = None
-    end_time: Optional[time] = None
-
-    def add_delivery(self, delivery: Delivery):
-        self.deliveries.append(delivery)
-        self.total_service_time_s += delivery.pickup_service_s + delivery.delivery_service_s + delivery.calculate_time()
-        if delivery.courier == self.courier:
-            self.total_travel_time_s += delivery.pickup_service_s + delivery.delivery_service_s + delivery.calculate_time()
-        # Note: total_distance_m should be updated based on actual route calculation
-
-
-@dataclass
-class Map:
-    intersections: List[Intersection] = field(default_factory=list)
-    road_segments: List[RoadSegment] = field(default_factory=list)
-    couriers: List[Courrier] = field(default_factory=list)
-    deliveries: List[Delivery] = field(default_factory=list)
-    adjacency_list: Dict[str, List[Tuple[Intersection, RoadSegment]]] = field(default_factory=dict)
-
-    # ----------------- Méthodes de construction -----------------
-    def add_intersection(self, intersection: Intersection) -> None:
-        self.intersections[intersection.id] = intersection
-
-    def add_road_segment(self, segment: RoadSegment) -> None:
-        self.road_segments.append(segment)
-
-    def add_delivery(self, delivery: Delivery) -> None:
-        self.deliveries.append(delivery)
-
-    def add_courier(self, courier: Courrier) -> None:
-        self.couriers.append(courier)
-
-    def build_adjacency(self) -> None:
-        """Construit la liste d’adjacence orientée (origine -> destination)."""
-        self.adjacency_list.clear()
-        for seg in self.road_segments:
-            # Ignore poliment les segments référant un noeud absent
-            dst = self.intersections.get(seg.destination_id)
-            if dst is None:
-                continue
-            self.adjacency_list.setdefault(seg.origin_id, []).append((dst, seg))
+    assert len(intersections) > 0
+    assert len(road_segments) > 0
