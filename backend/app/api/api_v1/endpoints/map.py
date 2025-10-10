@@ -1,17 +1,25 @@
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, status
 
-from app.models.schemas import Item, ItemCreate, ItemUpdate, Message
+from app.models.schemas import Item, ItemCreate, ItemUpdate, Message, Map
 
-router = APIRouter()
+router = APIRouter(prefix="/map")
 
-# Mock database - in real app, this would be a database
-fake_items_db: List[Item] = [
-    Item(id=1, name="Laptop", description="High-performance laptop", price=999.99, is_active=True),
-    Item(id=2, name="Mouse", description="Wireless mouse", price=29.99, is_active=True),
-]
+@router.get("/", response_model=Map)
+async def load_map():
+    """Get the base map"""
+    #TODO: vérifier si une map a été upload puis la renvoyer
 
+@router.post("/upload")
+async def upload_map(file: UploadFile):
+    """Set the base map from an XML file"""
+    try:
+        data = await file.read()
+        #TODO: parse and store
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
+############################################# osef ###########################################################
 @router.get("/", response_model=List[Item])
 async def get_items(skip: int = 0, limit: int = 100):
     """Get all items with pagination"""
