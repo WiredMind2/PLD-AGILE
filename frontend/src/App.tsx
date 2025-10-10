@@ -1,15 +1,19 @@
-import React from 'react'
+import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import RootLayout from '@/layouts/RootLayout'
+import Home from '@/pages/HomeView'
+import MainView from '@/pages/MainView'
+
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <RootLayout />,
+    children: [
+      { index: true, element: <Home /> },
+      { path: 'main', element: <MainView /> },
+    ]
+  }
+])
 
 export default function App(): JSX.Element {
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="max-w-xl p-8 bg-white rounded shadow">
-        <h1 className="text-2xl font-semibold mb-4">PLD-AGILE Web UI</h1>
-        <p className="text-gray-600">This is a minimal React + Tailwind scaffold built with TypeScript. Start building your UI here.</p>
-        <div className="mt-6">
-          <button className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Get started</button>
-        </div>
-      </div>
-    </div>
-  )
+  return <RouterProvider router={router} />
 }

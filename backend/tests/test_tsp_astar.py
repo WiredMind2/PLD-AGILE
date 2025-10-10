@@ -8,15 +8,13 @@ from app.utils.TSP.TSP import TSP
 def test_astar_load_and_heuristic():
     a = Astar(alpha=0.6)
     a.load_data()
-    # basic sanity of nodes: ensure at least two nodes were loaded
-    assert isinstance(a.nodes, dict)
-    assert len(a.nodes) >= 2
+    # basic sanity of nodes
+    assert "1" in a.nodes
     assert isinstance(a.adj, dict)
-    # heuristic should be non-negative for a sample pair
-    keys = list(a.nodes.keys())
-    n1, n2 = keys[0], keys[1]
-    h12 = a.heuristic(n1, n2)
-    h21 = a.heuristic(n2, n1)
+
+    # heuristic should be non-negative and symmetric-ish
+    h12 = a.heuristic("1", "2")
+    h21 = a.heuristic("2", "1")
     assert h12 >= 0
     assert h21 >= 0
 
@@ -24,29 +22,20 @@ def test_astar_load_and_heuristic():
 def test_multiple_target_astar_and_shortest_paths_graph():
     a = Astar(alpha=0.5)
     a.load_data()
-    # pick a valid start node dynamically
-    start_nodes = list(a.nodes.keys())
-    assert len(start_nodes) >= 2
-    start = start_nodes[0]
-    res = a.multipleTarget_astar(start)
+    res = a.multipleTarget_astar("1")
     # Should have entries for all other nodes
     assert isinstance(res, dict)
-    other = next(iter(res.keys()))
-    assert other in res
-    if res[other]["path"] is not None:
-        assert res[other]["path"][0] == start
+    assert "2" in res
+    assert res["2"]["path"][0] == "1"
     assert res["2"]["cost"] >= 0
 
     # compute graph for all nodes
     g = a.compute_shortest_paths_graph()
     assert isinstance(g, dict)
     # for a few pairs, path should be present or reachable
-    src = next(iter(g.keys()))
-    tgt = next(iter(g[src].keys()))
-    assert src in g
-    assert tgt in g[src]
-    if g[src][tgt]["path"] is not None:
-        assert g[src][tgt]["path"][0] == src
+    assert "1" in g
+    assert "2" in g["1"]
+    assert g["1"]["2"]["path"][0] == "1"
 
 
 def test_tsp_solve_and_expand():
@@ -85,3 +74,4 @@ def test_expand_tour_raises_on_missing_leg():
     sp[u][v]["path"] = None
     with pytest.raises(ValueError):
         tsp.expand_tour_with_paths([u, v], sp)
+

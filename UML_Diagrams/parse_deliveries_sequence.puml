@@ -1,0 +1,26 @@
+@startuml parse_deliveries_sequence
+title parse_deliveries() Method
+
+participant Client
+participant XMLParser
+participant File
+participant Delivery
+
+Client -> XMLParser: parse_deliveries(file_path)
+XMLParser -> File: read XML file
+File --> XMLParser: xml_content
+
+XMLParser -> XMLParser: parse XML root
+XMLParser -> XMLParser: extract hour_departure
+
+loop for each livraison element
+    XMLParser -> XMLParser: generate_id()
+    XMLParser -> XMLParser: extract delivery data
+    XMLParser -> Delivery: new Delivery()
+    Delivery --> XMLParser: delivery object
+    XMLParser -> XMLParser: add to deliveries list
+end
+
+XMLParser --> Client: List[Delivery]
+
+@enduml

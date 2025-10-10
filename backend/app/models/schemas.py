@@ -1,11 +1,5 @@
 from __future__ import annotations
-try:
-    # Prefer pydantic dataclass when available (keeps validation), but
-    # fallback to stdlib dataclasses so tests run without pydantic installed.
-    from pydantic.dataclasses import dataclass, Field
-except Exception:  # pragma: no cover - fallback for environments without pydantic
-    from dataclasses import dataclass, field as Field
-
+from pydantic.dataclasses import dataclass, Field
 from typing import Dict, List, Tuple, Optional
 from datetime import time
 
@@ -89,17 +83,7 @@ class Map:
 
     # ----------------- Méthodes de construction -----------------
     def add_intersection(self, intersection: Intersection) -> None:
-        # Support both list and dict storage for intersections. If stored as
-        # a dict, set by id; if stored as a list, append or replace existing.
-        if isinstance(self.intersections, dict):
-            self.intersections[intersection.id] = intersection
-        else:
-            # Replace existing intersection with same id if present
-            for i, ins in enumerate(self.intersections):
-                if getattr(ins, 'id', None) == intersection.id:
-                    self.intersections[i] = intersection
-                    return
-            self.intersections.append(intersection)
+        self.intersections[intersection.id] = intersection
 
     def add_road_segment(self, segment: RoadSegment) -> None:
         self.road_segments.append(segment)
@@ -114,22 +98,8 @@ class Map:
         """Construit la liste d’adjacence orientée (origine -> destination)."""
         self.adjacency_list.clear()
         for seg in self.road_segments:
-            # Resolve start/end to ids and intersections
-            origin_id = getattr(seg.start, 'id', None) if seg.start is not None else None
-            dest_id = getattr(seg.end, 'id', None) if seg.end is not None else None
-            if origin_id is None or dest_id is None:
-                continue
-
-            # find destination intersection object
-            dst = None
-            if isinstance(self.intersections, dict):
-                dst = self.intersections.get(dest_id)
-            else:
-                for ins in self.intersections:
-                    if getattr(ins, 'id', None) == dest_id:
-                        dst = ins
-                        break
+            # Ignore poliment les segments référant un noeud absent
+            dst = self.intersections.get(seg.destination_id)
             if dst is None:
                 continue
-
-            self.adjacency_list.setdefault(origin_id, []).append((dst, seg))
+            self.adjacency_list.setdefault(seg.origin_id, []).append((dst, seg))
