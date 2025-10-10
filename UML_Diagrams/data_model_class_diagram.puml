@@ -1,0 +1,174 @@
+@startuml complete_class_diagram
+title Complete Project Class Diagram
+
+!define DATACLASS class
+
+' ========== DATA MODEL CLASSES (schemas.py) ==========
+package "app.models.schemas" {
+
+    DATACLASS Intersection {
+        +id: str
+        +latitude: float
+        +longitude: float
+    }
+
+    DATACLASS DeliveryRequest {
+        +pickup_addr: str
+        +delivery_addr: str
+        +pickup_service_s: int
+        +delivery_service_s: int
+    }
+
+    DATACLASS Courrier {
+        +id: str
+        +current_location: Intersection
+        +name: str
+        +phone_number: str
+    }
+
+    DATACLASS RoadSegment {
+        +start: Intersection
+        +end: Intersection
+        +length_m: float
+        +travel_time_s: int
+        +street_name: str
+        --
+        +calculate_time(): int
+    }
+
+    DATACLASS Delivery {
+        +id: str
+        +pickup_addr: Intersection
+        +delivery_addr: Intersection
+        +pickup_service_s: int
+        +delivery_service_s: int
+        +courier: Optional[Courrier]
+        +hour_departure: Optional[time]
+    }
+
+    DATACLASS Tour {
+        +courier: Courrier
+        +deliveries: List[Delivery]
+        +total_travel_time_s: int
+        +total_service_time_s: int
+        +total_distance_m: float
+        +start_time: Optional[time]
+        +end_time: Optional[time]
+        --
+        +add_delivery(delivery: Delivery): void
+    }
+
+    DATACLASS Map {
+        +intersections: List[Intersection]
+        +road_segments: List[RoadSegment]
+        +couriers: List[Courrier]
+        +deliveries: List[Delivery]
+        +adjacency_list: Dict[str, List[Tuple[Intersection, RoadSegment]]]
+        --
+        +add_intersection(intersection: Intersection): void
+        +add_road_segment(segment: RoadSegment): void
+        +add_delivery(delivery: Delivery): void
+        +add_courier(courier: Courrier): void
+        +build_adjacency(): void
+    }
+
+}
+
+' ========== SERVICE CLASSES ==========
+package "app.services" {
+
+    class XMLParser {
+        -{static} _id_counter: int
+        --
+        +{static} generate_id(): str
+        +{static} parse_deliveries(file_path: str): List[Delivery]
+        +{static} parse_map(file_path: str): Map
+    }
+
+}
+
+' ========== ALGORITHM CLASSES ==========
+package "app.utils.TSP" {
+
+    class Astar {
+        +alpha: float
+        +nodes: Dict[str, Tuple[float, float]]
+        +adj: Dict[str, Dict[str, float]]
+        +edges: List
+        --
+        +__init__(alpha: float = 0.5)
+        +load_data(): void
+        +heuristic(a: str, b: str): float
+        +find_shortest_path(start: str, goal: str): Tuple[List[str], float]
+        +compute_shortest_paths_graph(): Dict
+    }
+
+    class TSP {
+        +astar: Astar
+        --
+        +__init__()
+        +solve(nodes=None): Tuple[List[str], float]
+    }
+
+    note right of TSP : Two implementations:\n- TSP.py (standard)\n- TSP_networkx.py (with NetworkX)
+
+}
+
+' ========== CONFIGURATION CLASS ==========
+package "app.core" {
+
+    class Settings {
+        +PROJECT_NAME: str
+        +VERSION: str
+        +DESCRIPTION: str
+        +API_V1_STR: str
+        +ALLOWED_HOSTS: List[str]
+        +ENVIRONMENT: str
+        +DEBUG: bool
+        +DATABASE_URL: str
+        --
+        {nested} Config
+    }
+
+}
+
+' ========== RELATIONSHIPS ==========
+
+' Core relationships
+Courrier ||--|| Intersection : current_location
+RoadSegment ||--|| Intersection : start
+RoadSegment ||--|| Intersection : end
+Delivery ||--|| Intersection : pickup_addr
+Delivery ||--|| Intersection : delivery_addr
+Delivery }o--|| Courrier : courier
+
+' Tour relationships
+Tour ||--|| Courrier : courier
+Tour ||--o{ Delivery : deliveries
+
+' Map relationships (composition)
+Map ||--o{ Intersection : intersections
+Map ||--o{ RoadSegment : road_segments
+Map ||--o{ Courrier : couriers
+Map ||--o{ Delivery : deliveries
+
+' Service dependencies
+XMLParser ..> Map : creates
+XMLParser ..> Delivery : creates
+XMLParser ..> Intersection : creates
+XMLParser ..> RoadSegment : creates
+
+' Algorithm dependencies
+TSP ||--|| Astar : uses
+Astar ..> Intersection : operates on
+
+' Notes
+note top of Map : Central container for all geographic\nand delivery data with adjacency graph
+
+note top of XMLParser : Static utility class for parsing\nXML delivery and map files
+
+note top of Astar : A* pathfinding algorithm with\nconfigurable heuristic blending
+
+note top of Settings : Application configuration\nusing Pydantic BaseSettings
+
+@enduml
