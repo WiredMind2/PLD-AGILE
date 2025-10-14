@@ -28,6 +28,14 @@ export async function addRequest(request: any) {
   return res.json()
 }
 
+export async function uploadRequestsFile(file: File) {
+  const fd = new FormData()
+  fd.append('file', file)
+  const res = await fetch(`${API_BASE}/requests/upload`, { method: 'POST', body: fd })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 export async function computeTours() {
   const res = await fetch(`${API_BASE}/tours/compute`, { method: 'POST' })
   if (!res.ok) throw new Error(await res.text())
@@ -88,6 +96,16 @@ class ApiClient {
     formData.append('file', file);
 
     return this.request<Delivery[]>('/deliveries', {
+      method: 'POST',
+      headers: {},
+      body: formData,
+    });
+  }
+  
+  async uploadRequestsFile(file: File): Promise<Delivery[]> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request<Delivery[]>('/requests/upload', {
       method: 'POST',
       headers: {},
       body: formData,
