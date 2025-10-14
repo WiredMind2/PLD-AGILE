@@ -1,8 +1,3 @@
-"""
-THIS FILE REQUIRES networkx TO BE INSTALLED.
-SHOULD NOT BE USED IN FINAL VERSION.
-"""
-
 import heapq
 import os
 import sys
