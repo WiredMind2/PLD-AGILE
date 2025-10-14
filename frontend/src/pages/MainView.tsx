@@ -2,24 +2,31 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Map, Truck, Clock, Save, Plus, Route, Upload, Timer, Package, Activity } from 'lucide-react'
+import { Map, Truck, Clock, Save, Plus, Route, Upload, Timer, Package, Activity, Trash2 } from 'lucide-react'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import DeliveryMap, { DeliveryPoint } from '@/components/ui/delivery-map'
-import { useEffect, useRef, useState } from 'react'
+import { useState, useRef } from 'react'
 import { useDeliveryApp } from '@/hooks/useDeliveryApp'
-import { getState, addRequest, computeTours, saveState, uploadRequestsFile } from '@/lib/api'
-import { Sheet, SheetTrigger, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 
 export default function MainView(): JSX.Element {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [mapCenter, setMapCenter] = useState<[number, number]>([45.764043, 4.835659]);
+  const requestsInputRef = useRef<HTMLInputElement>(null);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([45.764043, 4.835659]); // Default Lyon center
+  const [roadSegments, setRoadSegments] = useState<any[]>([]);
   
   const { 
     loading, 
     error, 
     uploadMap,
-    clearError 
+    clearError,
+  addRequest,
+  uploadRequestsFile,
+    deleteRequest,
+    stats,
+    map,
+    deliveries
   } = useDeliveryApp();
 
   const [deliveryPoints, setDeliveryPoints] = useState<DeliveryPoint[]>();
@@ -32,6 +39,10 @@ export default function MainView(): JSX.Element {
     fileInputRef.current?.click();
   };
 
+  const handleRequestUpload = () => {
+    requestsInputRef.current?.click();
+  };
+
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -39,30 +50,14 @@ export default function MainView(): JSX.Element {
         const mapData = await uploadMap(file);
         console.log('Map uploaded successfully:', mapData);
         
-        // Convert map data to delivery points for visualization
+        // Only show existing delivery request points (no raw map nodes or couriers)
         const points = [
-          // Add all intersections from the map as default nodes
-          ...(mapData.intersections || []).map(intersection => ({
-            id: intersection.id,
-            position: [intersection.latitude, intersection.longitude] as [number, number],
-            address: `Node ${intersection.id}`,
-            type: 'default' as const,
-            status: 'active' as const
-          })),
-          // Add couriers if available
-          ...(mapData.couriers || []).map(courier => ({
-            id: `courier-${courier.id}`,
-            position: [courier.current_location.latitude, courier.current_location.longitude] as [number, number],
-            address: `Courier: ${courier.name}`,
-            type: 'courier' as const,
-            status: 'active' as const
-          })),
-          // Add delivery pickup points
+          // Add delivery pickup points (if backend returned any in mapData)
           ...(mapData.deliveries || []).map(delivery => ({
             id: `pickup-${delivery.id}`,
             position: [delivery.pickup_addr.latitude, delivery.pickup_addr.longitude] as [number, number],
             address: 'Pickup Location',
-            type: 'warehouse' as const,
+            type: 'pickup' as const,
             status: 'pending' as const
           })),
           // Add delivery destination points
@@ -72,11 +67,20 @@ export default function MainView(): JSX.Element {
             address: 'Delivery Location',
             type: 'delivery' as const,
             status: 'pending' as const
-          }))
+          })),
         ];
         
         console.log('Generated delivery points:', points);
         setDeliveryPoints(points);
+        
+        // Convert road segments for rendering
+        const segments = (mapData.road_segments || []).map(segment => ({
+          start: [segment.start.latitude, segment.start.longitude] as [number, number],
+          end: [segment.end.latitude, segment.end.longitude] as [number, number],
+          street_name: segment.street_name
+        }));
+        setRoadSegments(segments);
+        console.log('Generated road segments:', segments.length);
         
         // Set map center to the first intersection if available
         if (mapData.intersections && mapData.intersections.length > 0) {
@@ -92,87 +96,61 @@ export default function MainView(): JSX.Element {
     // Reset the input value so the same file can be uploaded again
     event.target.value = '';
   };
-  const [couriersCount, setCouriersCount] = useState<number>(0)
-  const [requestsCount, setRequestsCount] = useState<number>(0)
-  const [deliveriesList, setDeliveriesList] = useState<any[]>([])
 
-  useEffect(() => {
-    void hydrate()
-  }, [])
+  // New Delivery Request Sheet state
+  const [openNewReq, setOpenNewReq] = useState(false);
+  const [pickupAddr, setPickupAddr] = useState('');
+  const [deliveryAddr, setDeliveryAddr] = useState('');
+  const [pickupService, setPickupService] = useState(300); // default 5 min
+  const [deliveryService, setDeliveryService] = useState(300); // default 5 min
 
-  async function hydrate() {
+  const submitNewRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
-      const st = await getState()
-      setCouriersCount((st.couriers || []).length)
-      const del = (st.deliveries || [])
-      setRequestsCount(del.length)
-      setDeliveriesList(del)
-    } catch (e) {
-      // ignore
+      const created = await addRequest({
+        pickup_addr: pickupAddr,
+        delivery_addr: deliveryAddr,
+        pickup_service_s: Number(pickupService),
+        delivery_service_s: Number(deliveryService)
+      } as any);
+      // If we have a map, add points on the fly for visualization
+      if (map) {
+        const findInter = (id: string) => map.intersections.find((i) => String(i.id) === String(id));
+        const pickupInter = findInter(pickupAddr);
+        const deliveryInter = findInter(deliveryAddr);
+        setDeliveryPoints((prev) => {
+          const base = prev ? [...prev] : [];
+          if (pickupInter) {
+            base.push({
+              id: `pickup-${created?.id ?? pickupAddr}`,
+              position: [pickupInter.latitude, pickupInter.longitude],
+              address: 'Pickup Location',
+              type: 'pickup',
+              status: 'pending'
+            });
+          }
+          if (deliveryInter) {
+            base.push({
+              id: `delivery-${created?.id ?? deliveryAddr}`,
+              position: [deliveryInter.latitude, deliveryInter.longitude],
+              address: 'Delivery Location',
+              type: 'delivery',
+              status: 'pending'
+            });
+          }
+          return base;
+        });
+      }
+      // reset and close
+      setPickupAddr('');
+      setDeliveryAddr('');
+      setPickupService(300);
+      setDeliveryService(300);
+      setOpenNewReq(false);
+    } catch (err) {
+      // error is handled globally via hook
     }
-  }
-
-  
-
-  async function onNewRequest() {
-  // open modal handled by Sheet trigger
-  return
-  }
-
-  // Modal state
-  // Radix Sheet handles open state via its trigger; local state not required
-  const [manualPickup, setManualPickup] = useState('')
-  const [manualDelivery, setManualDelivery] = useState('')
-  const [manualPickupService, setManualPickupService] = useState(60)
-  const [manualDeliveryService, setManualDeliveryService] = useState(60)
-
-  async function submitManualRequest() {
-    if (!manualPickup || !manualDelivery) {
-      alert('Please provide pickup and delivery node ids')
-      return
-    }
-    try {
-  await addRequest({ pickup_addr: manualPickup, delivery_addr: manualDelivery, pickup_service_s: manualPickupService, delivery_service_s: manualDeliveryService })
-  await hydrate()
-  alert('Request added')
-      // reset
-      setManualPickup('')
-      setManualDelivery('')
-    } catch (err: any) {
-      alert('Add request failed: ' + err?.message)
-    }
-  }
-
-  async function submitUploadFile(file?: File) {
-    if (!file) return
-    try {
-  await uploadRequestsFile(file)
-  await hydrate()
-  alert('Requests uploaded')
-    } catch (err: any) {
-      alert('Upload failed: ' + err?.message)
-    }
-  }
-
-  async function onOptimize() {
-    try {
-      await computeTours()
-      await hydrate()
-      alert('Tours computed')
-    } catch (err: any) {
-      alert('Compute failed: ' + err?.message)
-    }
-  }
-
-  async function onSaveTours() {
-    try {
-      await saveState()
-      alert('State saved')
-    } catch (err: any) {
-      alert('Save failed: ' + err?.message)
-    }
-  }
-
+  };
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-cyan-50 dark:from-gray-950 ">
       {/* Hidden file input for map upload */}
@@ -182,6 +160,43 @@ export default function MainView(): JSX.Element {
         accept=".xml"
         style={{ display: 'none' }}
         onChange={handleFileChange}
+      />
+      {/* Hidden file input for delivery requests upload */}
+      <input
+        ref={requestsInputRef}
+        type="file"
+        accept=".xml"
+        style={{ display: 'none' }}
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          try {
+            const deliveries = await uploadRequestsFile(file);
+
+            // Reflect on map visually using current loaded intersections
+            if (map && Array.isArray(deliveries)) {
+              setDeliveryPoints((prev) => {
+                const base = prev ? [...prev] : [];
+                deliveries.forEach((d: any) => {
+                  const pickup = map.intersections.find((i) => String(i.id) === String(d.pickup_addr?.id ?? d.pickup_addr));
+                  const drop = map.intersections.find((i) => String(i.id) === String(d.delivery_addr?.id ?? d.delivery_addr));
+                  if (pickup) {
+                    base.push({ id: `pickup-${d.id}`, position: [pickup.latitude, pickup.longitude], address: 'Pickup Location', type: 'pickup', status: 'pending' });
+                  }
+                  if (drop) {
+                    base.push({ id: `delivery-${d.id}`, position: [drop.latitude, drop.longitude], address: 'Delivery Location', type: 'delivery', status: 'pending' });
+                  }
+                });
+                return base;
+              });
+            }
+          } catch (err) {
+            console.error('Failed to upload requests:', err);
+          } finally {
+            // reset input
+            e.currentTarget.value = '';
+          }
+        }}
       />
       
       {/* Header */}
@@ -229,11 +244,11 @@ export default function MainView(): JSX.Element {
               <Upload className="h-4 w-4" />
               {loading ? 'Loading...' : 'Load Map (XML)'}
             </Button>
-            <Button size="sm" variant="outline" onClick={onSaveTours} className="gap-2 border-cyan-200 text-cyan-600  dark:border-cyan-800 dark:text-cyan-400">
+            <Button size="sm" variant="outline" className="gap-2 border-cyan-200 text-cyan-600  dark:border-cyan-800 dark:text-cyan-400">
               <Save className="h-4 w-4" />
               Save Tours
             </Button>
-            <Button size="sm" onClick={onOptimize} className="gap-2 bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white shadow-lg">
+            <Button size="sm" className="gap-2 bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white shadow-lg">
               <Route className="h-4 w-4" />
               Optimize Tours
             </Button>
@@ -251,7 +266,7 @@ export default function MainView(): JSX.Element {
               <Truck className="h-4 w-4 text-blue-200" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{couriersCount}</div>
+              <div className="text-2xl font-bold">1</div>
               <p className="text-xs text-blue-200">Bicycle couriers</p>
             </CardContent>
           </Card>
@@ -262,7 +277,7 @@ export default function MainView(): JSX.Element {
               <Package className="h-4 w-4 text-purple-200" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{requestsCount}</div>
+              <div className="text-2xl font-bold">{stats?.deliveryRequests ?? 0}</div>
               <p className="text-xs text-purple-200">Active requests</p>
             </CardContent>
           </Card>
@@ -303,28 +318,14 @@ export default function MainView(): JSX.Element {
                 Load XML city map and visualize optimized bicycle delivery routes
               </CardDescription>
             </CardHeader>
-            {/*<CardContent>
-              <div className="h-[60vh] w-full bg-gradient-to-br from-blue-100/50 via-purple-100/50 to-cyan-100/50 dark:from-blue-900/30 dark:via-purple-900/30 dark:to-cyan-900/30 rounded-lg border-2 border-dashed border-blue-300/50 dark:border-blue-700/50 flex items-center justify-center">
-                <div className="text-center space-y-2">
-                  <div className="relative">
-                    <MapPin className="h-12 w-12 text-blue-500 mx-auto animate-pulse" />
-                  </div>
-                  <p className="text-lg font-medium text-blue-600 dark:text-blue-400">No Map Loaded</p>
-                  <p className="text-sm text-blue-500 dark:text-blue-500">Load an XML file to display the city map</p>
-                  <Button variant="outline" className="mt-2 border-blue-200 text-blue-600 dark:border-blue-800 dark:text-blue-400">
-                    <Upload className="mr-2 h-4 w-4" />
-                    Load XML Map
-                  </Button>
-                </div>
-              </div>
-            </CardContent>*/}
             <CardContent>
               <DeliveryMap
                 points={deliveryPoints}
+                roadSegments={roadSegments}
                 center={mapCenter}
                 zoom={14}
                 height="500px"
-                showRouting={true}
+                showRoadNetwork={false}
                 onPointClick={handlePointClick}
               />
             </CardContent>
@@ -404,58 +405,15 @@ export default function MainView(): JSX.Element {
                 </CardDescription>
               </div>
               <div className="flex gap-2">
-                <Sheet>
-                  <SheetTrigger asChild>
-                    <Button size="sm" onClick={onNewRequest} className="gap-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg">
-                      <Plus className="h-4 w-4" />
-                      New Delivery Request
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side="right">
-                    <SheetHeader>
-                      <SheetTitle>Add Delivery Request</SheetTitle>
-                      <SheetDescription>Either enter a single request or upload an XML with many.</SheetDescription>
-                    </SheetHeader>
-                    <div className="space-y-4 mt-4">
-                      <div>
-                        <label className="text-xs text-muted-foreground">Pickup node id</label>
-                        <Input value={manualPickup} onChange={(e) => setManualPickup(e.target.value)} placeholder="e.g. N1" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">Delivery node id</label>
-                        <Input value={manualDelivery} onChange={(e) => setManualDelivery(e.target.value)} placeholder="e.g. N2" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-xs text-muted-foreground">Pickup service (s)</label>
-                          <Input type="number" value={manualPickupService} onChange={(e) => setManualPickupService(Number(e.target.value))} />
-                        </div>
-                        <div>
-                          <label className="text-xs text-muted-foreground">Delivery service (s)</label>
-                          <Input type="number" value={manualDeliveryService} onChange={(e) => setManualDeliveryService(Number(e.target.value))} />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="text-xs text-muted-foreground">Or upload delivery requests (XML)</label>
-                        <input type="file" accept=".xml" onChange={(e) => submitUploadFile(e.target.files?.[0])} />
-                      </div>
-                    </div>
-                    <SheetFooter>
-                      <div className="flex gap-2">
-                        <SheetClose asChild>
-                          <Button variant="outline">Cancel</Button>
-                        </SheetClose>
-                        <Button onClick={() => submitManualRequest()}>Add Request</Button>
-                      </div>
-                    </SheetFooter>
-                  </SheetContent>
-                </Sheet>
+                <Button size="sm" onClick={() => setOpenNewReq(true)} className="gap-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg">
+                  <Plus className="h-4 w-4" />
+                  New Delivery Request
+                </Button>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            {deliveriesList.length === 0 ? (
+            {(stats?.deliveryRequests ?? 0) === 0 ? (
               <div className="h-48 rounded-lg bg-gradient-to-br from-emerald-100/50 to-green-100/50 dark:from-emerald-900/30 dark:to-green-900/30 border-2 border-dashed border-emerald-300/50 dark:border-emerald-700/50 flex items-center justify-center">
                 <div className="text-center space-y-2">
                   <Package className="h-8 w-8 text-emerald-500 mx-auto animate-bounce" />
@@ -464,22 +422,121 @@ export default function MainView(): JSX.Element {
                 </div>
               </div>
             ) : (
-              <div className="space-y-2">
-                {deliveriesList.map((d: any) => (
-                  <div key={d.id} className="p-3 rounded-md bg-white/80 dark:bg-gray-900/60 border border-emerald-200 dark:border-emerald-800">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-sm font-medium text-emerald-700">Request {d.id}</div>
-                        <div className="text-xs text-emerald-600">From: {typeof d.pickup_addr === 'string' ? d.pickup_addr : d.pickup_addr.id} → To: {typeof d.delivery_addr === 'string' ? d.delivery_addr : d.delivery_addr.id}</div>
+              <div className="space-y-3">
+                <div className="text-xs text-emerald-700 dark:text-emerald-300">{stats.deliveryRequests} request(s)</div>
+                <div className="max-h-56 overflow-auto rounded-md border border-emerald-200 dark:border-emerald-800 divide-y divide-emerald-100 dark:divide-emerald-900">
+                  {(deliveries || []).map((d: any) => {
+                    const pickupId = typeof d.pickup_addr === 'string' ? d.pickup_addr : d.pickup_addr?.id;
+                    const deliveryId = typeof d.delivery_addr === 'string' ? d.delivery_addr : d.delivery_addr?.id;
+                    return (
+                      <div key={d.id} className="flex items-center justify-between px-3 py-2">
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-emerald-800 dark:text-emerald-200 truncate">Delivery {d.id}</div>
+                          <div className="text-xs text-emerald-600 dark:text-emerald-400 truncate">
+                            Pickup: {pickupId} • Drop: {deliveryId} • svc: {d.pickup_service_s + d.delivery_service_s}s
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-1 border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300"
+                          onClick={async () => {
+                            try {
+                              await deleteRequest(d.id);
+                              // remove markers if present
+                              setDeliveryPoints((prev) => prev?.filter((p) => p.id !== `pickup-${d.id}` && p.id !== `delivery-${d.id}`));
+                            } catch (e) {
+                              // handled globally
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </Button>
                       </div>
-                      <div className="text-xs text-emerald-500">Service: {d.pickup_service_s}s / {d.delivery_service_s}s</div>
-                    </div>
-                  </div>
-                ))}
+                    );
+                  })}
+                </div>
               </div>
             )}
           </CardContent>
         </Card>
+
+        {/* New Delivery Request Sheet */}
+        <Sheet open={openNewReq} onOpenChange={setOpenNewReq}>
+          <SheetContent side="right" className="sm:max-w-md">
+            <SheetHeader>
+              <SheetTitle>New Delivery Request</SheetTitle>
+              <SheetDescription>Provide node IDs and service durations in seconds.</SheetDescription>
+            </SheetHeader>
+            <form onSubmit={submitNewRequest} className="mt-6 space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Pickup node id</label>
+                <Input
+                  placeholder="e.g. 25175791"
+                  value={pickupAddr}
+                  onChange={(e) => setPickupAddr(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Delivery node id</label>
+                <Input
+                  placeholder="e.g. 25175792"
+                  value={deliveryAddr}
+                  onChange={(e) => setDeliveryAddr(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Pickup service (s)</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={pickupService}
+                    onChange={(e) => setPickupService(parseInt(e.target.value || '0', 10))}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Delivery service (s)</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={deliveryService}
+                    onChange={(e) => setDeliveryService(parseInt(e.target.value || '0', 10))}
+                    required
+                  />
+                </div>
+              </div>
+                <div className="flex items-center gap-2">
+                <Separator className="flex-1 bg-emerald-200 dark:bg-emerald-800" />
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 px-2">Or</span>
+                <Separator className="flex-1 bg-emerald-200 dark:bg-emerald-800" />
+                </div>
+                {/* Import via XML */}
+              <div>
+                <Button 
+                  type="button"
+                  variant="outline" 
+                  className="w-full gap-2 border-emerald-200 text-emerald-600 dark:border-emerald-800 dark:text-emerald-400"
+                  onClick={handleRequestUpload}
+                  disabled={loading}
+                >
+                  <Upload className="h-4 w-4" />
+                  {loading ? 'Loading...' : 'Import from XML'}
+                </Button>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setOpenNewReq(false)}>Cancel</Button>
+                <Button type="submit" disabled={loading} className="bg-gradient-to-r from-emerald-500 to-green-600 text-white">
+                  {loading ? 'Saving...' : 'Create request'}
+                </Button>
+              </div>
+            </form>
+          </SheetContent>
+        </Sheet>
 
         {/* Tour Results Section */}
         <Card className="border-indigo-200 dark:border-indigo-800 shadow-lg">
