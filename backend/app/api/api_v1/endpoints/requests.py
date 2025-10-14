@@ -8,13 +8,13 @@ from app.services import XMLParser
 router = APIRouter(prefix="/requests")
 
 
-@router.get("/", response_model=List[Delivery])
+@router.get("/", response_model=List[Delivery], tags=["Requests"], summary="List delivery requests", description="Return the list of active delivery requests stored in the server state.")
 def list_requests():
     """Return the list of delivery requests."""
     return state.list_deliveries()
 
 
-@router.post("/", response_model=Delivery)
+@router.post("/", response_model=Delivery, tags=["Requests"], summary="Create a delivery request (JSON)", description="Create a single delivery request by supplying pickup/delivery node ids and service durations in JSON.")
 def add_request(request: DeliveryRequest):
     """Add a new delivery request."""
     mp = state.get_map()
@@ -36,7 +36,7 @@ def add_request(request: DeliveryRequest):
     return delivery
 
 
-@router.delete("/{delivery_id}")
+@router.delete("/{delivery_id}", tags=["Requests"], summary="Delete delivery request", description="Delete a delivery request by its id.")
 def delete_request(delivery_id: str):
     ok = state.remove_delivery(delivery_id)
     if not ok:
@@ -44,7 +44,7 @@ def delete_request(delivery_id: str):
     return {"detail": "deleted"}
 
 
-@router.post('/upload', response_model=List[Delivery])
+@router.post('/upload', response_model=List[Delivery], tags=["Requests"], summary="Upload delivery requests (XML)", description="Upload an XML file containing <livraison> elements. Each parsed delivery is added to the server state.")
 async def upload_requests_file(file: UploadFile):
     """Upload an XML file containing one or more <livraison> entries and add them to state."""
     try:
