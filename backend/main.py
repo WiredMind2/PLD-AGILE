@@ -16,13 +16,27 @@ async def lifespan(app: FastAPI):
     print("🛑 FastAPI server shutting down...")
 
 
-# Create FastAPI app with lifespan events
+# OpenAPI tags metadata to provide richer docs grouping
+tags_metadata = [
+    {"name": "Map", "description": "Upload and inspect city maps (XML)."},
+    {"name": "Requests", "description": "Create, list and delete delivery requests (single or batch via XML)."},
+    {"name": "Deliveries", "description": "Alternative endpoint for bulk delivery uploads (matches frontend client usage)."},
+    {"name": "Couriers", "description": "Manage couriers (add, list, remove)."},
+    {"name": "Tours", "description": "Compute delivery tours using the TSP service and list saved tours."},
+    {"name": "State", "description": "Inspect and persist the server-side application state (map, deliveries, tours)."},
+]
+
+
+# Create FastAPI app with lifespan events and OpenAPI metadata
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     description=settings.DESCRIPTION,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    lifespan=lifespan
+    lifespan=lifespan,
+    openapi_tags=tags_metadata,
+    contact={"name": "WiredMind2", "email": "support@example.com"},
+    license_info={"name": "MIT"},
 )
 
 # Set up CORS
@@ -34,6 +48,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
@@ -44,7 +59,7 @@ async def root():
     return {
         "message": f"Welcome to {settings.PROJECT_NAME}",
         "version": settings.VERSION,
-        "docs": "/docs"
+        "docs": "/docs",
     }
 
 
@@ -58,12 +73,12 @@ if __name__ == "__main__":
     # Test de la classe Astar
     astar = Astar(0.5)
     result = astar.print_for_test()
-    
+
     print("\n=== Démarrage du serveur FastAPI ===")
     import uvicorn
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
         port=8000,
-        reload=True
+        reload=True,
     )
