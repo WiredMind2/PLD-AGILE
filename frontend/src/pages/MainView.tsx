@@ -10,7 +10,8 @@ import { useDeliveryApp } from '@/hooks/useDeliveryApp'
 
 export default function MainView(): JSX.Element {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [mapCenter, setMapCenter] = useState<[number, number]>([45.764043, 4.835659]);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([45.764043, 4.835659]); // Default Lyon center
+  const [roadSegments, setRoadSegments] = useState<any[]>([]);
   
   const { 
     loading, 
@@ -74,6 +75,15 @@ export default function MainView(): JSX.Element {
         
         console.log('Generated delivery points:', points);
         setDeliveryPoints(points);
+        
+        // Convert road segments for rendering
+        const segments = (mapData.road_segments || []).map(segment => ({
+          start: [segment.start.latitude, segment.start.longitude] as [number, number],
+          end: [segment.end.latitude, segment.end.longitude] as [number, number],
+          street_name: segment.street_name
+        }));
+        setRoadSegments(segments);
+        console.log('Generated road segments:', segments.length);
         
         // Set map center to the first intersection if available
         if (mapData.intersections && mapData.intersections.length > 0) {
@@ -237,10 +247,11 @@ export default function MainView(): JSX.Element {
             <CardContent>
               <DeliveryMap
                 points={deliveryPoints}
+                roadSegments={roadSegments}
                 center={mapCenter}
                 zoom={14}
                 height="500px"
-                showRouting={true}
+                showRoadNetwork={false}
                 onPointClick={handlePointClick}
               />
             </CardContent>
