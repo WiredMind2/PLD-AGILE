@@ -1,8 +1,7 @@
 @startuml name UCdiagram
-' Force straight (orthogonal) links
-skinparam linetype ortho
 title Pickup & Delivery Bike Tours - Use Case Diagram
 
+skinparam linetype ortho
 skinparam usecase {
     BackgroundColor<<core>> #EEF7FF
     BorderColor #2B6CB0
@@ -15,67 +14,40 @@ actor Courier
 
 rectangle "Tour Planning System" as System {
 
-    usecase UC_Load         as "Load City Map (XML)" <<core>>
-    usecase UC_DisplayMap   as "Display Map" <<core>>
+    usecase UC_Load         as "Load and display City Map (XML)" <<core>>
+    usecase UC_Receive      as "Load Delivery Request (XML)" <<core>>
+    usecase UC_Compute      as "Compute Best Tour" <<core>>
+
     usecase UC_SetCouriers  as "Set Number of Couriers"
 
-    usecase UC_Receive        as "Receive Delivery Request" <<core>>
     usecase UC_SelectCourier as "Select Courier"
-    usecase UC_Pickup_Delivery       as "Select Pickup and Delivery Location"
+    usecase UC_Pickup_Delivery as "Select Pickup and Delivery Location"
     usecase UC_ServiceTimes as "Set Service Times"
 
-    usecase UC_Compute      as "Compute Best Tour" <<core>>
     usecase UC_DisplayTour  as "Display Tour on Map"
-
-    usecase UC_AskOther     as "Ask to Select Another Courier"
-    usecase UC_Reject       as "Reject Delivery Request"
 
     usecase UC_Save         as "Save Current Tours to File"
     usecase UC_Restore      as "Restore Tours from File"
 
-    usecase UC_Execute      as "Execute Assigned Tour"
-
-    usecase UC_AddCouriers as "Add a Courier"
+    usecase UC_AddCouriers  as "Add a Courier"
 }
 
 ' Actor → Use cases
 Dispatcher -[#blue]-> UC_Load
-Dispatcher -[#blue]-> UC_DisplayMap
 Dispatcher -[#blue]-> UC_SetCouriers
 Dispatcher -[#blue]-> UC_AddCouriers
 
 Dispatcher -[#blue]-> UC_Receive
 Dispatcher -[#blue]-> UC_Save
 Dispatcher -[#blue]-> UC_Restore
+Dispatcher -[#blue]-> UC_Compute
 
-Courier -[#green]-> UC_Execute
 Courier -[#green]-> UC_DisplayTour
 
-
-' Includes (decomposition)
+' Includes (decomposition) — arrow head points to the included UC
 UC_Receive .> UC_SelectCourier : <<include>>
 UC_Receive .> UC_Pickup_Delivery : <<include>>
 UC_Receive .> UC_ServiceTimes : <<include>>
-
-' Main computation and downstream effects
-UC_Receive --> UC_Compute
-UC_Compute .> UC_Execute : <<extend>>
-UC_Compute --> UC_DisplayTour
-
-' Dispatcher interacts when infeasible
-UC_Compute .> UC_AskOther : <<extend>>\n[No feasible tour]
-Dispatcher -[#blue]-> UC_AskOther
-
-' If still none available, reject
-UC_AskOther .> UC_Reject : <<extend>>\n[No alternative courier]
-Dispatcher -[#blue]-> UC_Reject
-
-' Map display is also available after load/restore
-UC_Load --> UC_DisplayMap
-UC_Restore --> UC_DisplayMap
-UC_Restore --> UC_DisplayTour
-
-UC_DisplayMap .> UC_DisplayTour : <<extend>>
 
 ' Notes / business rules
 note right of UC_Compute
@@ -85,18 +57,9 @@ note right of UC_Compute
 - Respect pickup-before-delivery constraints
 end note
 
-note right of UC_Execute
-Courier follows the assigned tour and
-returns to the warehouse at the end.
-end note
-
 note left of UC_Receive
 A delivery request is send by the customer.
 end note
 
-note right of UC_DisplayMap
-Displays for each pickup and each delivery, the address, the arrival time and the
-departure time
-end note 
 
 @enduml
