@@ -1,12 +1,21 @@
 from __future__ import annotations
+import enum
 from typing import Dict, List, Tuple, Optional
 from pydantic.dataclasses import dataclass
 from pydantic import Field
 from datetime import time
+from enum import Enum
 
 
 DEFAULT_SPEED_KMH: float = 15.0
 DEFAULT_START_TIME: time = time(hour=8, minute=0)
+
+
+class IntersectionType(Enum):
+    NORMAL = "normal"
+    PICKUP = "pickup"
+    DELIVERY = "delivery"
+    DEPOT = "depot"
 
 # ---------- Modèle CARTE (reseau) ----------
 
@@ -15,10 +24,11 @@ class Intersection:
     id: str           # ex: "25175791"
     latitude: float
     longitude: float
+    type_inter: IntersectionType = IntersectionType.NORMAL
 
 
 @dataclass
-class DeliveryRequest:
+class Delivery:
     pickup_addr: str          # adresseEnlevement (string, id noeud)
     delivery_addr: str        # adresseLivraison (string, id noeud)
     pickup_service_s: int     # dureeEnlevement (secondes)
@@ -46,24 +56,9 @@ class RoadSegment:
 
 
 @dataclass
-class Delivery:
-    id: str                   # ex: "D1"
-    # addresses may be represented as node-id strings in some places or
-    # full Intersection objects elsewhere. Allow both to make parsing
-    # convenient for tests and incremental construction.
-    pickup_addr: str | Intersection
-    delivery_addr: str | Intersection
-    pickup_service_s: int     # dureeEnlevement (secondes)
-    delivery_service_s: int   # dureeLivraison (secondes)
-    courier: Optional[Courrier] = None  # Courrier assigned to this delivery, if any
-    # tests expect the raw hour string like "08:30"; accept str here
-    hour_departure : Optional[str] = None
-
-
-@dataclass
 class Tour: 
     courier: Courrier
-    deliveries: List[Delivery] = Field(default_factory=list)
+    deliveries: List[Intersection] = Field(default_factory=list)
     total_travel_time_s: int = 0
     total_service_time_s: int = 0
     total_distance_m: float = 0.0
