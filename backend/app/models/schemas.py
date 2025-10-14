@@ -46,6 +46,7 @@ class Delivery:
     delivery_addr: str | Intersection
     pickup_service_s: int     # dureeEnlevement (secondes)
     delivery_service_s: int   # dureeLivraison (secondes)
+    warehouse: Optional[Intersection] = None
     courier: Optional[Courrier] = None  # Courrier assigned to this delivery, if any
     # tests expect the raw hour string like "08:30"; accept str here
     hour_departure : Optional[str] = None

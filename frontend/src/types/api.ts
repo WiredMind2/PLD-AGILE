@@ -25,6 +25,7 @@ export interface Delivery {
   delivery_addr: string | Intersection;
   pickup_service_s: number;
   delivery_service_s: number;
+  warehouse?: Intersection;
   courier?: Courier;
   hour_departure?: string;
 }

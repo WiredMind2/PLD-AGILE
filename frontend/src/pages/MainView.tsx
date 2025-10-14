@@ -85,6 +85,20 @@ export default function MainView(): JSX.Element {
               status: 'pending',
             });
           }
+          // Add courier marker at warehouse if present on the delivery
+          const wh = delivery.warehouse;
+          if (wh && typeof wh.latitude === 'number' && typeof wh.longitude === 'number') {
+            const courierId = `courier-${String(wh.id)}`;
+            if (!points.some((p) => p.id === courierId)) {
+              points.push({
+                id: courierId,
+                position: [wh.latitude, wh.longitude],
+                address: 'Courier start (warehouse)',
+                type: 'courier',
+                status: 'active',
+              });
+            }
+          }
         });
         
         console.log('Generated delivery points:', points);
@@ -202,6 +216,20 @@ export default function MainView(): JSX.Element {
                   }
                   if (drop) {
                     base.push({ id: `delivery-${d.id}`, position: [drop.latitude, drop.longitude], address: 'Delivery Location', type: 'delivery', status: 'pending' });
+                  }
+                  // Add courier marker at warehouse (entrepot) if available
+                  const wh = d.warehouse;
+                  if (wh && typeof wh.latitude === 'number' && typeof wh.longitude === 'number') {
+                    const courierId = `courier-${String(wh.id)}`;
+                    if (!base.some((p) => p.id === courierId)) {
+                      base.push({
+                        id: courierId,
+                        position: [wh.latitude, wh.longitude],
+                        address: 'Courier start (warehouse)',
+                        type: 'courier',
+                        status: 'active',
+                      });
+                    }
                   }
                 });
                 return base;
