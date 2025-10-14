@@ -1,3 +1,24 @@
+import heapq
+import math
+from typing import Dict, Tuple, List, Optional
+import xml.etree.ElementTree as ET
+import os
+import time
+import logging
+try:
+    from tqdm import tqdm
+except Exception:
+    # fallback: identity wrapper if tqdm is not installed
+    def tqdm(x, **kwargs):
+        return x
+try:
+    from app.services.XMLParser import XMLParser
+except ImportError:
+    import sys
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+    from services.XMLParser import XMLParser
+
+
 class Astar:
     def __init__(self, alpha: float = 0.5):
         """
@@ -69,6 +90,7 @@ class Astar:
                         self.adj[start_id][end_id] = cost
             
             print(f"Data loaded: {len(self.nodes)} nodes, {sum(len(adj) for adj in self.adj.values())} edges")
+            print("Data loaded: %d nodes, %d edges", len(self.nodes), sum(len(adj) for adj in self.adj.values()))
             
         except FileNotFoundError:
             print(f"XML file not found: {xml_file_path}")
@@ -86,23 +108,22 @@ class Astar:
         p2 = self.nodes[n2]
         return self.alpha * self._euclid(p1, p2) + (1.0 - self.alpha) * self._manhattan(p1, p2)
 
-    def multipleTarget_astar(self, idNode):
+    def multipleTarget_astar(self, idNode, targets: Optional[List[str]] = None):
         """
         Find shortest paths from idNode to all other nodes.
-        Optimized version with early termination and better heuristics.
         Returns a dict:
           target -> {'path': [idNode, ..., target] or None, 'cost': float('inf') if unreachable}
         """
         if idNode not in self.nodes:
             raise ValueError(f"start node {idNode!r} not in graph")
 
-        # set of goals (all nodes except the start)
-        goals = set(self.nodes.keys()) - {idNode}
+        # set of goals (either provided targets or all nodes except the start)
+        if targets is not None:
+            goals = set(targets) - {idNode}
+        else:
+            goals = set(self.nodes.keys()) - {idNode}
         if not goals:
             return {}
-
-        # Pre-compute goal positions for faster heuristic calculation
-        goal_positions = {goal: self.nodes[goal] for goal in goals}
 
         # helpers
         def reconstruct_path(came_from: Dict[str, str], current: str) -> List[str]:
@@ -113,134 +134,105 @@ class Astar:
             path.reverse()
             return path
 
-        def compute_min_heuristic(node_pos: Tuple[float, float], remaining_goals: set) -> float:
-            """Optimized heuristic computation using pre-computed positions"""
-            if not remaining_goals:
-                return 0.0
-            
-            min_h = float('inf')
-            for goal in remaining_goals:
-                goal_pos = goal_positions[goal]
-                h = self.alpha * self._euclid(node_pos, goal_pos) + (1.0 - self.alpha) * self._manhattan(node_pos, goal_pos)
-                if h < min_h:
-                    min_h = h
-                    if min_h == 0:  # Can't get better than 0
-                        break
-            return min_h
+        # Local references for speed
+        nodes_local = self.nodes
+        adj_local = self.adj
+        heuristic_fn = self.heuristic
 
-        # Multi-target A*: admissible heuristic = min heuristic to any remaining goal
-        remaining_goals = set(goals)
+        # Multi-target A*: precompute a min-heuristic to any goal for each node.
+        # Using the min over all goals (static) is admissible and avoids repeated
+        # computation while remaining_goals shrinks.
+        goals_list = list(goals)
+        h_min: Dict[str, float] = {}
+        # Use tqdm for a visible progress bar when available (safe fallback otherwise)
+        for n in tqdm(nodes_local, desc="precompute h_min", leave=False):
+            # compute min heuristic to any goal
+            best = float('inf')
+            p1 = nodes_local.get(n)
+            if p1 is None:
+                h_min[n] = best
+                continue
+            for g in goals_list:
+                # skip computing heuristic to itself (not a goal)
+                try:
+                    val = heuristic_fn(n, g)
+                except Exception:
+                    val = float('inf')
+                if val < best:
+                    best = val
+            h_min[n] = best
+
+        remaining_goals = set(goals_list)
         g_score: Dict[str, float] = {idNode: 0.0}
         came_from: Dict[str, str] = {}
         found: Dict[str, Dict] = {}
-        
-        # Cache for visited states to avoid recomputation
-        closed_set = set()
 
         heap = []
         # f, g, node
-        start_pos = self.nodes[idNode]
-        h0 = compute_min_heuristic(start_pos, remaining_goals)
+        h0 = h_min.get(idNode, 0.0)
         heapq.heappush(heap, (h0, 0.0, idNode))
 
-        while heap and len(found) < len(goals):
+        t_start_search = time.perf_counter()
+        # Main search loop
+        while heap and len(found) < len(goals_list):
             f, g, node = heapq.heappop(heap)
-            
-            # Skip if already processed with better cost
-            if node in closed_set:
+            prev_best = g_score.get(node)
+            if prev_best is None or g != prev_best and g > prev_best:
+                # outdated entry
                 continue
-            
-            # outdated entry?
-            if g > g_score.get(node, float("inf")):
-                continue
-                
-            closed_set.add(node)
 
             # if we are on a goal not yet found, record it
             if node in remaining_goals:
                 path = reconstruct_path(came_from, node)
                 found[node] = {"path": path, "cost": g}
                 remaining_goals.remove(node)
-                
-                # Early termination: if all goals found, stop
-                if len(found) == len(goals):
+                # if all found, we can stop
+                if len(found) == len(goals_list):
                     break
-                
-                # Update goal_positions to remove found goal for faster heuristic
-                del goal_positions[node]
 
             # explore neighbors
-            node_neighbors = self.adj.get(node, {})
-            if not node_neighbors:
+            nbrs = adj_local.get(node)
+            if not nbrs:
                 continue
-                
-            node_pos = self.nodes[node]
-            
-            for nbr, edge_cost in node_neighbors.items():
-                if nbr in closed_set:
-                    continue
-                    
-                tentative_g = g + float(edge_cost)
-                
-                # Skip if we already found a better path to this neighbor
-                if tentative_g >= g_score.get(nbr, float("inf")):
-                    continue
-                
-                g_score[nbr] = tentative_g
-                came_from[nbr] = node
-                
-                # Optimized heuristic calculation
-                nbr_pos = self.nodes[nbr]
-                h = compute_min_heuristic(nbr_pos, remaining_goals)
-                
-                heapq.heappush(heap, (tentative_g + h, tentative_g, nbr))
+            for nbr, cost in nbrs.items():
+                tentative_g = g + float(cost)
+                prev = g_score.get(nbr, float('inf'))
+                if tentative_g < prev:
+                    g_score[nbr] = tentative_g
+                    came_from[nbr] = node
+                    # heuristic = precomputed min heuristic (admissible)
+                    h = h_min.get(nbr, 0.0)
+                    heapq.heappush(heap, (tentative_g + h, tentative_g, nbr))
 
         # build result: for unreachable targets, put None / inf
         result: Dict[str, Dict] = {}
-        for tgt in goals:
+        for tgt in goals_list:
             if tgt in found:
                 result[tgt] = found[tgt]
             else:
                 result[tgt] = {"path": None, "cost": float("inf")}
+        t_end_search = time.perf_counter()
+        print(f"multipleTarget_astar: start={idNode} found={sum(1 for v in result.values() if v['path'] is not None)}/{len(result)} time={t_end_search - t_start_search:.3f}s")
         return result
         
 
     def compute_shortest_paths_graph(self) -> Dict[str, Dict[str, Dict]]:
         """
         Compute the shortest paths graph for every node in self.nodes using multipleTarget_astar.
-        Optimized version with progress tracking and early validation.
         Returns a dict mapping source -> (dict returned by multipleTarget_astar for that source)
         """
         if not self.nodes:
             return {}
-            
         result: Dict[str, Dict[str, Dict]] = {}
-        total_nodes = len(self.nodes)
-        
-        # Pre-filter nodes that have no outgoing edges to avoid unnecessary computation
-        valid_sources = [node for node in self.nodes.keys() if node in self.adj and self.adj[node]]
-        isolated_nodes = [node for node in self.nodes.keys() if node not in self.adj or not self.adj[node]]
-        
-        print(f"Computing shortest paths for {total_nodes} nodes ({len(valid_sources)} with outgoing edges, {len(isolated_nodes)} isolated)...")
-        
-        # Process nodes with outgoing edges
-        for i, src in enumerate(valid_sources):
-            if i % 10 == 0:  # Progress indicator
-                print(f"Progress: {i}/{len(valid_sources)} connected nodes processed...")
-                
+        sources = list(self.nodes.keys())
+        total = len(sources)
+        for i, src in enumerate(sources):
+            t0 = time.perf_counter()
             result[src] = self.multipleTarget_astar(src)
-        
-        # For nodes without outgoing edges, create empty result (much faster)
-        print(f"Adding {len(isolated_nodes)} isolated nodes...")
-        for src in isolated_nodes:
-            # All destinations are unreachable from isolated nodes
-            unreachable_result = {}
-            for tgt in self.nodes.keys():
-                if tgt != src:
-                    unreachable_result[tgt] = {"path": None, "cost": float("inf")}
-            result[src] = unreachable_result
-                
-        print(f"Shortest paths computation completed for {total_nodes} nodes.")
+            t1 = time.perf_counter()
+            # Log progress every 50 sources or for the first/last
+            if i < 5 or (i + 1) % 50 == 0 or i == total - 1:
+                print(f"compute_shortest_paths_graph: computed {i + 1}/{total} sources (last src={src}) in {t1 - t0:.3f}s")
         return result
 
     def print_for_test(self) -> Dict[str, Dict[str, Dict]]:
