@@ -27,9 +27,11 @@ class Settings(BaseSettings):
     # Database (for future use)
     DATABASE_URL: str = "sqlite:///./app.db"
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = {
+        "env_file": ".env",
+        "case_sensitive": True,
+        "extra": "ignore"  # Ignore extra environment variables
+    }
 
 
 settings = Settings()
