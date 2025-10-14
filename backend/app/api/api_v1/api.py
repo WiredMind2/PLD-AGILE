@@ -1,9 +1,11 @@
 from fastapi import APIRouter
-
-from app.api.api_v1.endpoints import items, users
+from app.api.api_v1.endpoints import map, requests, couriers, tours, state, deliveries
 
 api_router = APIRouter()
 
-# Include endpoint routers
-api_router.include_router(items.router, prefix="/items", tags=["items"])
-api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(map.router)
+api_router.include_router(requests.router)
+api_router.include_router(couriers.router)
+api_router.include_router(tours.router)
+api_router.include_router(state.router)
+api_router.include_router(deliveries.router)
