@@ -15,7 +15,6 @@ export interface Courier {
   id: string;
   current_location: Intersection;
   name: string;
-  phone_number: string;
 }
 
 export interface RoadSegment {
