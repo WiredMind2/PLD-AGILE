@@ -29,14 +29,13 @@ rectangle "Tour Planning System" as System {
     usecase UC_Save         as "Save Current Tours to File"
     usecase UC_Restore      as "Restore Tours from File"
 
-    usecase UC_AddCouriers  as "Add a Courier"
+    usecase UC_addDeliveryManual as "Add a delivery request manually" <<core>>
 }
 
 ' Actor → Use cases
 Dispatcher -[#blue]-> UC_Load
 Dispatcher -[#blue]-> UC_SetCouriers
-Dispatcher -[#blue]-> UC_AddCouriers
-
+Dispatcher -[#blue]-> UC_addDeliveryManual
 Dispatcher -[#blue]-> UC_Receive
 Dispatcher -[#blue]-> UC_Save
 Dispatcher -[#blue]-> UC_Restore
@@ -45,9 +44,10 @@ Dispatcher -[#blue]-> UC_Compute
 Courier -[#green]-> UC_DisplayTour
 
 ' Includes (decomposition) — arrow head points to the included UC
+UC_addDeliveryManual .> UC_ServiceTimes : <<include>>
+UC_addDeliveryManual .> UC_SelectCourier : <<include>>
+UC_addDeliveryManual .> UC_Pickup_Delivery : <<include>>
 UC_Receive .> UC_SelectCourier : <<include>>
-UC_Receive .> UC_Pickup_Delivery : <<include>>
-UC_Receive .> UC_ServiceTimes : <<include>>
 
 ' Notes / business rules
 note right of UC_Compute
