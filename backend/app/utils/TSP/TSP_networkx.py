@@ -64,9 +64,6 @@ class TSP():
 
         return G, list(G.nodes())
 
-    # The previous brute-force `solve` was removed in favour of the
-    # Christofides-based polynomial-time solver (renamed to `solve`).
-
     def _build_metric_complete_graph(self, graph):
         """Build a symmetric metric complete graph from a directed sp_graph.
 

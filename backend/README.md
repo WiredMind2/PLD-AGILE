@@ -155,22 +155,6 @@ class MyService:
         return processed_data
 ```
 
-### Database Integration
-To add a database:
-1. Install database dependencies (e.g., `sqlalchemy`, `alembic`)
-2. Create database models in `app/models/database.py`
-3. Add database connection in `app/core/database.py`
-4. Use dependency injection in endpoints
-
-## 🔒 Configuration
-
-Edit `.env` file or environment variables:
-- `PROJECT_NAME` - API name
-- `VERSION` - API version
-- `ENVIRONMENT` - development/production
-- `DEBUG` - Enable debug mode
-- `DATABASE_URL` - Database connection string
-
 ## 📝 Next Steps
 
 - [ ] Add database integration (SQLAlchemy + Alembic)

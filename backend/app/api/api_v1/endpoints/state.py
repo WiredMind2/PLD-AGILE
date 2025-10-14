@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from app.core import state
+from app.core.config import settings
 
 router = APIRouter(prefix="/state")
 
@@ -27,3 +28,8 @@ def save_state():
 def load_state():
     state.load_state()
     return {"detail": "state loaded"}
+
+@router.get('/get_travel_speed', tags=["State"], summary="Get travel speed", description="Return the current travel speed setting.")
+def get_travel_speed():
+    speed = settings.TRAVEL_SPEED
+    return {"travel_speed": speed}

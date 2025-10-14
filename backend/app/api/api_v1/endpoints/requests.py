@@ -20,9 +20,18 @@ def add_request(request: DeliveryRequest):
     mp = state.get_map()
     if mp is None:
         raise HTTPException(status_code=400, detail='No map loaded')
+    # Validate that pickup and delivery node ids exist on the loaded map
+    inter_ids = {str(i.id) for i in mp.intersections}
+    if str(request.pickup_addr) not in inter_ids:
+        raise HTTPException(status_code=400, detail=f'Pickup node id {request.pickup_addr} not found on map')
+    if str(request.delivery_addr) not in inter_ids:
+        raise HTTPException(status_code=400, detail=f'Delivery node id {request.delivery_addr} not found on map')
 
-    # create delivery id via XMLParser helper
-    deliveries = XMLParser.parse_deliveries(f'<root><livraison adresseEnlevement="{request.pickup_addr}" adresseLivraison="{request.delivery_addr}" dureeEnlevement="{request.pickup_service_s}" dureeLivraison="{request.delivery_service_s}"/></root>')
+    # create delivery id via XMLParser helper (reuse existing parser to build a Delivery instance)
+    try:
+        deliveries = XMLParser.parse_deliveries(f'<root><livraison adresseEnlevement="{request.pickup_addr}" adresseLivraison="{request.delivery_addr}" dureeEnlevement="{request.pickup_service_s}" dureeLivraison="{request.delivery_service_s}"/></root>')
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f'Failed to parse delivery: {e}')
     if not deliveries:
         raise HTTPException(status_code=400, detail='Could not parse delivery')
     delivery = deliveries[0]
@@ -53,7 +62,14 @@ async def upload_requests_file(file: UploadFile):
         deliveries = XMLParser.parse_deliveries(text)
         if not deliveries:
             raise HTTPException(status_code=400, detail='No deliveries parsed from file')
+        # validate that each delivery references existing nodes
+        mp = state.get_map()
+        inter_ids = {str(i.id) for i in mp.intersections} if mp else set()
         for d in deliveries:
+            pid = getattr(d.pickup_addr, 'id', d.pickup_addr)
+            did = getattr(d.delivery_addr, 'id', d.delivery_addr)
+            if inter_ids and (str(pid) not in inter_ids or str(did) not in inter_ids):
+                raise HTTPException(status_code=400, detail=f'Delivery references unknown node id (pickup={pid}, delivery={did})')
             state.add_delivery(d)
         try:
             print(f"[requests.upload_requests_file] added {len(deliveries)} deliveries from {file.filename}")

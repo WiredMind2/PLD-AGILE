@@ -23,13 +23,9 @@ class Settings(BaseSettings):
     # Environment
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
-    
-    # Database (for future use)
-    DATABASE_URL: str = "sqlite:///./app.db"
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+
+
+    TRAVEL_SPEED: float = 15.0  # Default travel speed in km/h
 
 
 settings = Settings()

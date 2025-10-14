@@ -18,6 +18,11 @@ def add_courier(courier: Courrier):
     mp = state.get_map()
     if mp is None:
         raise HTTPException(status_code=400, detail='No map loaded')
+    # validate current_location refers to a known intersection id if provided as an id
+    inter_ids = {str(i.id) for i in mp.intersections}
+    loc = getattr(courier.current_location, 'id', courier.current_location)
+    if loc is not None and str(loc) not in inter_ids:
+        raise HTTPException(status_code=400, detail=f'Courier current_location {loc} not found on map')
     state.add_courier(courier)
     return courier
 
