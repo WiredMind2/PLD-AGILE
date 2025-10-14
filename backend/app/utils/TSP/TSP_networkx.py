@@ -278,6 +278,173 @@ class TSP():
 
         return tour, total
 
+    def solve_multi_couriers(self, num_couriers, nodes=None, must_visit=None, depot_node=None):
+        """Multi-agent TSP solver using cluster-first, route-second approach.
+        
+        Args:
+            num_couriers: Number of delivery agents
+            nodes: Optional list of all nodes to consider
+            must_visit: List of nodes that must be visited
+            depot_node: Starting/ending point for all couriers (first node if None)
+            
+        Returns:
+            Dictionary with courier assignments:
+            {
+                'courier_1': {'tour': [...], 'cost': float},
+                'courier_2': {'tour': [...], 'cost': float},
+                ...
+                'total_cost': float
+            }
+        """
+        # Build map graph
+        G_map, all_nodes = self._build_networkx_map_graph()
+        
+        # Determine nodes to visit
+        if must_visit is not None:
+            if nodes is not None:
+                nodes_list = list(dict.fromkeys(list(nodes) + list(must_visit)))
+            else:
+                nodes_list = list(dict.fromkeys(list(must_visit)))
+        else:
+            nodes_list = list(nodes) if nodes is not None else list(all_nodes)
+        
+        # Filter valid nodes
+        nodes_list = [n for n in nodes_list if n in G_map.nodes()]
+        
+        if not nodes_list:
+            return {'total_cost': 0.0}
+        
+        # Set depot
+        if depot_node is None:
+            depot_node = nodes_list[0]
+        elif depot_node not in G_map.nodes():
+            depot_node = nodes_list[0]
+        
+        # Remove depot from visit list if present
+        visit_nodes = [n for n in nodes_list if n != depot_node]
+        
+        if not visit_nodes:
+            # Only depot, return empty tours
+            result = {'total_cost': 0.0}
+            for i in range(num_couriers):
+                result[f'courier_{i+1}'] = {'tour': [depot_node], 'cost': 0.0}
+            return result
+        
+        # Compute shortest paths from depot to all visit nodes for clustering
+        try:
+            depot_lengths = nx.single_source_dijkstra_path_length(G_map, depot_node, weight='weight')
+        except Exception:
+            depot_lengths = {}
+        
+        # Simple clustering: assign nodes to couriers using nearest-neighbor from depot
+        # Sort nodes by distance from depot
+        sorted_nodes = sorted(visit_nodes, key=lambda n: depot_lengths.get(n, float('inf')))
+        
+        # Distribute nodes round-robin to balance load
+        courier_clusters = [[] for _ in range(num_couriers)]
+        for idx, node in enumerate(sorted_nodes):
+            courier_clusters[idx % num_couriers].append(node)
+        
+        # Build complete sp_graph for all relevant nodes
+        all_tsp_nodes = [depot_node] + visit_nodes
+        sp_graph = {}
+        for src in all_tsp_nodes:
+            try:
+                lengths, paths = nx.single_source_dijkstra(G_map, src, weight='weight')
+                lengths = dict(lengths)
+                paths = dict(paths)
+            except Exception:
+                lengths = {}
+                paths = {}
+            sp_graph[src] = {}
+            for tgt in all_tsp_nodes:
+                if tgt == src:
+                    sp_graph[src][tgt] = {'path': [src], 'cost': 0.0}
+                else:
+                    sp_graph[src][tgt] = {'path': paths.get(tgt), 'cost': lengths.get(tgt, float('inf'))}
+        
+        # Solve TSP for each courier
+        result = {}
+        total_cost = 0.0
+        
+        for i, cluster in enumerate(courier_clusters):
+            courier_name = f'courier_{i+1}'
+            
+            if not cluster:
+                # Empty cluster
+                result[courier_name] = {'tour': [depot_node, depot_node], 'cost': 0.0}
+                continue
+            
+            # TSP nodes for this courier: depot + assigned nodes
+            courier_nodes = [depot_node] + cluster
+            
+            # Build metric graph for this subset
+            courier_sp_graph = {u: {v: sp_graph[u][v] for v in courier_nodes} for u in courier_nodes}
+            G_courier = self._build_metric_complete_graph(courier_sp_graph)
+            
+            if len(G_courier.nodes()) < 2:
+                result[courier_name] = {'tour': [depot_node, depot_node], 'cost': 0.0}
+                continue
+            
+            # Apply Christofides on this subset
+            T = nx.minimum_spanning_tree(G_courier, weight='weight')
+            odd_nodes = [v for v, d in T.degree() if d % 2 == 1]
+            
+            if odd_nodes:
+                M = nx.Graph()
+                for i_idx, u in enumerate(odd_nodes):
+                    for v in odd_nodes[i_idx+1:]:
+                        w = G_courier[u][v]['weight']
+                        M.add_edge(u, v, weight=w)
+                
+                matching = nx_matching.min_weight_matching(M, weight='weight')
+            else:
+                matching = set()
+            
+            multigraph = nx.MultiGraph()
+            multigraph.add_nodes_from(T.nodes())
+            multigraph.add_edges_from(T.edges(data=True))
+            for u, v in matching:
+                multigraph.add_edge(u, v, weight=G_courier[u][v]['weight'])
+            
+            if not nx.is_eulerian(multigraph):
+                multigraph = nx.eulerize(multigraph)
+            
+            euler_circuit = list(nx.eulerian_circuit(multigraph))
+            
+            # Build tour starting from depot
+            tour = []
+            seen = set()
+            for u, v in euler_circuit:
+                if u not in seen:
+                    tour.append(u)
+                    seen.add(u)
+            
+            for n in G_courier.nodes():
+                if n not in seen:
+                    tour.append(n)
+            
+            # Ensure tour starts and ends at depot
+            if tour and tour[0] != depot_node:
+                if depot_node in tour:
+                    depot_idx = tour.index(depot_node)
+                    tour = tour[depot_idx:] + tour[:depot_idx]
+            
+            if tour and tour[-1] != depot_node:
+                tour.append(depot_node)
+            
+            # Calculate cost
+            cost = 0.0
+            for j in range(len(tour)-1):
+                u, v = tour[j], tour[j+1]
+                cost += G_courier[u][v]['weight']
+            
+            result[courier_name] = {'tour': tour, 'cost': cost}
+            total_cost += cost
+        
+        result['total_cost'] = total_cost
+        return result
+
     def expand_tour_with_paths(self, tour, sp_graph):
         """Expand a compact tour (list of location nodes) into the full node-level route
         by concatenating the A* shortest-paths between consecutive tour nodes.
