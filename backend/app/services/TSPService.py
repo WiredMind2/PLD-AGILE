@@ -5,7 +5,7 @@ method which assigns deliveries to couriers in a round-robin fashion and
 creates `Tour` objects saved into `app.state`. This keeps endpoints
 functional while leaving the advanced solver in `app.utils.TSP` intact.
 """
-from typing import List, Set
+from typing import List, Set, Dict, Any, cast
 
 import networkx as nx
 
@@ -38,21 +38,29 @@ class TSPService:
         return G
 
     def _build_sp_graph(self, G_map: nx.DiGraph, nodes_list: List[str]):
-        sp_graph = {}
+        sp_graph: Dict[str, Dict[str, Dict[str, Any]]] = {}
         for src in nodes_list:
             try:
-                lengths, paths = nx.single_source_dijkstra(G_map, src, weight='weight')
-                lengths = dict(lengths)
-                paths = dict(paths)
+                # single_source_dijkstra returns (lengths_dict, paths_dict)
+                lengths_raw, paths_raw = nx.single_source_dijkstra(G_map, src, weight='weight')
+                # cast to expected typing to satisfy static checkers
+                lengths: Dict[str, float] = cast(Dict[str, float], lengths_raw)
+                paths: Dict[str, List[str]] = cast(Dict[str, List[str]], paths_raw)
             except Exception:
                 lengths = {}
                 paths = {}
+
             sp_graph[src] = {}
             for tgt in nodes_list:
                 if tgt == src:
                     sp_graph[src][tgt] = {'path': [src], 'cost': 0.0}
                 else:
-                    sp_graph[src][tgt] = {'path': paths.get(tgt), 'cost': lengths.get(tgt, float('inf'))}
+                    # ensure we use string keys
+                    key = str(tgt)
+                    sp_graph[src][tgt] = {
+                        'path': paths.get(key) if isinstance(paths, dict) else None,
+                        'cost': lengths.get(key, float('inf')) if isinstance(lengths, dict) else float('inf')
+                    }
         return sp_graph
 
     def compute_tours(self) -> List[Tour]:

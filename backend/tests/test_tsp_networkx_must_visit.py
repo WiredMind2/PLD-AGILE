@@ -10,6 +10,8 @@ except Exception:
 
 @pytest.mark.skipif(not HAS_NX, reason="networkx or TSP_networkx unavailable")
 def test_must_visit_in_tour():
+    if TSP is None:
+        pytest.skip("TSP class unavailable")
     t = TSP()
     G, nodes = t._build_networkx_map_graph()
     if len(nodes) < 3:
