@@ -51,24 +51,41 @@ export default function MainView(): JSX.Element {
         console.log('Map uploaded successfully:', mapData);
         
         // Only show existing delivery request points (no raw map nodes or couriers)
-        const points = [
-          // Add delivery pickup points (if backend returned any in mapData)
-          ...(mapData.deliveries || []).map(delivery => ({
-            id: `pickup-${delivery.id}`,
-            position: [delivery.pickup_addr.latitude, delivery.pickup_addr.longitude] as [number, number],
-            address: 'Pickup Location',
-            type: 'pickup' as const,
-            status: 'pending' as const
-          })),
-          // Add delivery destination points
-          ...(mapData.deliveries || []).map(delivery => ({
-            id: `delivery-${delivery.id}`,
-            position: [delivery.delivery_addr.latitude, delivery.delivery_addr.longitude] as [number, number],
-            address: 'Delivery Location',
-            type: 'delivery' as const,
-            status: 'pending' as const
-          })),
-        ];
+        const getCoords = (addr: any): [number, number] | null => {
+          if (!addr) return null;
+          if (typeof addr === 'string') {
+            const inter = mapData.intersections?.find((i: any) => String(i.id) === String(addr));
+            return inter ? [inter.latitude, inter.longitude] : null;
+          }
+          if (typeof addr.latitude === 'number' && typeof addr.longitude === 'number') {
+            return [addr.latitude, addr.longitude];
+          }
+          return null;
+        };
+
+        const points: DeliveryPoint[] = [];
+        (mapData.deliveries || []).forEach((delivery: any) => {
+          const p1 = getCoords(delivery.pickup_addr);
+          if (p1) {
+            points.push({
+              id: `pickup-${delivery.id}`,
+              position: p1,
+              address: 'Pickup Location',
+              type: 'pickup',
+              status: 'pending',
+            });
+          }
+          const p2 = getCoords(delivery.delivery_addr);
+          if (p2) {
+            points.push({
+              id: `delivery-${delivery.id}`,
+              position: p2,
+              address: 'Delivery Location',
+              type: 'delivery',
+              status: 'pending',
+            });
+          }
+        });
         
         console.log('Generated delivery points:', points);
         setDeliveryPoints(points);
@@ -273,12 +290,12 @@ export default function MainView(): JSX.Element {
           
           <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white border-0 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-purple-100">Delivery Requests</CardTitle>
+              <CardTitle className="text-sm font-medium text-purple-100">Deliveries</CardTitle>
               <Package className="h-4 w-4 text-purple-200" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats?.deliveryRequests ?? 0}</div>
-              <p className="text-xs text-purple-200">Active requests</p>
+              <p className="text-xs text-purple-200">Active deliveries</p>
             </CardContent>
           </Card>
 
@@ -391,23 +408,23 @@ export default function MainView(): JSX.Element {
           </div>
         </div>
 
-        {/* Delivery Requests Section */}
+        {/* Deliveries Section */}
         <Card className="border-emerald-200 dark:border-emerald-800 shadow-lg">
           <CardHeader className="bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950 dark:to-green-950 mb-6">
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
                   <Package className="h-5 w-5 text-emerald-600" />
-                  Delivery Requests
+                  Deliveries
                 </CardTitle>
                 <CardDescription className="text-emerald-600 dark:text-emerald-400">
-                  Add new delivery requests with pickup and delivery locations
+                  Add new deliveries with pickup and delivery locations
                 </CardDescription>
               </div>
               <div className="flex gap-2">
                 <Button size="sm" onClick={() => setOpenNewReq(true)} className="gap-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg">
                   <Plus className="h-4 w-4" />
-                  New Delivery Request
+                  New Delivery
                 </Button>
               </div>
             </div>
@@ -417,13 +434,13 @@ export default function MainView(): JSX.Element {
               <div className="h-48 rounded-lg bg-gradient-to-br from-emerald-100/50 to-green-100/50 dark:from-emerald-900/30 dark:to-green-900/30 border-2 border-dashed border-emerald-300/50 dark:border-emerald-700/50 flex items-center justify-center">
                 <div className="text-center space-y-2">
                   <Package className="h-8 w-8 text-emerald-500 mx-auto animate-bounce" />
-                  <p className="text-sm text-emerald-600 dark:text-emerald-400">No delivery requests</p>
-                  <p className="text-xs text-emerald-500 dark:text-emerald-500">Add a request to start planning tours</p>
+                  <p className="text-sm text-emerald-600 dark:text-emerald-400">No deliveries</p>
+                  <p className="text-xs text-emerald-500 dark:text-emerald-500">Add a delivery to start planning tours</p>
                 </div>
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="text-xs text-emerald-700 dark:text-emerald-300">{stats.deliveryRequests} request(s)</div>
+                <div className="text-xs text-emerald-700 dark:text-emerald-300">{stats.deliveryRequests} delivery(ies)</div>
                 <div className="max-h-56 overflow-auto rounded-md border border-emerald-200 dark:border-emerald-800 divide-y divide-emerald-100 dark:divide-emerald-900">
                   {(deliveries || []).map((d: any) => {
                     const pickupId = typeof d.pickup_addr === 'string' ? d.pickup_addr : d.pickup_addr?.id;

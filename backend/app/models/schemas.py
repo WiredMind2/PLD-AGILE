@@ -18,14 +18,6 @@ class Intersection:
 
 
 @dataclass
-class DeliveryRequest:
-    pickup_addr: str          # adresseEnlevement (string, id noeud)
-    delivery_addr: str        # adresseLivraison (string, id noeud)
-    pickup_service_s: int     # dureeEnlevement (secondes)
-    delivery_service_s: int   # dureeLivraison (secondes)
-
-
-@dataclass
 class Courrier:
     id: str                   # ex: "C1"
     current_location: Intersection
@@ -47,7 +39,6 @@ class RoadSegment:
 
 @dataclass
 class Delivery:
-    id: str                   # ex: "D1"
     # addresses may be represented as node-id strings in some places or
     # full Intersection objects elsewhere. Allow both to make parsing
     # convenient for tests and incremental construction.
@@ -58,6 +49,7 @@ class Delivery:
     courier: Optional[Courrier] = None  # Courrier assigned to this delivery, if any
     # tests expect the raw hour string like "08:30"; accept str here
     hour_departure : Optional[str] = None
+    id: Optional[str] = None  # ex: "D1" (optional when creating a new delivery)
 
 
 @dataclass

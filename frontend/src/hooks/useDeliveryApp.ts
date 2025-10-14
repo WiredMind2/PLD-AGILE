@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { apiClient } from '@/lib/api';
-import type { Map, Delivery, Tour, Courier, DeliveryRequest } from '@/types/api';
+import type { Map, Delivery, Tour, Courier } from '@/types/api';
 
 export function useDeliveryApp() {
   const [map, setMap] = useState<Map | null>(null);
@@ -49,7 +49,7 @@ export function useDeliveryApp() {
     }
   }, [handleError]);
 
-  const addRequest = useCallback(async (request: DeliveryRequest) => {
+  const addRequest = useCallback(async (request: Pick<Delivery, 'pickup_addr' | 'delivery_addr' | 'pickup_service_s' | 'delivery_service_s'>) => {
     try {
       setLoading(true);
       setError(null);

@@ -118,7 +118,7 @@ export default function DeliveryMap({
         showCoverageOnHover={false}
         spiderfyOnMaxZoom
         disableClusteringAtZoom={15}
-        maxClusterRadius={45}
+        maxClusterRadius={25}
       >
         {points.map((p) => (
           <Marker
