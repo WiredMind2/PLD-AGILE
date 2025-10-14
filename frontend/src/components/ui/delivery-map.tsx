@@ -1,34 +1,7 @@
 // DeliveryMap.tsx
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
-import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import 'leaflet.markercluster/dist/MarkerCluster.css';
-import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
-
-const mapStyles = `
-:root {
-    --map-tiles-filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
-}
-
-.dark .map-tiles {
-    filter: var(--map-tiles-filter, none);
-}
-
-.light .map-tiles {
-    filter: none !important;
-}
-`;
-
-// Inject styles
-if (typeof document !== 'undefined') {
-  const styleElement = document.createElement('style');
-  styleElement.textContent = mapStyles;
-  if (!document.head.querySelector('style[data-map-dark-mode]')) {
-    styleElement.setAttribute('data-map-dark-mode', 'true');
-    document.head.appendChild(styleElement);
-  }
-}
 
 export interface DeliveryPoint {
   id: string;
@@ -36,12 +9,6 @@ export interface DeliveryPoint {
   address?: string;
   type: 'warehouse' | 'delivery' | 'courier' | 'default';
   status?: 'pending' | 'in-progress' | 'completed' | 'active';
-}
-
-export interface RoadSegment {
-  start: [number, number]; // [lat, lng]
-  end: [number, number]; // [lat, lng]
-  street_name?: string;
 }
 
 const createCircularIcon = (
@@ -85,80 +52,71 @@ const icons: Record<DeliveryPoint['type'], L.DivIcon> = {
 
 interface DeliveryMapProps {
   points?: DeliveryPoint[];
-  roadSegments?: RoadSegment[];
   center?: [number, number];
   zoom?: number;
   height?: number | string;
-  showRoadNetwork?: boolean; // Show the road network from XML
+  showRouting?: boolean; // Show connecting lines between points
   onPointClick?: (p: DeliveryPoint) => void;
 }
 
 export default function DeliveryMap({
   points = [],
-  roadSegments = [],
   center = [48.8566, 2.3522],
   zoom = 13,
   height = 500,
-  showRoadNetwork = false, // Show road network by default
+  showRouting = true,
   onPointClick,
 }: DeliveryMapProps) {
   const style = { height: typeof height === 'number' ? `${height}px` : height, width: '100%' };
 
+  // Only show routing lines for non-default points (actual delivery routes)
+  const routingPoints = points.filter(p => p.type !== 'default');
+
   return (
     <MapContainer center={center} zoom={zoom} style={style}>
       <TileLayer
-        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        className="map-tiles"
+        attribution='&copy; <a href="https://osm.org/copyright">OpenStreetMap</a> contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      {/* Markers (clustered when zoomed out) */}
-      <MarkerClusterGroup
-        chunkedLoading
-        showCoverageOnHover={false}
-        spiderfyOnMaxZoom
-        disableClusteringAtZoom={15}
-        maxClusterRadius={45}
-      >
-        {points.map((p) => (
-          <Marker
-            key={p.id}
-            position={p.position}
-            icon={icons[p.type]}
-            eventHandlers={{
-              click: () => onPointClick?.(p)
-            }}
-          >
-            <Popup>
-              <div>
-                <strong>
-                  {p.type === 'warehouse' ? '🏢 Warehouse' :
-                   p.type === 'delivery'  ? '📦 Delivery' : 
-                   p.type === 'courier'   ? '🚴 Courier' :
-                   p.type === 'default'   ? '📍 Map Node' : 'Unknown'}
-                </strong>
-                {p.address && <div style={{ marginTop: 6 }}>{p.address}</div>}
-                {p.status && (
-                  <div style={{ marginTop: 6, fontSize: 12 }}>
-                    Status: {p.status}
-                  </div>
-                )}
-              </div>
-            </Popup>
-          </Marker>
-        ))}
-      </MarkerClusterGroup>
-
-      {/* Road network from XML map */}
-      {showRoadNetwork && roadSegments.map((segment, index) => (
-        <Polyline
-          key={`road-${index}`}
-          positions={[segment.start, segment.end]}
-          color="#6b7280"
-          weight={5}
-          opacity={1}
-        />
+      {/* Markers */}
+      {points.map((p) => (
+        <Marker
+          key={p.id}
+          position={p.position}
+          icon={icons[p.type]}
+          eventHandlers={{
+            click: () => onPointClick?.(p)
+          }}
+        >
+          <Popup>
+            <div>
+              <strong>
+                {p.type === 'warehouse' ? '🏢 Warehouse' :
+                 p.type === 'delivery'  ? '📦 Delivery' : 
+                 p.type === 'courier'   ? '🚴 Courier' :
+                 p.type === 'default'   ? '📍 Map Node' : 'Unknown'}
+              </strong>
+              {p.address && <div style={{ marginTop: 6 }}>{p.address}</div>}
+              {p.status && (
+                <div style={{ marginTop: 6, fontSize: 12 }}>
+                  Status: {p.status}
+                </div>
+              )}
+            </div>
+          </Popup>
+        </Marker>
       ))}
+
+      {/* Simple line connecting points*/}
+      {showRouting && routingPoints.length >= 2 && (
+        <Polyline 
+          positions={routingPoints.map(p => p.position)} 
+          color="#16a34a"
+          weight={4}
+          opacity={0.8}
+        />
+      )}
     </MapContainer>
   );
 }
