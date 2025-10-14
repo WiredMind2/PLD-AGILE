@@ -7,6 +7,8 @@ export function useDeliveryApp() {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [tours] = useState<Tour[]>([]);
   const [couriers] = useState<Courier[]>([]);
+  const [toursState, setToursState] = useState<Tour[]>([]);
+  const [couriersState, setCouriersState] = useState<Courier[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,6 +25,14 @@ export function useDeliveryApp() {
       setError(null);
       const mapData = await apiClient.uploadMap(file);
       setMap(mapData);
+      // populate couriersState from map if present
+      try {
+        if (mapData && Array.isArray(mapData.couriers)) {
+          setCouriersState(mapData.couriers as unknown as Courier[]);
+        }
+      } catch (e) {
+        // ignore
+      }
       //setCouriers(mapData.couriers);
       return mapData;
     } catch (err) {
@@ -94,6 +104,22 @@ export function useDeliveryApp() {
     }
   }, [handleError]);
 
+  const computeTours = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await apiClient.computeTours();
+      // assume res is an array of tours
+      setToursState(res as unknown as Tour[]);
+      return res;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [handleError]);
+
   // Computed values
   const stats = {
     activeCouriers: couriers.length,
@@ -106,8 +132,8 @@ export function useDeliveryApp() {
     // State
     map,
     deliveries,
-    tours,
-    couriers,
+    tours: toursState,
+    couriers: couriersState,
     loading,
     error,
     stats,
@@ -118,6 +144,7 @@ export function useDeliveryApp() {
     addRequest,
     uploadRequestsFile,
     deleteRequest,
+    computeTours,
     
     // Utils
     clearError: () => setError(null),

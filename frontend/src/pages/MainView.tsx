@@ -25,11 +25,14 @@ export default function MainView(): JSX.Element {
   uploadRequestsFile,
     deleteRequest,
     stats,
-    map,
-    deliveries
+  map,
+  deliveries,
+  computeTours,
   } = useDeliveryApp();
 
   const [deliveryPoints, setDeliveryPoints] = useState<DeliveryPoint[]>();
+  const [computeNotice, setComputeNotice] = useState<string | null>(null);
+  const [routes, setRoutes] = useState<{ id: string; color?: string; positions: [number, number][] }[]>([]);
 
   const handlePointClick = (point: any) => {
     console.log('Clicked delivery point:', point);
@@ -44,7 +47,8 @@ export default function MainView(): JSX.Element {
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
     if (file) {
       try {
         const mapData = await uploadMap(file);
@@ -125,7 +129,60 @@ export default function MainView(): JSX.Element {
       }
     }
     // Reset the input value so the same file can be uploaded again
-    event.target.value = '';
+    try {
+      input.value = '';
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const handleRequestsFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const deliveries = await uploadRequestsFile(file);
+
+      // Reflect on map visually using current loaded intersections
+      if (map && Array.isArray(deliveries)) {
+        setDeliveryPoints((prev) => {
+          const base = prev ? [...prev] : [];
+          deliveries.forEach((d: any) => {
+            const pickup = map.intersections.find((i) => String(i.id) === String(d.pickup_addr?.id ?? d.pickup_addr));
+            const drop = map.intersections.find((i) => String(i.id) === String(d.delivery_addr?.id ?? d.delivery_addr));
+            if (pickup) {
+              base.push({ id: `pickup-${d.id}`, position: [pickup.latitude, pickup.longitude], address: 'Pickup Location', type: 'pickup', status: 'pending' });
+            }
+            if (drop) {
+              base.push({ id: `delivery-${d.id}`, position: [drop.latitude, drop.longitude], address: 'Delivery Location', type: 'delivery', status: 'pending' });
+            }
+            // Add courier marker at warehouse (entrepot) if available
+            const wh = d.warehouse;
+            if (wh && typeof wh.latitude === 'number' && typeof wh.longitude === 'number') {
+              const courierId = `courier-${String(wh.id)}`;
+              if (!base.some((p) => p.id === courierId)) {
+                base.push({
+                  id: courierId,
+                  position: [wh.latitude, wh.longitude],
+                  address: 'Courier start (warehouse)',
+                  type: 'courier',
+                  status: 'active',
+                });
+              }
+            }
+          });
+          return base;
+        });
+      }
+    } catch (err) {
+      console.error('Failed to upload requests:', err);
+    } finally {
+      try {
+        input.value = '';
+      } catch (e) {
+        // ignore
+      }
+    }
   };
 
   // New Delivery Request Sheet state
@@ -198,50 +255,7 @@ export default function MainView(): JSX.Element {
         type="file"
         accept=".xml"
         style={{ display: 'none' }}
-        onChange={async (e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          try {
-            const deliveries = await uploadRequestsFile(file);
-
-            // Reflect on map visually using current loaded intersections
-            if (map && Array.isArray(deliveries)) {
-              setDeliveryPoints((prev) => {
-                const base = prev ? [...prev] : [];
-                deliveries.forEach((d: any) => {
-                  const pickup = map.intersections.find((i) => String(i.id) === String(d.pickup_addr?.id ?? d.pickup_addr));
-                  const drop = map.intersections.find((i) => String(i.id) === String(d.delivery_addr?.id ?? d.delivery_addr));
-                  if (pickup) {
-                    base.push({ id: `pickup-${d.id}`, position: [pickup.latitude, pickup.longitude], address: 'Pickup Location', type: 'pickup', status: 'pending' });
-                  }
-                  if (drop) {
-                    base.push({ id: `delivery-${d.id}`, position: [drop.latitude, drop.longitude], address: 'Delivery Location', type: 'delivery', status: 'pending' });
-                  }
-                  // Add courier marker at warehouse (entrepot) if available
-                  const wh = d.warehouse;
-                  if (wh && typeof wh.latitude === 'number' && typeof wh.longitude === 'number') {
-                    const courierId = `courier-${String(wh.id)}`;
-                    if (!base.some((p) => p.id === courierId)) {
-                      base.push({
-                        id: courierId,
-                        position: [wh.latitude, wh.longitude],
-                        address: 'Courier start (warehouse)',
-                        type: 'courier',
-                        status: 'active',
-                      });
-                    }
-                  }
-                });
-                return base;
-              });
-            }
-          } catch (err) {
-            console.error('Failed to upload requests:', err);
-          } finally {
-            // reset input
-            e.currentTarget.value = '';
-          }
-        }}
+        onChange={handleRequestsFileChange}
       />
       
       {/* Header */}
@@ -293,7 +307,71 @@ export default function MainView(): JSX.Element {
               <Save className="h-4 w-4" />
               Save Tours
             </Button>
-            <Button size="sm" className="gap-2 bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white shadow-lg">
+            <Button
+              size="sm"
+              className="gap-2 bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white shadow-lg"
+              disabled={!map || loading}
+              onClick={async () => {
+                console.log('Optimize Tours button clicked');
+                try {
+                  const res = await computeTours?.();
+                  console.log('Compute tours response:', res);
+                  setComputeNotice(null);
+                  if (res && Array.isArray(res)) {
+                    const points: DeliveryPoint[] = [];
+                    // prefer courier starts first
+                    res.forEach((t: any) => {
+                      const courier = t.courier;
+                      if (courier && courier.current_location) {
+                        const cid = `courier-${courier.id}`;
+                        points.push({ id: cid, position: [courier.current_location.latitude, courier.current_location.longitude], address: 'Courier start (warehouse)', type: 'courier', status: 'active' });
+                      }
+                      (t.deliveries || []).forEach((d: any) => {
+                        const findInter = (addr: any) => {
+                          if (!addr) return null;
+                          if (typeof addr === 'string') return map?.intersections?.find((i: any) => String(i.id) === String(addr));
+                          return addr;
+                        };
+                        const p1 = findInter(d.pickup_addr);
+                        const p2 = findInter(d.delivery_addr);
+                        if (p1) points.push({ id: `pickup-${d.id}`, position: [p1.latitude, p1.longitude], address: 'Pickup Location', type: 'pickup', status: 'pending' });
+                        if (p2) points.push({ id: `delivery-${d.id}`, position: [p2.latitude, p2.longitude], address: 'Delivery Location', type: 'delivery', status: 'pending' });
+                      });
+                    });
+                    if (points.length > 0) {
+                      setDeliveryPoints(points);
+                      // pan to first point if any
+                      setMapCenter(points[0].position);
+                    } else {
+                      // do not clear existing points — show a notice so user knows nothing was computed
+                      setComputeNotice('No tours were computed (no couriers or no assignable deliveries). Make sure the map includes couriers/warehouses and deliveries.');
+                      console.warn('Compute returned empty tour list; leaving existing markers unchanged.');
+                    }
+                    // build route polylines from returned tours
+                    try {
+                      if (res && Array.isArray(res) && res.length > 0 && map) {
+                        const colors = ['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6'];
+                        const builtRoutes = res.map((t: any, idx: number) => {
+                          const ids: string[] = Array.isArray(t.route_intersections) ? t.route_intersections : [];
+                          const positions: [number, number][] = ids.map((nodeId: string) => {
+                            const inter = map.intersections.find((i: any) => String(i.id) === String(nodeId));
+                            return inter ? [inter.latitude, inter.longitude] as [number, number] : null;
+                          }).filter(Boolean) as [number, number][];
+                          return { id: t.courier?.id ?? `route-${idx}`, color: colors[idx % colors.length], positions };
+                        }).filter((r: any) => r.positions && r.positions.length > 0);
+                        setRoutes(builtRoutes);
+                      } else {
+                        setRoutes([]);
+                      }
+                    } catch (e) {
+                      console.error('Failed to build route polylines:', e);
+                    }
+                  }
+                } catch (err) {
+                  console.error('Failed to compute tours:', err);
+                }
+              }}
+            >
               <Route className="h-4 w-4" />
               Optimize Tours
             </Button>
@@ -371,6 +449,7 @@ export default function MainView(): JSX.Element {
                 zoom={14}
                 height="500px"
                 showRoadNetwork={false}
+                routes={routes}
                 onPointClick={handlePointClick}
               />
             </CardContent>
@@ -595,13 +674,17 @@ export default function MainView(): JSX.Element {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-32 rounded-lg bg-gradient-to-br from-indigo-100/50 to-purple-100/50 dark:from-indigo-900/30 dark:to-purple-900/30 border-2 border-dashed border-indigo-300/50 dark:border-indigo-700/50 flex items-center justify-center">
-              <div className="text-center space-y-2">
-                <Route className="h-8 w-8 text-indigo-500 mx-auto" />
-                <p className="text-sm text-indigo-600 dark:text-indigo-400">No optimized tours</p>
-                <p className="text-xs text-indigo-500 dark:text-indigo-500">Add requests and optimize to see results</p>
+            {computeNotice ? (
+              <div className="p-4 bg-yellow-50 rounded-md border border-yellow-200 text-yellow-800">{computeNotice}</div>
+            ) : (
+              <div className="h-32 rounded-lg bg-gradient-to-br from-indigo-100/50 to-purple-100/50 dark:from-indigo-900/30 dark:to-purple-900/30 border-2 border-dashed border-indigo-300/50 dark:border-indigo-700/50 flex items-center justify-center">
+                <div className="text-center space-y-2">
+                  <Route className="h-8 w-8 text-indigo-500 mx-auto" />
+                  <p className="text-sm text-indigo-600 dark:text-indigo-400">No optimized tours</p>
+                  <p className="text-xs text-indigo-500 dark:text-indigo-500">Add requests and optimize to see results</p>
+                </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>

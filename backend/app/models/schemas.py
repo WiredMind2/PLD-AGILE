@@ -62,6 +62,7 @@ class Tour:
     total_distance_m: float = 0.0
     start_time: Optional[time] = None
     end_time: Optional[time] = None
+    route_intersections: List[str] = Field(default_factory=list)
 
     def add_delivery(self, delivery: Delivery):
         self.deliveries.append(delivery)
