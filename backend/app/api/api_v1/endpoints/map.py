@@ -1,18 +1,20 @@
 from fastapi import APIRouter, HTTPException, status, UploadFile
 
 from app.models.schemas import Map
+from app.core.env import map
 
-from app.services import XMLParser
+from app.services.XMLParser import XMLParser
 
 router = APIRouter(prefix="/map")
 
 @router.post("/", response_model=Map)
 async def upload_map(file: UploadFile):
     """Load an XML file, parse it, save it and returns it"""
+    global map
     try:
         data = await file.read()
         text = data.decode("utf-8")
-        map = XMLParser.parse_map(map)
+        map = XMLParser.parse_map(text)
         return map
         
     except Exception as e:
