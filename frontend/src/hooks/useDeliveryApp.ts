@@ -1,14 +1,13 @@
 import { useState, useCallback } from 'react';
 import { apiClient } from '@/lib/api';
-import type { Map, Delivery, Tour, Courier } from '@/types/api';
+import type { Map, Delivery, Tour } from '@/types/api';
 
 export function useDeliveryApp() {
   const [map, setMap] = useState<Map | null>(null);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [tours] = useState<Tour[]>([]);
-  const [couriers] = useState<Courier[]>([]);
   const [toursState, setToursState] = useState<Tour[]>([]);
-  const [couriersState, setCouriersState] = useState<Courier[]>([]);
+  const [couriersState, setCouriersState] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,7 +27,7 @@ export function useDeliveryApp() {
       // populate couriersState from map if present
       try {
         if (mapData && Array.isArray(mapData.couriers)) {
-          setCouriersState(mapData.couriers as unknown as Courier[]);
+          setCouriersState(mapData.couriers.length);
         }
       } catch (e) {
         // ignore
@@ -120,9 +119,23 @@ export function useDeliveryApp() {
     }
   }, [handleError]);
 
+  // Couriers management
+  const addCourier = useCallback(() => {
+    setCouriersState((prev) => {
+      return prev + 1;
+  });
+  }, []);
+
+  const removeCourier = useCallback(() => {
+    setCouriersState((prev) => {
+      let next = prev > 0 ? prev - 1 : prev;
+      return next;
+    });
+  }, []);
+
   // Computed values
   const stats = {
-    activeCouriers: couriers.length,
+    activeCouriers: couriersState,
     deliveryRequests: deliveries.length,
     totalDistance: tours.reduce((sum, tour) => sum + tour.total_distance_m, 0),
     totalTime: tours.reduce((sum, tour) => sum + tour.total_travel_time_s, 0),
@@ -133,10 +146,10 @@ export function useDeliveryApp() {
     map,
     deliveries,
     tours: toursState,
-    couriers: couriersState,
     loading,
     error,
     stats,
+    couriersState,
     
     // Actions
     uploadMap,
@@ -145,6 +158,8 @@ export function useDeliveryApp() {
     uploadRequestsFile,
     deleteRequest,
     computeTours,
+    addCourier,
+    removeCourier,
     
     // Utils
     clearError: () => setError(null),

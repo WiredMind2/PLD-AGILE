@@ -24,13 +24,17 @@ export default function MainView(): JSX.Element {
     error, 
     uploadMap,
     clearError,
-  addRequest,
-  uploadRequestsFile,
+    addRequest,
+    uploadRequestsFile,
     deleteRequest,
     stats,
-  map,
-  deliveries,
-  computeTours,
+    couriersState,
+    map,
+    deliveries,
+    computeTours,
+    addCourier,
+    removeCourier
+
   } = useDeliveryApp();
 
   const [deliveryPoints, setDeliveryPoints] = useState<DeliveryPoint[]>();
@@ -401,7 +405,7 @@ export default function MainView(): JSX.Element {
               <Truck className="h-4 w-4 text-blue-200" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">1</div>
+              <div className="text-2xl font-bold">{stats.activeCouriers}</div>
               <p className="text-xs text-blue-200">Bicycle couriers</p>
             </CardContent>
           </Card>
@@ -497,9 +501,9 @@ export default function MainView(): JSX.Element {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Number of Couriers:</span>
                     <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-purple-200 text-purple-600">-</Button>
-                      <span className="text-lg font-semibold w-8 text-center text-purple-700 dark:text-purple-300">1</span>
-                      <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-purple-200 text-purple-600">+</Button>
+                      <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-purple-200 text-purple-600" onClick={removeCourier}>-</Button>
+                      <span className="text-lg font-semibold w-8 text-center text-purple-700 dark:text-purple-300">{stats.activeCouriers}</span>
+                      <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-purple-200 text-purple-600" onClick={addCourier}>+</Button>
                     </div>
                   </div>
                   <div className="text-xs text-purple-500 dark:text-purple-400">
@@ -507,9 +511,15 @@ export default function MainView(): JSX.Element {
                   </div>
                 </div>
                 <Separator className="bg-purple-200 dark:bg-purple-800" />
-                <ScrollArea className="rounded-md border p-4">
-                  <Courier numCourier={1} status='Available' nbRequests={0}></Courier>
-                  <Courier numCourier={2} status='Available' nbRequests={0}></Courier>
+                <ScrollArea className="rounded-md border p-4 h-80">
+                  {Array.from({ length: stats.activeCouriers }, (_, id) => (
+                    <Courier
+                      key={id + 1}
+                      numCourier={id + 1}
+                      status="Available"
+                      nbRequests={0}
+                    />
+                  ))}
                 </ScrollArea>
               </CardContent>
             </Card>

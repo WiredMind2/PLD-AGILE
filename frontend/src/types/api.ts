@@ -6,7 +6,7 @@ export interface Intersection {
 
 export interface Courier {
   id: string;
-  current_location: Intersection;
+  current_location?: Intersection;
   name: string;
 }
 
