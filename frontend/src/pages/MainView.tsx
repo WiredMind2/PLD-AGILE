@@ -181,6 +181,7 @@ export default function MainView(): JSX.Element {
         });
         setSuccessAlert('Delivery requests imported successfully');
         setTimeout(() => setSuccessAlert(null), 5000);
+        setOpenNewReq(false);
       }
     } catch (err) {
       console.error('Failed to upload requests:', err);
