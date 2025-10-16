@@ -304,44 +304,62 @@ class TSP():
             total += G[u][v]['weight']
 
         # Post-process compact tour to enforce pickup-before-delivery ordering
-        # for any provided pickup-delivery pairs. This is a light-weight
-        # correction: if a delivery appears before its pickup in the compact
-        # tour we move the delivery to immediately follow its pickup. This
-        # preserves feasibility on the metric graph and keeps the result
-        # backward-compatible; it does not solve the general precedence TSP
-        # optimally.
+        # for any provided pickup-delivery pairs. The previous behavior moved
+        # deliveries to immediately follow their pickup (forcing immediate
+        # drop-off). Here we adopt a deferred-stable reorder: when a delivery
+        # appears before its pickup we defer it until its pickup has been
+        # visited in the tour. This allows accumulating multiple pickups
+        # before making deliveries and typically produces shorter, more
+        # realistic routes while still ensuring precedence.
         if pdp:
             # work on the compact tour without the duplicated closing node
             closed = (len(tour) >= 2 and tour[0] == tour[-1])
             core = tour[:-1] if closed else list(tour)
 
-            # Iteratively enforce pickup-before-delivery for all pairs.
-            # A single pass can leave cascaded violations when multiple
-            # insertions change indices; iterate until stable or until a
-            # reasonable iteration cap to avoid infinite loops.
-            max_iters = max(4, len(core) * 2)
-            it = 0
-            changed = True
-            while changed and it < max_iters:
-                changed = False
-                it += 1
-                for p, d in pdp:
-                    if p not in core or d not in core:
-                        continue
-                    idx_p = core.index(p)
-                    idx_d = core.index(d)
-                    if idx_d < idx_p:
-                        # move delivery to immediately after pickup
-                        core.pop(idx_d)
-                        # recompute pickup index (it may have shifted)
-                        idx_p = core.index(p)
-                        core.insert(idx_p + 1, d)
-                        changed = True
+            # build quick-lookup maps for pickups and deliveries
+            pickup_of = {p: d for p, d in pdp}
+            delivery_of = {d: p for p, d in pdp}
+
+            result = []
+            seen_pickups = set()
+            deferred_deliveries = []  # deliveries whose pickup hasn't been seen yet (preserve order)
+
+            for node in core:
+                # if node is a pickup, append it and mark seen;
+                # then flush any deferred deliveries whose pickup is now seen
+                if node in pickup_of:
+                    result.append(node)
+                    seen_pickups.add(node)
+                    i = 0
+                    while i < len(deferred_deliveries):
+                        d = deferred_deliveries[i]
+                        p = delivery_of.get(d)
+                        if p in seen_pickups:
+                            result.append(d)
+                            deferred_deliveries.pop(i)
+                        else:
+                            i += 1
+                # if node is a delivery and its pickup was already seen, append;
+                # otherwise defer it until later
+                elif node in delivery_of:
+                    p = delivery_of[node]
+                    if p in seen_pickups:
+                        result.append(node)
+                    else:
+                        deferred_deliveries.append(node)
+                else:
+                    # normal node, keep original order
+                    result.append(node)
+
+            # append any remaining deferred deliveries (their pickups were
+            # not present in the core order); preserve their original relative order
+            for d in deferred_deliveries:
+                result.append(d)
 
             # re-close tour
-            if closed:
-                core.append(core[0])
-            tour = core
+            if closed and result:
+                result.append(result[0])
+            tour = result
 
             # recompute total after modifications
             total = 0.0

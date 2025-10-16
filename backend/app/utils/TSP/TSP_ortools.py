@@ -21,7 +21,7 @@ except Exception:
     from utils.TSP.TSP_networkx import TSP as NX_TSP  # type: ignore
 
 
-class TSP:
+class ORToolsTSP:
     """TSP solver using OR-Tools Routing with pickup-delivery support.
 
     Workflow:
@@ -143,7 +143,7 @@ class TSP:
             return []
         return list(largest)
 
-    def solve(self, nodes: Optional[List[str]] = None, pickup_delivery_pairs: Optional[List[Tuple[str, str]]] = None, xml_file_path: Optional[str] = None, time_limit_s: int = 10) -> Tuple[List[str], float, Dict[str, Dict[str, List[str]]]]:
+    def solve(self, nodes: Optional[List[str]] = None, pickup_delivery_pairs: Optional[List[Tuple[str, str]]] = None, xml_file_path: Optional[str] = None, time_limit_s: int = 10, search_params: Optional[Dict[str, Any]] = None) -> Tuple[List[str], float, Dict[str, Dict[str, List[str]]]]:
         """Solve TSP with pickup-delivery constraints using OR-Tools.
 
         Returns (compact_tour, total_cost, sp_paths). compact_tour is a closed
@@ -186,7 +186,11 @@ class TSP:
                 pd_pairs_idx.append((node_index[p], node_index[d]))
 
         # Build cost matrix (integers for OR-Tools)
-        INF = 10**9
+        # choose INF dynamically from max finite cost to avoid huge disparities
+        finite_costs = [costs[u].get(v) for u in nodes_list for v in nodes_list if costs[u].get(v, float('inf')) != float('inf')]
+        finite_costs = [f for f in finite_costs if f is not None]
+        max_cost = max(finite_costs) if finite_costs else 1.0
+        INF = int(max_cost * 1000) + 1000000
         matrix: List[List[int]] = []
         for u in nodes_list:
             row: List[int] = []
@@ -220,18 +224,89 @@ class TSP:
 
         # Search parameters
         search_parameters = pywrapcp.DefaultRoutingSearchParameters()
+        # Apply optional search_params override (first_solution, local_search, log_search)
+        sp = search_params or {}
         if routing_enums_pb2 is not None:
-            search_parameters.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
-        # time limit
+            # first solution strategy
+            fs = sp.get('first_solution', 'PATH_CHEAPEST_ARC')
+            try:
+                search_parameters.first_solution_strategy = getattr(routing_enums_pb2.FirstSolutionStrategy, fs)
+            except Exception:
+                try:
+                    search_parameters.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+                except Exception:
+                    pass
+            # local search metaheuristic (optional)
+            ls = sp.get('local_search')
+            if ls:
+                try:
+                    search_parameters.local_search_metaheuristic = getattr(routing_enums_pb2.LocalSearchMetaheuristic, ls)
+                except Exception:
+                    # ignore if not available
+                    pass
+            # enable logging of the search if requested
+            if sp.get('log_search', False):
+                try:
+                    search_parameters.log_search = True
+                except Exception:
+                    pass
+        # time limit: try both fields for compatibility across versions
         try:
             search_parameters.time_limit.seconds = time_limit_s
         except Exception:
-            # older/newer OR-Tools versions might use different attributes
-            pass
+            try:
+                search_parameters.max_time_seconds = float(time_limit_s)
+            except Exception:
+                pass
 
         solution = routing.SolveWithParameters(search_parameters)
         if solution is None:
-            raise RuntimeError('OR-Tools solver failed to find a solution within the time limit')
+            # Retry with a simpler strategy and larger time limit to probe feasibility
+            logger = None
+            try:
+                import logging
+                logger = logging.getLogger(__name__)
+            except Exception:
+                logger = None
+            if logger:
+                logger.warning('Initial OR-Tools solve returned no solution; retrying with simpler params')
+            fallback_params = pywrapcp.DefaultRoutingSearchParameters()
+            try:
+                if routing_enums_pb2 is not None:
+                    fallback_params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+            except Exception:
+                pass
+            try:
+                # try a larger time limit for fallback
+                fallback_params.time_limit.seconds = max(30, int(time_limit_s * 2))
+            except Exception:
+                try:
+                    fallback_params.max_time_seconds = float(max(30, int(time_limit_s * 2)))
+                except Exception:
+                    pass
+
+            solution = routing.SolveWithParameters(fallback_params)
+
+        if solution is None:
+            # build diagnostics: unreachable pairs and invalid PD pairs
+            INF_val = INF if 'INF' in locals() else 10**9
+            unreachable = []
+            for u in nodes_list:
+                for v in nodes_list:
+                    if matrix[nodes_list.index(u)][nodes_list.index(v)] >= INF_val:
+                        unreachable.append((u, v))
+            pd_issues = []
+            for p_idx, d_idx in pd_pairs_idx:
+                if p_idx < 0 or p_idx >= len(nodes_list) or d_idx < 0 or d_idx >= len(nodes_list):
+                    pd_issues.append((p_idx, d_idx))
+
+            diag = {
+                'unreachable_pairs_count': len(unreachable),
+                'example_unreachable': unreachable[:5],
+                'pd_index_issues': pd_issues,
+                'nodes_count': len(nodes_list),
+            }
+            raise RuntimeError(f"OR-Tools solver failed to find a solution within the time limit; diagnostics={diag}")
 
         # Extract route
         index = routing.Start(0)
@@ -302,3 +377,6 @@ if __name__ == "__main__":
         print('Compact cost:', cost)
     except Exception as e:
         print('Failed to run OR-Tools TSP solver:', e)
+
+# Backwards compatibility: some modules import `TSP` from this module
+TSP = ORToolsTSP
