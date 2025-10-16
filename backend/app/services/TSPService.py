@@ -71,8 +71,34 @@ class TSPService:
         deliveries: List[Delivery] = list(mp.deliveries)
         couriers: List[Courrier] = list(mp.couriers)
 
+        # If no couriers are registered but deliveries include a warehouse
+        # we create a default courier located at the first warehouse found.
+        # This makes the `compute_tours` endpoint usable with map + requests
+        # even when the XML map did not include explicit courier entries.
         if not couriers:
-            return []
+            first_wh = None
+            for d in deliveries:
+                if getattr(d, 'warehouse', None) is not None:
+                    first_wh = d.warehouse
+                    break
+            if first_wh is not None:
+                try:
+                    # build a simple Courrier object and add it to map
+                    default_courier = Courrier(id='C1', current_location=first_wh, name='C1', phone_number='')
+                    try:
+                        mp.add_courier(default_courier)
+                    except Exception:
+                        # fallback: if Map doesn't expose add_courier, mutate list directly
+                        try:
+                            mp.couriers.append(default_courier)
+                        except Exception:
+                            pass
+                    couriers = [default_courier]
+                except Exception:
+                    # if anything goes wrong just return empty result
+                    return []
+            else:
+                return []
 
         # Graph for shortest paths
         G_map = self._build_nx_graph_from_map(mp)
@@ -96,6 +122,13 @@ class TSPService:
             assigned = assignments.get(c.id, [])
             # collect nodes (pickup + delivery) for this courier
             nodes_set = []
+            # include courier current location (warehouse) as depot if available
+            try:
+                depot_node = str(getattr(c.current_location, 'id', None)) if getattr(c, 'current_location', None) is not None else None
+            except Exception:
+                depot_node = None
+            if depot_node and depot_node not in nodes_set:
+                nodes_set.append(depot_node)
             for d in assigned:
                 for addr in (d.pickup_addr, d.delivery_addr):
                     node_id = str(getattr(addr, 'id', addr))
@@ -127,11 +160,28 @@ class TSPService:
             except Exception:
                 full_route, full_cost = compact_tour, compact_cost
 
+            # Ensure tour starts (and ends) at depot_node when available
+            if depot_node and isinstance(full_route, list) and depot_node in full_route:
+                # rotate so first element is depot_node
+                try:
+                    idx = full_route.index(depot_node)
+                    # rotate so tour starts at depot_node; do not force it to end at depot
+                    rotated = full_route[idx:] + full_route[:idx]
+                    full_route = rotated
+                except Exception:
+                    pass
+
             # create Tour and assign deliveries to courier
             tour = Tour(courier=c)
             for d in assigned:
                 d.courier = c
                 tour.add_delivery(d)
+
+            # attach expanded intersection route to the Tour so frontend can draw it
+            try:
+                tour.route_intersections = list(full_route) if isinstance(full_route, list) else []
+            except Exception:
+                tour.route_intersections = []
 
             tour.total_distance_m = float(full_cost)
             # compute travel time in seconds from distance using DEFAULT_SPEED_KMH
