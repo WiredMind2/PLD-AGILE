@@ -30,6 +30,10 @@ export default function MainView(): JSX.Element {
     fileInputRef.current?.click();
   };
 
+  const handleTourSave = () => {
+
+  };
+
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -155,7 +159,11 @@ export default function MainView(): JSX.Element {
               <Upload className="h-4 w-4" />
               {loading ? 'Loading...' : 'Load Map (XML)'}
             </Button>
-            <Button size="sm" variant="outline" className="gap-2 border-cyan-200 text-cyan-600  dark:border-cyan-800 dark:text-cyan-400">
+            <Button size="sm" 
+            variant="outline" 
+            className="gap-2 border-cyan-200 text-cyan-600  dark:border-cyan-800 dark:text-cyan-400"
+            onClick={handleTourSave}
+            >
               <Save className="h-4 w-4" />
               Save Tours
             </Button>
