@@ -1,7 +1,7 @@
 import heapq
 import os
 import sys
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any, cast
 try:
     import networkx as nx
 except Exception:
@@ -198,10 +198,16 @@ class TSP():
         for src in nodes_list:
             try:
                 # NetworkX returns (distances: dict[node, float], paths: dict[node, list[node]])
-                lengths, paths = nx.single_source_dijkstra(G_map, src, weight='weight')
-                # help static type checkers
-                lengths = dict(lengths)  # type: Dict[str, float]
-                paths = dict(paths)      # type: Dict[str, List[str]]
+                lengths_raw, paths_raw = nx.single_source_dijkstra(G_map, src, weight='weight')
+                # help static type checkers and guard against unexpected return types
+                if isinstance(lengths_raw, dict):
+                    lengths: Dict[str, float] = cast(Dict[str, float], lengths_raw)
+                else:
+                    lengths = {}
+                if isinstance(paths_raw, dict):
+                    paths: Dict[str, List[str]] = cast(Dict[str, List[str]], paths_raw)
+                else:
+                    paths = {}
             except Exception:
                 lengths = {}  # type: Dict[str, float]
                 paths = {}    # type: Dict[str, List[str]]
@@ -345,9 +351,15 @@ class TSP():
         sp_graph = {}
         for src in all_tsp_nodes:
             try:
-                lengths, paths = nx.single_source_dijkstra(G_map, src, weight='weight')
-                lengths = dict(lengths)
-                paths = dict(paths)
+                lengths_raw, paths_raw = nx.single_source_dijkstra(G_map, src, weight='weight')
+                if isinstance(lengths_raw, dict):
+                    lengths = cast(Dict[str, float], lengths_raw)
+                else:
+                    lengths = {}
+                if isinstance(paths_raw, dict):
+                    paths = cast(Dict[str, List[str]], paths_raw)
+                else:
+                    paths = {}
             except Exception:
                 lengths = {}
                 paths = {}
@@ -359,54 +371,56 @@ class TSP():
                     sp_graph[src][tgt] = {'path': paths.get(tgt), 'cost': lengths.get(tgt, float('inf'))}
         
         # Solve TSP for each courier
-        result = {}
+        result: Dict[str, Any] = {}
         total_cost = 0.0
-        
+
         for i, cluster in enumerate(courier_clusters):
             courier_name = f'courier_{i+1}'
-            
+
             if not cluster:
                 # Empty cluster
                 result[courier_name] = {'tour': [depot_node, depot_node], 'cost': 0.0}
                 continue
-            
+
             # TSP nodes for this courier: depot + assigned nodes
             courier_nodes = [depot_node] + cluster
-            
+
             # Build metric graph for this subset
             courier_sp_graph = {u: {v: sp_graph[u][v] for v in courier_nodes} for u in courier_nodes}
             G_courier = self._build_metric_complete_graph(courier_sp_graph)
-            
-            if len(G_courier.nodes()) < 2:
+
+            nodes_list_courier = list(G_courier.nodes())
+            if len(nodes_list_courier) < 2:
                 result[courier_name] = {'tour': [depot_node, depot_node], 'cost': 0.0}
                 continue
-            
+
             # Apply Christofides on this subset
             T = nx.minimum_spanning_tree(G_courier, weight='weight')
             odd_nodes = [v for v, d in T.degree() if d % 2 == 1]
-            
+
             if odd_nodes:
                 M = nx.Graph()
                 for i_idx, u in enumerate(odd_nodes):
                     for v in odd_nodes[i_idx+1:]:
                         w = G_courier[u][v]['weight']
                         M.add_edge(u, v, weight=w)
-                
+                # local import to satisfy static/type checkers
+                from networkx.algorithms import matching as nx_matching
                 matching = nx_matching.min_weight_matching(M, weight='weight')
             else:
                 matching = set()
-            
+
             multigraph = nx.MultiGraph()
             multigraph.add_nodes_from(T.nodes())
             multigraph.add_edges_from(T.edges(data=True))
             for u, v in matching:
                 multigraph.add_edge(u, v, weight=G_courier[u][v]['weight'])
-            
+
             if not nx.is_eulerian(multigraph):
                 multigraph = nx.eulerize(multigraph)
-            
+
             euler_circuit = list(nx.eulerian_circuit(multigraph))
-            
+
             # Build tour starting from depot
             tour = []
             seen = set()
@@ -414,29 +428,29 @@ class TSP():
                 if u not in seen:
                     tour.append(u)
                     seen.add(u)
-            
-            for n in G_courier.nodes():
+
+            for n in nodes_list_courier:
                 if n not in seen:
                     tour.append(n)
-            
+
             # Ensure tour starts and ends at depot
             if tour and tour[0] != depot_node:
                 if depot_node in tour:
                     depot_idx = tour.index(depot_node)
                     tour = tour[depot_idx:] + tour[:depot_idx]
-            
+
             if tour and tour[-1] != depot_node:
                 tour.append(depot_node)
-            
+
             # Calculate cost
             cost = 0.0
             for j in range(len(tour)-1):
                 u, v = tour[j], tour[j+1]
                 cost += G_courier[u][v]['weight']
-            
+
             result[courier_name] = {'tour': tour, 'cost': cost}
             total_cost += cost
-        
+
         result['total_cost'] = total_cost
         return result
 
