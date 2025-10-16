@@ -49,9 +49,24 @@ export default function MainView(): JSX.Element {
     requestsInputRef.current?.click();
   };
 
-  const handleTourSave = () => {
 
-  };
+
+const { saveTours } = useDeliveryApp();
+const handleTourSave = async () => {
+  try {
+    if (!routes || routes.length === 0) {
+      setComputeNotice('No tours to save. Compute them first.');
+      return;
+    }
+    await saveTours();
+    setSuccessAlert('Tours saved successfully!');
+    setTimeout(() => setSuccessAlert(null), 4000);
+  } catch (err) {
+    console.error('Failed to save tours:', err);
+    setComputeNotice('Error while saving tours.');
+  }
+};
+
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const input = event.currentTarget as HTMLInputElement;

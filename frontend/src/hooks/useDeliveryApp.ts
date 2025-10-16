@@ -21,7 +21,7 @@ export function useDeliveryApp() {
   // Map operations
   const uploadMap = useCallback(async (file: File) => {
     try {
-      setLoading(true);
+      (true);
       setError(null);
       const mapData = await apiClient.uploadMap(file);
       setMap(mapData);
@@ -58,6 +58,7 @@ export function useDeliveryApp() {
       setLoading(false);
     }
   }, [handleError]);
+
 
   const addRequest = useCallback(async (request: Pick<Delivery, 'pickup_addr' | 'delivery_addr' | 'pickup_service_s' | 'delivery_service_s'>) => {
     try {
@@ -120,6 +121,19 @@ export function useDeliveryApp() {
     }
   }, [handleError]);
 
+  const saveTours = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      await apiClient.saveTours();
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [handleError]);
+
   // Computed values
   const stats = {
     activeCouriers: couriers.length,
@@ -145,6 +159,7 @@ export function useDeliveryApp() {
     uploadRequestsFile,
     deleteRequest,
     computeTours,
+    saveTours,
     
     // Utils
     clearError: () => setError(null),

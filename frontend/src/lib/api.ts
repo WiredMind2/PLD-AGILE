@@ -81,6 +81,10 @@ class ApiClient {
     return this.request<any>(`/tours/compute`, { method: 'POST' })
   }
 
+  async saveTours(): Promise<any> {
+    return this.request<any>(`/tours/save`, { method: 'POST' })
+  }
+
   async saveState(): Promise<any> {
     return this.request<any>('/state/save', { method: 'POST' })
   }
