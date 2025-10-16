@@ -619,16 +619,16 @@ export default function MainView(): JSX.Element {
                         {stats.activeCouriers > 1 && (
                         <Select>
                           <SelectTrigger className="w-[180px] h-8 gap-1 border-emerald-100 text-emerald-700 dark:border-emerald-700a dark:text-emerald-300">
-                            <SelectValue placeholder="Select a fruit" />
+                            <SelectValue placeholder="Select a courrier" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectGroup>
-                              <SelectLabel>Fruits</SelectLabel>
-                              <SelectItem value="apple">Apple</SelectItem>
-                              <SelectItem value="banana">Banana</SelectItem>
-                              <SelectItem value="blueberry">Blueberry</SelectItem>
-                              <SelectItem value="grapes">Grapes</SelectItem>
-                              <SelectItem value="pineapple">Pineapple</SelectItem>
+                              <SelectLabel>Couriers</SelectLabel>
+                              {couriers.map((courier) => (
+                                <SelectItem key={courier.id} value={courier.id}>
+                                  {courier.name}
+                                </SelectItem>
+                              ))}
                             </SelectGroup>
                           </SelectContent>
                         </Select>
