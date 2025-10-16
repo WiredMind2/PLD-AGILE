@@ -5,6 +5,8 @@ import { Separator } from '@/components/ui/separator'
 import { Map, Truck, Clock, Save, Plus, Route, Upload, Timer, Package, Activity } from 'lucide-react'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import DeliveryMap, { DeliveryPoint } from '@/components/ui/delivery-map'
+import { Courier } from '@/components/ui/courier'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { useState, useRef } from 'react'
 import { useDeliveryApp } from '@/hooks/useDeliveryApp'
 
@@ -260,7 +262,7 @@ export default function MainView(): JSX.Element {
           {/* Right Column */}
           <div className="space-y-6">
             {/* Couriers Management */}
-            <Card className="border-purple-200 dark:border-purple-800 shadow-lg">
+            <Card className="border-purple-200 dark:border-purple-800 shadow-lg h-[100%]">
               <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950 mb-6">
                 <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-300">
                   <Truck className="h-5 w-5 text-purple-600" />
@@ -285,33 +287,10 @@ export default function MainView(): JSX.Element {
                   </div>
                 </div>
                 <Separator className="bg-purple-200 dark:bg-purple-800" />
-                <div className="space-y-2 bg-purple-50 dark:bg-purple-950/50 p-3 rounded-lg">
-                  <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Courier 1</p>
-                  <div className="text-xs text-purple-600 dark:text-purple-400">
-                    Status: <span className="text-emerald-600 font-medium">Available</span> • Requests: 0
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Timeline */}
-            <Card className="border-cyan-200 dark:border-cyan-800 shadow-lg">
-              <CardHeader className="bg-gradient-to-r from-cyan-50 to-blue-50 dark:from-cyan-950 dark:to-blue-950 mb-6">
-                <CardTitle className="flex items-center gap-2 text-cyan-700 dark:text-cyan-300">
-                  <Clock className="h-5 w-5 text-cyan-600" />
-                  Tour Schedule
-                </CardTitle>
-                <CardDescription className="text-cyan-600 dark:text-cyan-400">
-                  Pickup and delivery times for each courier
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-32 rounded-lg bg-gradient-to-br from-cyan-100/50 to-blue-100/50 dark:from-cyan-900/30 dark:to-blue-900/30 border-2 border-dashed border-cyan-300/50 dark:border-cyan-700/50 flex items-center justify-center">
-                  <div className="text-center">
-                    <Timer className="h-8 w-8 text-cyan-500 mx-auto mb-1 animate-pulse" />
-                    <p className="text-sm text-cyan-600 dark:text-cyan-400">No active tours</p>
-                  </div>
-                </div>
+                <ScrollArea className="rounded-md border p-4">
+                  <Courier numCourier={1} status='Available' nbRequests={0}></Courier>
+                  <Courier numCourier={2} status='Available' nbRequests={0}></Courier>
+                </ScrollArea>
               </CardContent>
             </Card>
           </div>
