@@ -114,7 +114,8 @@ class TSPService:
 
             # run solver on nodes_set
             try:
-                compact_tour, compact_cost = tsp.solve(nodes=nodes_set, must_visit=None)
+                # prefer depot as start: call solve on nodes_set and then rotate resulting full route
+                compact_tour, compact_cost = tsp.solve(nodes=nodes_set)
             except Exception:
                 # fallback: no tour computed
                 compact_tour, compact_cost = nodes_set + ([nodes_set[0]] if nodes_set else []), 0.0

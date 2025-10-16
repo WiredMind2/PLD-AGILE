@@ -19,7 +19,8 @@ def test_must_visit_in_tour():
 
     # pick 2 required nodes
     must = nodes[:2]
-    tour, cost = t.solve(nodes=must, must_visit=must)
+    # must_visit argument removed; pass nodes directly
+    tour, cost = t.solve(nodes=must)
     assert tour is not None
     # tour is compact (list of nodes, closed). Ensure required nodes appear
     for m in must:

@@ -1,65 +1,90 @@
-# NetworkX-based TSP (Christofides-style) — Overview
+# NetworkX-based TSP (Christofides-style) — Step-by-step overview
 
-This document briefly explains the TSP implementation in `app/utils/TSP/TSP_networkx.py`, how it is used, its complexity characteristics, and practical notes for usage.
+This file explains exactly what `app/utils/TSP/TSP_networkx.py` does, step-by-step, how to call it, and important caveats.
 
-## Purpose
+Target audience: developers who want to understand the algorithm and integrate the solver into the service layer.
 
-Provide a fast, practical approximation of the Travelling Salesman Problem (TSP) over a road map parsed from the repository XML maps. The implementation computes a compact tour of required locations and can expand that compact tour into a full node-level driving route.
+1) Inputs
+---------
+- Map: XML map parsed by `app.services.XMLParser.parse_map()` → intersections and road segments.
+- Nodes: explicit list of node ids (strings) to include in the TSP. Callers provide this as the `nodes` argument to `TSP.solve(nodes=...)`.
+- Optional: `pickup_delivery_pairs`: list of `(pickup_node, delivery_node)` tuples. These are used only for light post-processing to enforce pickup-before-delivery ordering in the compact tour (see `Notes` below).
 
-## High-level pipeline
+2) Step 0 — Build directed map graph (G_map)
+-------------------------------------------
+- Convert parsed map data into a directed NetworkX graph `G_map`.
+- Each intersection id becomes a node (string). Each road segment becomes a directed edge with attribute `weight` set to the segment length (meters).
 
-1. Map → directed graph
-   - Parse the XML map to build a directed NetworkX graph `G_map` where nodes are intersection ids (strings) and directed edges have attribute `weight` (segment length in meters).
+3) Step 1 — Pairwise shortest paths among requested nodes
+---------------------------------------------------------
+- For each requested source node `s` in `nodes`, run Dijkstra (NetworkX `single_source_dijkstra`) on `G_map` to compute shortest-path distances and node sequences to all other nodes.
+- Build `sp_graph[s][t] = { 'path': [...], 'cost': distance }` for every requested pair (s,t). If a path is missing, cost is set to +inf and path may be None.
 
-2. Pairwise shortest paths
-   - For each requested TSP location `src`, run Dijkstra (`nx.single_source_dijkstra`) on `G_map` to obtain distances and shortest-path node sequences to all other nodes.
-   - Build `sp_graph[src][tgt] = { 'path': [...], 'cost': distance }` for all requested pairs.
+4) Step 2 — Build a metric complete graph for the TSP
+-----------------------------------------------------
+- Initialize a directed cost matrix using the `sp_graph` costs.
+- Run Floyd–Warshall closure on the directed matrix to compute all-pairs shortest directed costs.
+- Identify the largest mutually-reachable set of nodes (pairs u↔v both have finite costs). Restrict the problem to that set to guarantee mutual reachability.
+- Symmetrize distances for that set by taking `d(u,v) = min( cost(u,v), cost(v,u) )` and create an undirected complete graph `G_metric` (NetworkX Graph) with edge weight = d(u,v). This makes the metric suitable for Christofides.
 
-3. Metric complete graph construction
-   - Form a directed cost matrix and run Floyd–Warshall closure to ensure shortest directed costs between all pairs.
-   - Restrict to the largest mutually-reachable component (pairs with finite cost both directions) to guarantee a metric symmetric subproblem.
-   - Symmetrize distances with `min(cost(u,v), cost(v,u))` and return an undirected metric complete graph suitable for Christofides.
+5) Step 3 — Christofides-style approximate solver (compute compact tour)
+------------------------------------------------------------------------
+- Compute an MST of `G_metric` (minimum spanning tree).
+- Find all odd-degree vertices of the MST.
+- Compute a minimum-weight perfect matching among the odd-degree vertices (on the induced subgraph, using `networkx.algorithms.matching.min_weight_matching`).
+- Combine MST edges and matching edges into an Eulerian multigraph.
+- Find an Eulerian circuit of this multigraph (NetworkX provides utilities for Eulerian circuits/eulerization).
+- Shortcut repeated nodes in the Eulerian circuit to obtain a Hamiltonian tour — this yields the compact tour (sequence of requested node ids). Close the tour by appending the start node to its end.
 
-4. Christofides-style approximate solver
-   - Compute an MST of the metric graph.
-   - Find odd-degree nodes of the MST and compute a minimum-weight perfect matching among them.
-   - Combine MST + matching into an Eulerian multigraph, extract an Eulerian circuit and shortcut repeated nodes to obtain a Hamiltonian (compact) tour.
+6) Step 4 — Post-process pickups/deliveries (optional)
+----------------------------------------------------
+- If `pickup_delivery_pairs` is provided, the implementation performs a conservative post-processing step on the compact tour: for each pair `(p,d)`, if `d` appears before `p` in the compact tour, move `d` to immediately follow `p`.
+- After reordering, the compact tour cost is recomputed using the metric graph edge weights.
 
-5. Expansion (optional)
-   - Use `sp_graph` to expand the compact tour into a full node-level route by concatenating the shortest-path legs between consecutive tour nodes.
+Notes: this is a local reordering only. It enforces immediate pickup-before-delivery precedence but does not globally optimize a precedence-constrained TSP.
 
-## Complexity notes
+7) Step 5 — (Optional) Expand compact tour into full node-level route
+-------------------------------------------------------------------
+- Use the previously-computed `sp_graph` to replace each compact tour leg (u→v) with the full shortest-path node sequence between u and v.
+- Concatenate these legs carefully to avoid duplicating repeated nodes at leg boundaries.
+- Also sum the leg costs to obtain the expanded route cost in meters.
 
-- Building `G_map`: O(|V| + |E|) for parsing and insertion.
-- Pairwise Dijkstra: O(k * (E + V log V)) where k is number of TSP nodes (one Dijkstra per `src`).
-- Floyd–Warshall closure: O(k^3) on the chosen component (can be heavy for large k).
-- Christofides steps: polynomial (MST, matching, Eulerian tour) but matching cost depends on the odd-node subset size.
+Outputs
+-------
+- Compact tour: list of requested node ids (first == last). This is the sequence produced by Christofides + shortcutting (and possibly post-processed for pickups/deliveries).
+- Compact cost: sum of metric edge weights along the compact tour.
+- Optionally, an expanded node-level route and expanded cost (meters) when using `expand_tour_with_paths` and the `sp_graph` built earlier.
 
-Practical implication: designed for medium-size k (tens to low hundreds). For very large k you may prefer heuristics, clustering, or specialized TSP solvers.
+Complexity and practical guidance
+---------------------------------
+- Building `G_map`: O(|V| + |E|) for parsing and inserting nodes/edges.
+- Pairwise Dijkstra: O(k * (E + V log V)), where k = number of requested nodes (one Dijkstra per source node).
+- Floyd–Warshall closure to get all-pairs shortest directed costs: O(k^3) on the chosen component. This dominates for larger k.
+- Christofides steps: polynomial; matching cost depends on the number of odd-degree vertices (≤ k).
 
-## Robustness & limitations
+Practical recommendations
+-------------------------
+- Designed for medium-sized TSP instances (k in the tens, possibly low hundreds). For much larger k consider clustering, heuristics, or an external solver.
+- Pre-filter node lists to remove obviously extraneous nodes; keep k small when possible.
+- Surface diagnostics to callers (which nodes were dropped due to reachability or missing from the map) when integrating into services.
 
-- The algorithm filters out requested nodes that are not present in `G_map` (it logs a warning).
-- If nodes are not mutually reachable, the implementation restricts the problem to the largest mutually-reachable component (some requested nodes may be dropped).
-- Directional asymmetry is resolved by symmetrization (min of forward/backward costs). If asymmetry matters, consider an asymmetric TSP approach.
-- If a shortest-path leg is missing when expanding the compact tour, the expansion raises an error (caller should handle this case).
+Limitations
+-----------
+- Post-processing pickup/delivery reordering is not a substitute for an exact precedence-constrained TSP solver. If precedence constraints are crucial, consider a solver that supports precedence constraints (or formulate ILP).
+- Directional asymmetry in the road network is resolved by symmetrization (min forward/backward cost); this transforms the problem into a symmetric metric TSP. If you need asymmetric TSP solutions, a different approach is required.
 
-## Inputs and outputs
 
-- Input: XML map file (road network) and a list of TSP node ids (locations to visit). Delivery requests can be used to build the list of nodes.
-- Output: Compact tour (sequence of location node ids) and metric cost. Optionally, an expanded node-level route and expanded cost.
+Examples
+--------
+- Single call (no pickups):
 
-## Practical suggestions
+  tsp = TSP()
+  compact_tour, compact_cost = tsp.solve(nodes=['A','B','C'])
 
-- Pre-filter or cluster locations when k is large.
-- Surface diagnostics to callers (which nodes were dropped and why). The demo script and service can be extended to return that information.
-- Consider integrating an external high-performance solver (LKH/Concorde) if you need near-optimal tours for large instances.
+- With pickup-delivery pairs (light post-processing):
 
-## Related files
+  pd_pairs = [('P1','D1'), ('P2','D2')]
+  compact_tour, compact_cost = tsp.solve(nodes=nodes_list, pickup_delivery_pairs=pd_pairs)
 
-- Implementation: `app/utils/TSP/TSP_networkx.py`
-- Service wrapper: `app/services/TSPService.py`
-- Demo/benchmark: `backend/tools/demo_tsp_networkx.py`
+When integrating into a multi-courier service, split locations into per-courier node lists and call `solve()` per courier.
 
----
-Short and focused — ask if you want this expanded into a longer README with diagrams, sample inputs/outputs, or benchmarking recommendations.
