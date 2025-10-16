@@ -195,10 +195,10 @@ export default function MainView(): JSX.Element {
             const lngRange = Math.max(...longitudes) - Math.min(...longitudes);
             const maxRange = Math.max(latRange, lngRange);
             
-            // Adjust zoom based on the spread of points
-            let zoom = 13; // default
-            if (maxRange < 0.01) zoom = 16;
-            else if (maxRange < 0.05) zoom = 14;
+            //FIND A BETTER SCALE
+            let zoom = 14;
+            if (maxRange < 0.01) zoom = 14;
+            else if (maxRange < 0.05) zoom = 13;
             else if (maxRange < 0.1) zoom = 12;
             else if (maxRange < 0.2) zoom = 11;
             else zoom = 10;
