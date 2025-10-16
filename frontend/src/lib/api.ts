@@ -1,8 +1,4 @@
-import type { 
-  Map, 
-  Delivery, 
-  ApiError 
-} from '@/types/api';
+import type { Map, Delivery, ApiError } from '@/types/api';
 
 const API_BASE_URL = 'http://localhost:8000/api/v1';
 
@@ -51,6 +47,48 @@ class ApiClient {
       headers: {},
       body: formData,
     });
+  }
+  
+  async uploadRequestsFile(file: File): Promise<Delivery[]> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request<Delivery[]>('/requests/upload', {
+      method: 'POST',
+      headers: {},
+      body: formData,
+    });
+  }
+
+  async getState(): Promise<any> {
+    return this.request<any>('/state/', { method: 'GET' })
+  }
+
+  async addCourier(courier: any): Promise<any> {
+    return this.request<any>('/couriers/', {
+      method: 'POST',
+      body: JSON.stringify(courier),
+    })
+  }
+
+  async addRequest(request: any): Promise<any> {
+    return this.request<any>('/requests/', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    })
+  }
+
+  async computeTours(): Promise<any> {
+    return this.request<any>(`/tours/compute`, { method: 'POST' })
+  }
+
+  async saveState(): Promise<any> {
+    return this.request<any>('/state/save', { method: 'POST' })
+  }
+
+  async deleteRequest(deliveryId: string): Promise<{ detail: string }> {
+    return this.request<{ detail: string }>(`/requests/${deliveryId}`, {
+      method: 'DELETE',
+    })
   }
 }
 

@@ -5,12 +5,7 @@ import xml.etree.ElementTree as ET
 import os
 import time
 import logging
-try:
-    from tqdm import tqdm
-except Exception:
-    # fallback: identity wrapper if tqdm is not installed
-    def tqdm(x, **kwargs):
-        return x
+
 try:
     from app.services.XMLParser import XMLParser
 except ImportError:
@@ -145,7 +140,7 @@ class Astar:
         goals_list = list(goals)
         h_min: Dict[str, float] = {}
         # Use tqdm for a visible progress bar when available (safe fallback otherwise)
-        for n in tqdm(nodes_local, desc="precompute h_min", leave=False):
+        for n in nodes_local:
             # compute min heuristic to any goal
             best = float('inf')
             p1 = nodes_local.get(n)
