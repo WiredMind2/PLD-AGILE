@@ -35,11 +35,31 @@ class XMLParser:
         else:
             root: ET.Element = ET.fromstring(xml_text)
 
-        # Grab hourDeparture from <entrepot ... heureDepart="...">
+        # Grab hourDeparture and entrepot address from <entrepot ...>
         entrepot: Optional[ET.Element] = root.find('entrepot')
         hour_departure: Optional[str] = (
             entrepot.get('heureDepart') if entrepot is not None else None
         )
+        entrepot_addr: Optional[str] = (
+            entrepot.get('adresse') if entrepot is not None else None
+        )
+
+        warehouse_intersection: Optional[Intersection] = None
+        if entrepot_addr:
+            try:
+                from app.core import state  # type: ignore
+            except Exception:
+                state = None  # type: ignore
+            try:
+                mp = state.get_map() if state else None
+            except Exception:
+                mp = None
+            if mp is not None:
+                try:
+                    inter_by_id = {str(i.id): i for i in getattr(mp, 'intersections', [])}
+                    warehouse_intersection = inter_by_id.get(str(entrepot_addr))
+                except Exception:
+                    warehouse_intersection = None
 
         deliveries: List[Delivery] = []
         for delivery_elem in root.findall('livraison'):
@@ -53,6 +73,7 @@ class XMLParser:
                 'pickup_service_s': pickup_service_s,
                 'delivery_service_s': delivery_service_s,
                 'hour_departure': hour_departure,
+                'warehouse': warehouse_intersection,
             }
             delivery = Delivery(**delivery_data)
             deliveries.append(delivery)

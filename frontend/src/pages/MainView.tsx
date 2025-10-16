@@ -8,6 +8,7 @@ import DeliveryMap, { DeliveryPoint } from '@/components/ui/delivery-map'
 import { useState, useRef } from 'react'
 import { useDeliveryApp } from '@/hooks/useDeliveryApp'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 
 export default function MainView(): JSX.Element {
@@ -25,11 +26,16 @@ export default function MainView(): JSX.Element {
   uploadRequestsFile,
     deleteRequest,
     stats,
-    map,
-    deliveries
+  map,
+  deliveries,
+  computeTours,
   } = useDeliveryApp();
 
   const [deliveryPoints, setDeliveryPoints] = useState<DeliveryPoint[]>();
+  const [computeNotice, setComputeNotice] = useState<string | null>(null);
+  const [successAlert, setSuccessAlert] = useState<string | null>(null);
+  const [routes, setRoutes] = useState<{ id: string; color?: string; positions: [number, number][] }[]>([]);
+  const [showSegmentLabels, setShowSegmentLabels] = useState<boolean>(true);
 
   const handlePointClick = (point: any) => {
     console.log('Clicked delivery point:', point);
@@ -44,34 +50,69 @@ export default function MainView(): JSX.Element {
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
     if (file) {
       try {
         const mapData = await uploadMap(file);
         console.log('Map uploaded successfully:', mapData);
         
         // Only show existing delivery request points (no raw map nodes or couriers)
-        const points = [
-          // Add delivery pickup points (if backend returned any in mapData)
-          ...(mapData.deliveries || []).map(delivery => ({
-            id: `pickup-${delivery.id}`,
-            position: [delivery.pickup_addr.latitude, delivery.pickup_addr.longitude] as [number, number],
-            address: 'Pickup Location',
-            type: 'pickup' as const,
-            status: 'pending' as const
-          })),
-          // Add delivery destination points
-          ...(mapData.deliveries || []).map(delivery => ({
-            id: `delivery-${delivery.id}`,
-            position: [delivery.delivery_addr.latitude, delivery.delivery_addr.longitude] as [number, number],
-            address: 'Delivery Location',
-            type: 'delivery' as const,
-            status: 'pending' as const
-          })),
-        ];
+        const getCoords = (addr: any): [number, number] | null => {
+          if (!addr) return null;
+          if (typeof addr === 'string') {
+            const inter = mapData.intersections?.find((i: any) => String(i.id) === String(addr));
+            return inter ? [inter.latitude, inter.longitude] : null;
+          }
+          if (typeof addr.latitude === 'number' && typeof addr.longitude === 'number') {
+            return [addr.latitude, addr.longitude];
+          }
+          return null;
+        };
+
+        const points: DeliveryPoint[] = [];
+        (mapData.deliveries || []).forEach((delivery: any) => {
+          const p1 = getCoords(delivery.pickup_addr);
+          if (p1) {
+            points.push({
+              id: `pickup-${delivery.id}`,
+              position: p1,
+              address: 'Pickup Location',
+              type: 'pickup',
+              status: 'pending',
+            });
+          }
+          const p2 = getCoords(delivery.delivery_addr);
+          if (p2) {
+            points.push({
+              id: `delivery-${delivery.id}`,
+              position: p2,
+              address: 'Delivery Location',
+              type: 'delivery',
+              status: 'pending',
+            });
+          }
+          // Add courier marker at warehouse if present on the delivery
+          const wh = delivery.warehouse;
+          if (wh && typeof wh.latitude === 'number' && typeof wh.longitude === 'number') {
+            const courierId = `courier-${String(wh.id)}`;
+            if (!points.some((p) => p.id === courierId)) {
+              points.push({
+                id: courierId,
+                position: [wh.latitude, wh.longitude],
+                address: 'Courier start (warehouse)',
+                type: 'courier',
+                status: 'active',
+              });
+            }
+          }
+        });
         
         console.log('Generated delivery points:', points);
         setDeliveryPoints(points);
+  // show success alert
+  setSuccessAlert('Map loaded successfully');
+  setTimeout(() => setSuccessAlert(null), 5000);
         
         // Convert road segments for rendering
         const segments = (mapData.road_segments || []).map(segment => ({
@@ -94,7 +135,62 @@ export default function MainView(): JSX.Element {
       }
     }
     // Reset the input value so the same file can be uploaded again
-    event.target.value = '';
+    try {
+      input.value = '';
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const handleRequestsFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const deliveries = await uploadRequestsFile(file);
+
+      // Reflect on map visually using current loaded intersections
+      if (map && Array.isArray(deliveries)) {
+        setDeliveryPoints((prev) => {
+          const base = prev ? [...prev] : [];
+          deliveries.forEach((d: any) => {
+            const pickup = map.intersections.find((i) => String(i.id) === String(d.pickup_addr?.id ?? d.pickup_addr));
+            const drop = map.intersections.find((i) => String(i.id) === String(d.delivery_addr?.id ?? d.delivery_addr));
+            if (pickup) {
+              base.push({ id: `pickup-${d.id}`, position: [pickup.latitude, pickup.longitude], address: 'Pickup Location', type: 'pickup', status: 'pending' });
+            }
+            if (drop) {
+              base.push({ id: `delivery-${d.id}`, position: [drop.latitude, drop.longitude], address: 'Delivery Location', type: 'delivery', status: 'pending' });
+            }
+            // Add courier marker at warehouse (entrepot) if available
+            const wh = d.warehouse;
+            if (wh && typeof wh.latitude === 'number' && typeof wh.longitude === 'number') {
+              const courierId = `courier-${String(wh.id)}`;
+              if (!base.some((p) => p.id === courierId)) {
+                base.push({
+                  id: courierId,
+                  position: [wh.latitude, wh.longitude],
+                  address: 'Courier start (warehouse)',
+                  type: 'courier',
+                  status: 'active',
+                });
+              }
+            }
+          });
+          return base;
+        });
+        setSuccessAlert('Delivery requests imported successfully');
+        setTimeout(() => setSuccessAlert(null), 5000);
+      }
+    } catch (err) {
+      console.error('Failed to upload requests:', err);
+    } finally {
+      try {
+        input.value = '';
+      } catch (e) {
+        // ignore
+      }
+    }
   };
 
   // New Delivery Request Sheet state
@@ -147,6 +243,8 @@ export default function MainView(): JSX.Element {
       setPickupService(300);
       setDeliveryService(300);
       setOpenNewReq(false);
+      setSuccessAlert('New delivery request created');
+      setTimeout(() => setSuccessAlert(null), 5000);
     } catch (err) {
       // error is handled globally via hook
     }
@@ -167,36 +265,7 @@ export default function MainView(): JSX.Element {
         type="file"
         accept=".xml"
         style={{ display: 'none' }}
-        onChange={async (e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          try {
-            const deliveries = await uploadRequestsFile(file);
-
-            // Reflect on map visually using current loaded intersections
-            if (map && Array.isArray(deliveries)) {
-              setDeliveryPoints((prev) => {
-                const base = prev ? [...prev] : [];
-                deliveries.forEach((d: any) => {
-                  const pickup = map.intersections.find((i) => String(i.id) === String(d.pickup_addr?.id ?? d.pickup_addr));
-                  const drop = map.intersections.find((i) => String(i.id) === String(d.delivery_addr?.id ?? d.delivery_addr));
-                  if (pickup) {
-                    base.push({ id: `pickup-${d.id}`, position: [pickup.latitude, pickup.longitude], address: 'Pickup Location', type: 'pickup', status: 'pending' });
-                  }
-                  if (drop) {
-                    base.push({ id: `delivery-${d.id}`, position: [drop.latitude, drop.longitude], address: 'Delivery Location', type: 'delivery', status: 'pending' });
-                  }
-                });
-                return base;
-              });
-            }
-          } catch (err) {
-            console.error('Failed to upload requests:', err);
-          } finally {
-            // reset input
-            e.currentTarget.value = '';
-          }
-        }}
+        onChange={handleRequestsFileChange}
       />
       
       {/* Header */}
@@ -248,7 +317,71 @@ export default function MainView(): JSX.Element {
               <Save className="h-4 w-4" />
               Save Tours
             </Button>
-            <Button size="sm" className="gap-2 bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white shadow-lg">
+            <Button
+              size="sm"
+              className="gap-2 bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white shadow-lg"
+              disabled={!map || loading}
+              onClick={async () => {
+                console.log('Optimize Tours button clicked');
+                try {
+                  const res = await computeTours?.();
+                  console.log('Compute tours response:', res);
+                  setComputeNotice(null);
+                  if (res && Array.isArray(res)) {
+                    const points: DeliveryPoint[] = [];
+                    // prefer courier starts first
+                    res.forEach((t: any) => {
+                      const courier = t.courier;
+                      if (courier && courier.current_location) {
+                        const cid = `courier-${courier.id}`;
+                        points.push({ id: cid, position: [courier.current_location.latitude, courier.current_location.longitude], address: 'Courier start (warehouse)', type: 'courier', status: 'active' });
+                      }
+                      (t.deliveries || []).forEach((d: any) => {
+                        const findInter = (addr: any) => {
+                          if (!addr) return null;
+                          if (typeof addr === 'string') return map?.intersections?.find((i: any) => String(i.id) === String(addr));
+                          return addr;
+                        };
+                        const p1 = findInter(d.pickup_addr);
+                        const p2 = findInter(d.delivery_addr);
+                        if (p1) points.push({ id: `pickup-${d.id}`, position: [p1.latitude, p1.longitude], address: 'Pickup Location', type: 'pickup', status: 'pending' });
+                        if (p2) points.push({ id: `delivery-${d.id}`, position: [p2.latitude, p2.longitude], address: 'Delivery Location', type: 'delivery', status: 'pending' });
+                      });
+                    });
+                    if (points.length > 0) {
+                      setDeliveryPoints(points);
+                      // pan to first point if any
+                      setMapCenter(points[0].position);
+                    } else {
+                      // do not clear existing points — show a notice so user knows nothing was computed
+                      setComputeNotice('No tours were computed (no couriers or no assignable deliveries). Make sure the map includes couriers/warehouses and deliveries.');
+                      console.warn('Compute returned empty tour list; leaving existing markers unchanged.');
+                    }
+                    // build route polylines from returned tours
+                    try {
+                      if (res && Array.isArray(res) && res.length > 0 && map) {
+                        const colors = ['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6'];
+                        const builtRoutes = res.map((t: any, idx: number) => {
+                          const ids: string[] = Array.isArray(t.route_intersections) ? t.route_intersections : [];
+                          const positions: [number, number][] = ids.map((nodeId: string) => {
+                            const inter = map.intersections.find((i: any) => String(i.id) === String(nodeId));
+                            return inter ? [inter.latitude, inter.longitude] as [number, number] : null;
+                          }).filter(Boolean) as [number, number][];
+                          return { id: t.courier?.id ?? `route-${idx}`, color: colors[idx % colors.length], positions };
+                        }).filter((r: any) => r.positions && r.positions.length > 0);
+                        setRoutes(builtRoutes);
+                      } else {
+                        setRoutes([]);
+                      }
+                    } catch (e) {
+                      console.error('Failed to build route polylines:', e);
+                    }
+                  }
+                } catch (err) {
+                  console.error('Failed to compute tours:', err);
+                }
+              }}
+            >
               <Route className="h-4 w-4" />
               Optimize Tours
             </Button>
@@ -273,12 +406,12 @@ export default function MainView(): JSX.Element {
           
           <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white border-0 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-purple-100">Delivery Requests</CardTitle>
+              <CardTitle className="text-sm font-medium text-purple-100">Deliveries</CardTitle>
               <Package className="h-4 w-4 text-purple-200" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats?.deliveryRequests ?? 0}</div>
-              <p className="text-xs text-purple-200">Active requests</p>
+              <p className="text-xs text-purple-200">Active deliveries</p>
             </CardContent>
           </Card>
 
@@ -310,13 +443,24 @@ export default function MainView(): JSX.Element {
           {/* Map Section */}
           <Card className="lg:col-span-2 border-blue-200 dark:border-blue-800 shadow-lg">
             <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 mb-6">
-              <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
-                <Map className="h-5 w-5 text-blue-600" />
-                City Map & Delivery Tours
-              </CardTitle>
-              <CardDescription className="text-blue-600 dark:text-blue-400">
-                Load XML city map and visualize optimized bicycle delivery routes
-              </CardDescription>
+              <div className="w-full">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                    <Map className="h-5 w-5 text-blue-600" />
+                    <span className="text-lg font-medium">City Map & Delivery Tours</span>
+                  </div>
+                  <div>
+                    <Button size="sm" variant="outline" onClick={() => setShowSegmentLabels((s) => !s)}>
+                      {showSegmentLabels ? 'Hide numbers' : 'Show numbers'}
+                    </Button>
+                  </div>
+                </div>
+                <div className="mt-1">
+                  <CardDescription className="text-blue-600 dark:text-blue-400">
+                    Load XML city map and visualize optimized bicycle delivery routes
+                  </CardDescription>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <DeliveryMap
@@ -326,6 +470,8 @@ export default function MainView(): JSX.Element {
                 zoom={14}
                 height="500px"
                 showRoadNetwork={false}
+                showSegmentLabels={showSegmentLabels}
+                routes={routes}
                 onPointClick={handlePointClick}
               />
             </CardContent>
@@ -391,23 +537,29 @@ export default function MainView(): JSX.Element {
           </div>
         </div>
 
-        {/* Delivery Requests Section */}
+        {/* Deliveries Section */}
         <Card className="border-emerald-200 dark:border-emerald-800 shadow-lg">
           <CardHeader className="bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950 dark:to-green-950 mb-6">
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
                   <Package className="h-5 w-5 text-emerald-600" />
-                  Delivery Requests
+                  Deliveries
                 </CardTitle>
                 <CardDescription className="text-emerald-600 dark:text-emerald-400">
-                  Add new delivery requests with pickup and delivery locations
+                  Add new deliveries with pickup and delivery locations
                 </CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" onClick={() => setOpenNewReq(true)} className="gap-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg">
+                <Button
+                  size="sm"
+                  onClick={() => setOpenNewReq(true)}
+                  className="gap-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg"
+                  disabled={!map || loading}
+                  title={!map ? 'Load a map first to add deliveries' : loading ? 'Please wait, loading...' : undefined}
+                >
                   <Plus className="h-4 w-4" />
-                  New Delivery Request
+                  New Delivery
                 </Button>
               </div>
             </div>
@@ -417,13 +569,13 @@ export default function MainView(): JSX.Element {
               <div className="h-48 rounded-lg bg-gradient-to-br from-emerald-100/50 to-green-100/50 dark:from-emerald-900/30 dark:to-green-900/30 border-2 border-dashed border-emerald-300/50 dark:border-emerald-700/50 flex items-center justify-center">
                 <div className="text-center space-y-2">
                   <Package className="h-8 w-8 text-emerald-500 mx-auto animate-bounce" />
-                  <p className="text-sm text-emerald-600 dark:text-emerald-400">No delivery requests</p>
-                  <p className="text-xs text-emerald-500 dark:text-emerald-500">Add a request to start planning tours</p>
+                  <p className="text-sm text-emerald-600 dark:text-emerald-400">No deliveries</p>
+                  <p className="text-xs text-emerald-500 dark:text-emerald-500">Add a delivery to start planning tours</p>
                 </div>
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="text-xs text-emerald-700 dark:text-emerald-300">{stats.deliveryRequests} request(s)</div>
+                <div className="text-xs text-emerald-700 dark:text-emerald-300">{stats.deliveryRequests} delivery(ies)</div>
                 <div className="max-h-56 overflow-auto rounded-md border border-emerald-200 dark:border-emerald-800 divide-y divide-emerald-100 dark:divide-emerald-900">
                   {(deliveries || []).map((d: any) => {
                     const pickupId = typeof d.pickup_addr === 'string' ? d.pickup_addr : d.pickup_addr?.id;
@@ -550,16 +702,33 @@ export default function MainView(): JSX.Element {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-32 rounded-lg bg-gradient-to-br from-indigo-100/50 to-purple-100/50 dark:from-indigo-900/30 dark:to-purple-900/30 border-2 border-dashed border-indigo-300/50 dark:border-indigo-700/50 flex items-center justify-center">
-              <div className="text-center space-y-2">
-                <Route className="h-8 w-8 text-indigo-500 mx-auto" />
-                <p className="text-sm text-indigo-600 dark:text-indigo-400">No optimized tours</p>
-                <p className="text-xs text-indigo-500 dark:text-indigo-500">Add requests and optimize to see results</p>
+            {computeNotice ? (
+              <div className="p-4 bg-yellow-50 rounded-md border border-yellow-200 text-yellow-800">{computeNotice}</div>
+            ) : (
+              <div className="h-32 rounded-lg bg-gradient-to-br from-indigo-100/50 to-purple-100/50 dark:from-indigo-900/30 dark:to-purple-900/30 border-2 border-dashed border-indigo-300/50 dark:border-indigo-700/50 flex items-center justify-center">
+                <div className="text-center space-y-2">
+                  <Route className="h-8 w-8 text-indigo-500 mx-auto" />
+                  <p className="text-sm text-indigo-600 dark:text-indigo-400">No optimized tours</p>
+                  <p className="text-xs text-indigo-500 dark:text-indigo-500">Add requests and optimize to see results</p>
+                </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>
+      {successAlert && (
+        <div className="fixed right-6 bottom-6 z-50 w-80">
+          <Alert>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            <div>
+              <AlertTitle>Success</AlertTitle>
+              <AlertDescription>{successAlert}</AlertDescription>
+            </div>
+          </Alert>
+        </div>
+      )}
     </div>
   )
 }

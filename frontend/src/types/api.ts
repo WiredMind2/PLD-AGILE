@@ -4,13 +4,6 @@ export interface Intersection {
   longitude: number;
 }
 
-export interface DeliveryRequest {
-  pickup_addr: string;
-  delivery_addr: string;
-  pickup_service_s: number;
-  delivery_service_s: number;
-}
-
 export interface Courier {
   id: string;
   current_location: Intersection;
@@ -27,10 +20,12 @@ export interface RoadSegment {
 
 export interface Delivery {
   id: string;
-  pickup_addr: Intersection;
-  delivery_addr: Intersection;
+  // Backend may return either raw node id strings or Intersection objects
+  pickup_addr: string | Intersection;
+  delivery_addr: string | Intersection;
   pickup_service_s: number;
   delivery_service_s: number;
+  warehouse?: Intersection;
   courier?: Courier;
   hour_departure?: string;
 }

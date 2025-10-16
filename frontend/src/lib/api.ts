@@ -77,8 +77,8 @@ class ApiClient {
     })
   }
 
-  async computeTours(courierId: number = 1): Promise<any> {
-    return this.request<any>(`/tours/compute/${courierId}`, { method: 'POST' })
+  async computeTours(): Promise<any> {
+    return this.request<any>(`/tours/compute`, { method: 'POST' })
   }
 
   async saveState(): Promise<any> {

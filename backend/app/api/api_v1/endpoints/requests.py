@@ -1,7 +1,7 @@
 from typing import List
 from fastapi import APIRouter, HTTPException, status, UploadFile
 
-from app.models.schemas import DeliveryRequest, Delivery
+from app.models.schemas import Delivery
 from app.core import state
 from app.services import XMLParser
 
@@ -14,15 +14,27 @@ def list_requests():
     return state.list_deliveries()
 
 
-@router.post("/", response_model=Delivery, tags=["Requests"], summary="Create a delivery request (JSON)", description="Create a single delivery request by supplying pickup/delivery node ids and service durations in JSON.")
-def add_request(request: DeliveryRequest):
+@router.post("/", response_model=Delivery, tags=["Requests"], summary="Create a delivery (JSON)", description="Create a single delivery by supplying pickup/delivery node ids and service durations in JSON.")
+def add_request(request: Delivery):
     """Add a new delivery request."""
     mp = state.get_map()
     if mp is None:
         raise HTTPException(status_code=400, detail='No map loaded')
 
-    # create delivery id via XMLParser helper
-    deliveries = XMLParser.parse_deliveries(f'<root><livraison adresseEnlevement="{request.pickup_addr}" adresseLivraison="{request.delivery_addr}" dureeEnlevement="{request.pickup_service_s}" dureeLivraison="{request.delivery_service_s}"/></root>')
+    # Allow pickup_addr and delivery_addr to be either string ids or Intersection objects
+    def as_id(value):
+        try:
+            return getattr(value, 'id', value)
+        except Exception:
+            return value
+
+    pickup_id = as_id(request.pickup_addr)
+    delivery_id = as_id(request.delivery_addr)
+
+    # create delivery via XMLParser helper to ensure ID and normalization
+    deliveries = XMLParser.parse_deliveries(
+        f'<root><livraison adresseEnlevement="{pickup_id}" adresseLivraison="{delivery_id}" dureeEnlevement="{request.pickup_service_s}" dureeLivraison="{request.delivery_service_s}"/></root>'
+    )
     if not deliveries:
         raise HTTPException(status_code=400, detail='Could not parse delivery')
     delivery = deliveries[0]
