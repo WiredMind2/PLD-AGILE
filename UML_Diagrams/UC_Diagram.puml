@@ -1,6 +1,6 @@
 @startuml name UCdiagram
 title Pickup & Delivery Bike Tours - Use Case Diagram
-
+up to down direction
 skinparam linetype ortho
 skinparam usecase {
     BackgroundColor<<core>> #EEF7FF

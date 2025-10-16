@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Map, Truck, Clock, Save, Plus, Route, Upload, Timer, Package, Activity, Trash2 } from 'lucide-react'
+import { Map, Truck, Clock, Save, Plus, Route, Upload, Timer, Package, Activity, Trash2, User } from 'lucide-react'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import DeliveryMap, { DeliveryPoint } from '@/components/ui/delivery-map'
 import { Courier } from '@/components/ui/courier'
@@ -12,6 +12,7 @@ import { useDeliveryApp } from '@/hooks/useDeliveryApp'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export default function MainView(): JSX.Element {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -42,6 +43,17 @@ export default function MainView(): JSX.Element {
   const [successAlert, setSuccessAlert] = useState<string | null>(null);
   const [routes, setRoutes] = useState<{ id: string; color?: string; positions: [number, number][] }[]>([]);
   const [showSegmentLabels, setShowSegmentLabels] = useState<boolean>(true);
+  
+  // Courier management state
+  const [courierCount, setCourierCount] = useState(1);
+  const [selectedCourier, setSelectedCourier] = useState<string>('courier-1');
+  
+  // Generate list of available couriers
+  const couriers = Array.from({ length: courierCount }, (_, i) => ({
+    id: `courier-${i + 1}`,
+    name: `Courier ${i + 1}`,
+    phone: `+33 ${i + 1}XX XXX XXX`
+  }));
 
   const handlePointClick = (point: any) => {
     console.log('Clicked delivery point:', point);
@@ -577,6 +589,24 @@ export default function MainView(): JSX.Element {
                             Pickup: {pickupId} • Drop: {deliveryId} • svc: {d.pickup_service_s + d.delivery_service_s}s
                           </div>
                         </div>
+                        <div className="flex items-center gap-2">
+                        {stats.activeCouriers > 1 && (
+                        <Select>
+                          <SelectTrigger className="w-[180px] h-8 gap-1 border-emerald-100 text-emerald-700 dark:border-emerald-700a dark:text-emerald-300">
+                            <SelectValue placeholder="Select a fruit" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectLabel>Fruits</SelectLabel>
+                              <SelectItem value="apple">Apple</SelectItem>
+                              <SelectItem value="banana">Banana</SelectItem>
+                              <SelectItem value="blueberry">Blueberry</SelectItem>
+                              <SelectItem value="grapes">Grapes</SelectItem>
+                              <SelectItem value="pineapple">Pineapple</SelectItem>
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      )}
                         <Button
                           size="sm"
                           variant="outline"
@@ -594,12 +624,14 @@ export default function MainView(): JSX.Element {
                           <Trash2 className="h-3.5 w-3.5" />
                           Delete
                         </Button>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
             )}
+              
           </CardContent>
         </Card>
 
