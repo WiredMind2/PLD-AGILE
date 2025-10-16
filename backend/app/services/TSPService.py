@@ -11,7 +11,7 @@ import networkx as nx
 
 from app.core import state
 from app.models.schemas import Tour, Delivery, Courrier, DEFAULT_SPEED_KMH
-from app.utils.TSP.TSP_networkx import TSP
+from app.utils.TSP.TSP_ortools import TSP
 
 
 class TSPService:
