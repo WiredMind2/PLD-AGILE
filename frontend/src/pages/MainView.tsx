@@ -8,6 +8,7 @@ import DeliveryMap, { DeliveryPoint } from '@/components/ui/delivery-map'
 import { useState, useRef } from 'react'
 import { useDeliveryApp } from '@/hooks/useDeliveryApp'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 
 export default function MainView(): JSX.Element {
@@ -32,7 +33,9 @@ export default function MainView(): JSX.Element {
 
   const [deliveryPoints, setDeliveryPoints] = useState<DeliveryPoint[]>();
   const [computeNotice, setComputeNotice] = useState<string | null>(null);
+  const [successAlert, setSuccessAlert] = useState<string | null>(null);
   const [routes, setRoutes] = useState<{ id: string; color?: string; positions: [number, number][] }[]>([]);
+  const [showSegmentLabels, setShowSegmentLabels] = useState<boolean>(true);
 
   const handlePointClick = (point: any) => {
     console.log('Clicked delivery point:', point);
@@ -107,6 +110,9 @@ export default function MainView(): JSX.Element {
         
         console.log('Generated delivery points:', points);
         setDeliveryPoints(points);
+  // show success alert
+  setSuccessAlert('Map loaded successfully');
+  setTimeout(() => setSuccessAlert(null), 5000);
         
         // Convert road segments for rendering
         const segments = (mapData.road_segments || []).map(segment => ({
@@ -173,6 +179,8 @@ export default function MainView(): JSX.Element {
           });
           return base;
         });
+        setSuccessAlert('Delivery requests imported successfully');
+        setTimeout(() => setSuccessAlert(null), 5000);
       }
     } catch (err) {
       console.error('Failed to upload requests:', err);
@@ -235,6 +243,8 @@ export default function MainView(): JSX.Element {
       setPickupService(300);
       setDeliveryService(300);
       setOpenNewReq(false);
+      setSuccessAlert('New delivery request created');
+      setTimeout(() => setSuccessAlert(null), 5000);
     } catch (err) {
       // error is handled globally via hook
     }
@@ -433,13 +443,24 @@ export default function MainView(): JSX.Element {
           {/* Map Section */}
           <Card className="lg:col-span-2 border-blue-200 dark:border-blue-800 shadow-lg">
             <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 mb-6">
-              <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
-                <Map className="h-5 w-5 text-blue-600" />
-                City Map & Delivery Tours
-              </CardTitle>
-              <CardDescription className="text-blue-600 dark:text-blue-400">
-                Load XML city map and visualize optimized bicycle delivery routes
-              </CardDescription>
+              <div className="w-full">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                    <Map className="h-5 w-5 text-blue-600" />
+                    <span className="text-lg font-medium">City Map & Delivery Tours</span>
+                  </div>
+                  <div>
+                    <Button size="sm" variant="outline" onClick={() => setShowSegmentLabels((s) => !s)}>
+                      {showSegmentLabels ? 'Hide numbers' : 'Show numbers'}
+                    </Button>
+                  </div>
+                </div>
+                <div className="mt-1">
+                  <CardDescription className="text-blue-600 dark:text-blue-400">
+                    Load XML city map and visualize optimized bicycle delivery routes
+                  </CardDescription>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <DeliveryMap
@@ -449,6 +470,7 @@ export default function MainView(): JSX.Element {
                 zoom={14}
                 height="500px"
                 showRoadNetwork={false}
+                showSegmentLabels={showSegmentLabels}
                 routes={routes}
                 onPointClick={handlePointClick}
               />
@@ -529,7 +551,13 @@ export default function MainView(): JSX.Element {
                 </CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" onClick={() => setOpenNewReq(true)} className="gap-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg">
+                <Button
+                  size="sm"
+                  onClick={() => setOpenNewReq(true)}
+                  className="gap-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg"
+                  disabled={!map || loading}
+                  title={!map ? 'Load a map first to add deliveries' : loading ? 'Please wait, loading...' : undefined}
+                >
                   <Plus className="h-4 w-4" />
                   New Delivery
                 </Button>
@@ -688,6 +716,19 @@ export default function MainView(): JSX.Element {
           </CardContent>
         </Card>
       </div>
+      {successAlert && (
+        <div className="fixed right-6 bottom-6 z-50 w-80">
+          <Alert>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            <div>
+              <AlertTitle>Success</AlertTitle>
+              <AlertDescription>{successAlert}</AlertDescription>
+            </div>
+          </Alert>
+        </div>
+      )}
     </div>
   )
 }

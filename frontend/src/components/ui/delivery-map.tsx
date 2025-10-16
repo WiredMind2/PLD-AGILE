@@ -90,6 +90,7 @@ interface DeliveryMapProps {
   zoom?: number;
   height?: number | string;
   showRoadNetwork?: boolean; // Show the road network from XML
+  showSegmentLabels?: boolean; // show numbered labels on segments
   onPointClick?: (p: DeliveryPoint) => void;
   routes?: {
     id: string;
@@ -107,6 +108,7 @@ export default function DeliveryMap({
   showRoadNetwork = false, // Show road network by default
   onPointClick,
   routes = [],
+  showSegmentLabels = true,
 }: DeliveryMapProps) {
   const style = { height: typeof height === 'number' ? `${height}px` : height, width: '100%' };
 
@@ -268,7 +270,7 @@ export default function DeliveryMap({
       ))}
 
       {/* Segment number labels (non-interactive) */}
-      {labeledPositions.map((lp) => (
+      {showSegmentLabels && labeledPositions.map((lp) => (
         <Marker key={`seg-label-${lp.key}`} position={lp.pos} icon={createNumberIcon(String(lp.index))} interactive={false} />
       ))}
     </MapContainer>
