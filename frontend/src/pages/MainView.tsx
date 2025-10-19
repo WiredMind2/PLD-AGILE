@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Map, Truck, Clock, Save, Plus, Route, Upload, Timer, Package, Activity, Trash2 } from 'lucide-react'
+import { Map, Truck, Clock, Save, Plus, Route, Upload, Timer, Package, Activity, Trash2, User } from 'lucide-react'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import DeliveryMap, { DeliveryPoint } from '@/components/ui/delivery-map'
 import { useState, useRef } from 'react'
@@ -10,6 +10,7 @@ import { useDeliveryApp } from '@/hooks/useDeliveryApp'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export default function MainView(): JSX.Element {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -36,6 +37,17 @@ export default function MainView(): JSX.Element {
   const [successAlert, setSuccessAlert] = useState<string | null>(null);
   const [routes, setRoutes] = useState<{ id: string; color?: string; positions: [number, number][] }[]>([]);
   const [showSegmentLabels, setShowSegmentLabels] = useState<boolean>(true);
+  
+  // Courier management state
+  const [courierCount, setCourierCount] = useState(1);
+  const [selectedCourier, setSelectedCourier] = useState<string>('courier-1');
+  
+  // Generate list of available couriers
+  const couriers = Array.from({ length: courierCount }, (_, i) => ({
+    id: `courier-${i + 1}`,
+    name: `Courier ${i + 1}`,
+    phone: `+33 ${i + 1}XX XXX XXX`
+  }));
 
   const handlePointClick = (point: any) => {
     console.log('Clicked delivery point:', point);
@@ -495,9 +507,24 @@ export default function MainView(): JSX.Element {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Number of Couriers:</span>
                     <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-purple-200 text-purple-600">-</Button>
-                      <span className="text-lg font-semibold w-8 text-center text-purple-700 dark:text-purple-300">1</span>
-                      <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-purple-200 text-purple-600">+</Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-8 w-8 p-0 border-purple-200 text-purple-600"
+                        onClick={() => setCourierCount(Math.max(1, courierCount - 1))}
+                        disabled={courierCount <= 1}
+                      >
+                        -
+                      </Button>
+                      <span className="text-lg font-semibold w-8 text-center text-purple-700 dark:text-purple-300">{courierCount}</span>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-8 w-8 p-0 border-purple-200 text-purple-600"
+                        onClick={() => setCourierCount(courierCount + 1)}
+                      >
+                        +
+                      </Button>
                     </div>
                   </div>
                   <div className="text-xs text-purple-500 dark:text-purple-400">
@@ -588,6 +615,24 @@ export default function MainView(): JSX.Element {
                             Pickup: {pickupId} • Drop: {deliveryId} • svc: {d.pickup_service_s + d.delivery_service_s}s
                           </div>
                         </div>
+                        <div className="flex items-center gap-2">
+                        {stats.activeCouriers > 1 && (
+                        <Select>
+                          <SelectTrigger className="w-[180px] h-8 gap-1 border-emerald-100 text-emerald-700 dark:border-emerald-700a dark:text-emerald-300">
+                            <SelectValue placeholder="Select a fruit" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectLabel>Fruits</SelectLabel>
+                              <SelectItem value="apple">Apple</SelectItem>
+                              <SelectItem value="banana">Banana</SelectItem>
+                              <SelectItem value="blueberry">Blueberry</SelectItem>
+                              <SelectItem value="grapes">Grapes</SelectItem>
+                              <SelectItem value="pineapple">Pineapple</SelectItem>
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      )}
                         <Button
                           size="sm"
                           variant="outline"
@@ -605,12 +650,14 @@ export default function MainView(): JSX.Element {
                           <Trash2 className="h-3.5 w-3.5" />
                           Delete
                         </Button>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
             )}
+              
           </CardContent>
         </Card>
 

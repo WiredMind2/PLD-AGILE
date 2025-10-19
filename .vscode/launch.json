@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Backend (uvicorn)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["main:app", "--reload", "--port", "8000"],
+      "console": "integratedTerminal",
+      "env": {},
+      "cwd": "${workspaceFolder}\\backend"
+    },
+    {
+      "name": "Run Frontend (npm)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceFolder}\\frontend",
+      "console": "integratedTerminal"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Run Both Servers",
+      "configurations": ["Run Backend (uvicorn)", "Run Frontend (npm)"]
+    }
+  ]
+}
