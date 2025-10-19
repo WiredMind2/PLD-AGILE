@@ -29,31 +29,25 @@ export default function MainView(): JSX.Element {
     uploadRequestsFile,
     deleteRequest,
     stats,
-    couriersState,
+    couriers,
     map,
     deliveries,
     computeTours,
     addCourier,
     removeCourier
-
+    ,
+    courierAssignments,
+    assignCourierToDelivery
   } = useDeliveryApp();
+  
+  // local view of assignments
+  const assignments = courierAssignments || {};
 
   const [deliveryPoints, setDeliveryPoints] = useState<DeliveryPoint[]>();
   const [computeNotice, setComputeNotice] = useState<string | null>(null);
   const [successAlert, setSuccessAlert] = useState<string | null>(null);
   const [routes, setRoutes] = useState<{ id: string; color?: string; positions: [number, number][] }[]>([]);
   const [showSegmentLabels, setShowSegmentLabels] = useState<boolean>(true);
-  
-  // Courier management state
-  const [courierCount, setCourierCount] = useState(1);
-  const [selectedCourier, setSelectedCourier] = useState<string>('courier-1');
-  
-  // Generate list of available couriers
-  const couriers = Array.from({ length: courierCount }, (_, i) => ({
-    id: `courier-${i + 1}`,
-    name: `Courier ${i + 1}`,
-    phone: `+33 ${i + 1}XX XXX XXX`
-  }));
 
   const handlePointClick = (point: any) => {
     console.log('Clicked delivery point:', point);
@@ -518,18 +512,16 @@ export default function MainView(): JSX.Element {
                       <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-purple-200 text-purple-600" onClick={addCourier}>+</Button>
                     </div>
                   </div>
-                  <div className="text-xs text-purple-500 dark:text-purple-400">
-                    Speed: 15 km/h • Start: 08:00 from warehouse
-                  </div>
+
                 </div>
                 <Separator className="bg-purple-200 dark:bg-purple-800" />
-                <ScrollArea className="rounded-md border p-4 h-80">
-                  {Array.from({ length: stats.activeCouriers }, (_, id) => (
+                <ScrollArea className="rounded-md border p-4 h-[27rem]">
+                  {couriers.map((c) => (
                     <Courier
-                      key={id + 1}
-                      numCourier={id + 1}
+                      key={c.id}
+                      numCourier={parseInt(String(c.id).replace(/[^0-9]/g, ''), 10) || 0}
                       status="Available"
-                      nbRequests={0}
+                      nbRequests={(assignments[c.id] || []).length}
                     />
                   ))}
                 </ScrollArea>
@@ -590,19 +582,29 @@ export default function MainView(): JSX.Element {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                        {stats.activeCouriers > 1 && (
-                        <Select>
-                          <SelectTrigger className="w-[180px] h-8 gap-1 border-emerald-100 text-emerald-700 dark:border-emerald-700a dark:text-emerald-300">
-                            <SelectValue placeholder="Select a fruit" />
+                        {stats.activeCouriers > 0 && (
+                        <Select onValueChange={(val) => {
+                            const courierId = val === 'none' ? null : val;
+                            try {
+                              assignCourierToDelivery(String(d.id), courierId as string | null | undefined);
+                            } catch (e) {
+                              console.error('Failed to assign courier:', e);
+                            }
+                          }}
+                          value={Object.keys(assignments).find(k => (assignments[k] || []).includes(String(d.id))) ?? 'none'}
+                        >
+                          <SelectTrigger className="w-[180px] h-8 gap-1 border-emerald-100 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300">
+                            <SelectValue placeholder="Select a courier" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectGroup>
-                              <SelectLabel>Fruits</SelectLabel>
-                              <SelectItem value="apple">Apple</SelectItem>
-                              <SelectItem value="banana">Banana</SelectItem>
-                              <SelectItem value="blueberry">Blueberry</SelectItem>
-                              <SelectItem value="grapes">Grapes</SelectItem>
-                              <SelectItem value="pineapple">Pineapple</SelectItem>
+                              <SelectLabel>Couriers</SelectLabel>
+                              <SelectItem value={"none"} key="none">Unassign</SelectItem>
+                              {couriers.map((courier) => (
+                                <SelectItem key={courier.id} value={courier.id}>
+                                  {courier.name}
+                                </SelectItem>
+                              ))}
                             </SelectGroup>
                           </SelectContent>
                         </Select>
