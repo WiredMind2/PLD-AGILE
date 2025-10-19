@@ -16,6 +16,10 @@ def get_state():
         "tours": tours,
     }
 
+@router.delete("/clear_state", tags=["State"], summary="Clear server state", description="Clear current map, couriers, deliveries and tours from server memory.")
+def clear_state():
+    state.clear_state()
+    return {"detail": "state cleared"}
 
 @router.post('/save', tags=["State"], summary="Persist state", description="Persist current map and tours to disk.")
 def save_state():
