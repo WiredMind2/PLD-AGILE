@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
 import type { Map, Delivery, Tour, Courier } from '@/types/api';
 
@@ -6,7 +6,6 @@ export function useDeliveryApp() {
   const [map, setMap] = useState<Map | null>(null);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [tours] = useState<Tour[]>([]);
-  const [couriers] = useState<Courier[]>([]);
   const [toursState, setToursState] = useState<Tour[]>([]);
   const [couriersState, setCouriersState] = useState<Courier[]>([]);
   const [loading, setLoading] = useState(false);
@@ -17,6 +16,22 @@ export function useDeliveryApp() {
     setError(message);
     console.error('API Error:', err);
   }, []);
+
+  const clearServerState = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      await apiClient.clearState();
+      setMap(null);
+      setDeliveries([]);
+      setToursState([]);
+      setCouriersState([]);
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [handleError]);
 
   // Map operations
   const uploadMap = useCallback(async (file: File) => {
@@ -29,6 +44,16 @@ export function useDeliveryApp() {
       try {
         if (mapData && Array.isArray(mapData.couriers)) {
           setCouriersState(mapData.couriers as unknown as Courier[]);
+          // if map has no couriers, create a default one on the server and update local state
+          if ((mapData.couriers || []).length === 0) {
+            try {
+              const loc = mapData.intersections?.[0] ?? { id: '0', latitude: 45.764043, longitude: 4.835659 };
+              const created = await apiClient.addCourier({ name: 'Courier 1', id: `C${Date.now()}`, current_location: loc as any });
+              setCouriersState((prev) => [...(prev || []), created as unknown as Courier]);
+            } catch (e) {
+              // ignore creation errors
+            }
+          }
         }
       } catch (e) {
         // ignore
@@ -75,6 +100,51 @@ export function useDeliveryApp() {
     }
   }, [handleError]);
 
+  // Courier operations
+  const fetchCouriers = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const cs = await apiClient.getCouriers();
+      setCouriersState(cs as unknown as Courier[]);
+      return cs;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [handleError]);
+
+  const addCourier = useCallback(async (courier: Partial<Courier>) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const created = await apiClient.addCourier(courier as any);
+      setCouriersState((prev) => [...prev, created as unknown as Courier]);
+      return created;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [handleError]);
+
+  const deleteCourier = useCallback(async (courierId: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      await apiClient.deleteCourier(courierId);
+      setCouriersState((prev) => prev.filter((c) => String(c.id) !== String(courierId)));
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [handleError]);
+
   const uploadRequestsFile = useCallback(async (file: File) => {
     try {
       setLoading(true);
@@ -104,6 +174,21 @@ export function useDeliveryApp() {
     }
   }, [handleError]);
 
+  const assignDeliveryToCourier = useCallback(async (deliveryId: string, courierId: string | null) => {
+    try {
+      setLoading(true);
+      setError(null);
+      await apiClient.assignDelivery(deliveryId, courierId);
+      // update local state to reflect assignment
+      setDeliveries((prev) => prev.map((d) => (String(d.id) === String(deliveryId) ? ({ ...d, courier: (courierId as unknown) as any } as Delivery) : d)));
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [handleError]);
+
   const computeTours = useCallback(async () => {
     try {
       setLoading(true);
@@ -122,7 +207,7 @@ export function useDeliveryApp() {
 
   // Computed values
   const stats = {
-    activeCouriers: couriers.length,
+    activeCouriers: couriersState.length,
     deliveryRequests: deliveries.length,
     totalDistance: tours.reduce((sum, tour) => sum + tour.total_distance_m, 0),
     totalTime: tours.reduce((sum, tour) => sum + tour.total_travel_time_s, 0),
@@ -144,7 +229,13 @@ export function useDeliveryApp() {
     addRequest,
     uploadRequestsFile,
     deleteRequest,
+    fetchCouriers,
+    addCourier,
+    deleteCourier,
     computeTours,
+    assignDeliveryToCourier,
+
+    clearServerState,
     
     // Utils
     clearError: () => setError(null),
