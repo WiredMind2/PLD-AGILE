@@ -21,7 +21,6 @@ export function useDeliveryApp() {
   // Map operations
   const uploadMap = useCallback(async (file: File) => {
     try {
-      (true);
       setError(null);
       const mapData = await apiClient.uploadMap(file);
       setMap(mapData);

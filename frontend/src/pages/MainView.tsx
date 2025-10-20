@@ -63,8 +63,7 @@ const handleTourSave = async () => {
     setSuccessAlert('Tours saved successfully!');
     setTimeout(() => setSuccessAlert(null), 4000);
   } catch (err) {
-    console.error('Failed to save tours:', err);
-    setComputeNotice('Error while saving tours.');
+    
   }
 };
 

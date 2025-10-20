@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from app.models.schemas import Tour
 from app.services import TSPService
 from app.core import state
+from app.services import XMLParser
 
 router = APIRouter(prefix="/tours")
 
@@ -40,7 +41,6 @@ def compute_all_tours():
 def list_tours():
     return state.list_tours()
 
-
 @router.get("/{courier_id}", response_model=List[Tour], tags=["Tours"], summary="Get tours for courier", description="Return computed tours for a single courier id.")
 def get_tour(courier_id: str):
     tours = state.list_tours()
@@ -50,7 +50,16 @@ def get_tour(courier_id: str):
     return filtered
 
 
+# response_model attend une classe
 @router.post("/save", tags=["Tours"], summary="Save tours", description="Persist tours to disk (acknowledgement).")
-def save_tours():
-    # For now persist tours is just an acknowledgment
+def save_tours(request: list[Tour]):
+    mp = state.get_map()
+    if mp is None:
+        raise HTTPException(status_code=400, detail='No map loaded')
+    for tour in request :
+        state.save_tour(tour)
     return {"detail": "tours saved"}
+
+
+    
+    
