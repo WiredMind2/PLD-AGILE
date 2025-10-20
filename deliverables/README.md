@@ -2,7 +2,7 @@
 
 This document contains all the deliverables (UML diagrams, sprint boards, and documentation) for the PLD-AGILE project.
 
-## 📁 Folder Structure
+## Folder Structure
 
 ```
 deliverables/
@@ -20,7 +20,7 @@ deliverables/
 │   ├── parse_deliveries_sequence.puml
 │   └── P_Diagram.puml
 ├── generated_svgs/              # Generated SVG files from PlantUML and PDFs
-│   ├── ...                      # Auto generated SVG files
+│   └── ...                      # Auto generated SVG files
 └── documentation/               # Additional documentation
     ├── Glossary_AGILE.pdf
     ├── Use_case_description.pdf
@@ -28,8 +28,8 @@ deliverables/
 ```
 
 ## Table of Contents
-- [UML Diagrams](#uml-diagrams)
-  - [📁 Folder Structure](#-folder-structure)
+- [Project Deliverables](#project-deliverables)
+  - [Folder Structure](#folder-structure)
   - [Table of Contents](#table-of-contents)
   - [Sprint Diagrams](#sprint-diagrams)
     - [Sprint 1](#sprint-1)
@@ -46,9 +46,7 @@ deliverables/
   - [Additional Documentation](#additional-documentation)
     - [Project Documentation](#project-documentation)
     - [Sprint Documentation](#sprint-documentation)
-  - [� Generating SVG Files](#-generating-svg-files)
-    - [Using the Conversion Script](#using-the-conversion-script)
-  - [�📂 Quick Access](#-quick-access)
+  - [Quick Access](#quick-access)
 
 ---
 
@@ -133,43 +131,7 @@ deliverables/
 
 ---
 
-## � Generating SVG Files
-
-### Using the Conversion Script
-
-The `convert_plantuml.py` script automatically converts:
-- **PlantUML files** (`.puml`) → SVG using [Kroki.io](https://kroki.io/)
-- **PDF files** (`.pdf`) → SVG using PyMuPDF
-
-**To run the script:**
-
-```bash
-# Make sure you're in the virtual environment
-cd c:\Users\willi\Documents\INSA\AGILE\PLD-AGILE
-.venv\Scripts\python.exe deliverables\convert_plantuml.py
-```
-
-**Installation requirements:**
-```bash
-pip install requests  # For Kroki API calls
-pip install PyMuPDF   # For PDF to SVG conversion
-```
-
-**What it does:**
-1. Converts all `.puml` files from `plantuml_sources/` to `generated_svgs/`
-2. Converts all `.pdf` files from `sprint_diagrams/` to `generated_svgs/`
-3. Automatically detects current Git repository (owner/name) and branch
-4. Updates all GitHub raw URLs in README.md with current repository information
-5. Shows progress and reports any errors
-
-**Benefits:**
-- ✅ All generated SVG files kept in one central `generated_svgs/` folder
-- ✅ No manual URL updates needed when switching branches or forking repository
-- ✅ README always points to correct GitHub raw URLs for current context
-
----
-
-## �📂 Quick Access
+## Quick Access
 
 | Category | Files |
 |----------|-------|
