@@ -138,15 +138,19 @@ To render PlantUML diagrams, you can use:
 - 🔌 VS Code extension: "PlantUML" by jebbs
 - 💻 Command line: `plantuml *.puml`
 
-### Regenerating SVG from PlantUML
+### Generating SVG from PlantUML
 
-SVG files have already been generated and are included in the repository. To regenerate them after modifying `.puml` files:
+To generate/regenerate SVG files from PlantUML source files:
 
-**Option 1: Using the Python script (recommended)**
+**Option 1: Using the Python script (generates HTML with embedded SVG)**
 ```bash
 python convert_plantuml.py
 ```
-This script uses the PlantUML online server to convert all `.puml` files to SVG.
+This creates HTML files in `plantuml_sources/` that you can open in your browser. Each HTML file:
+- Displays the diagram with SVG rendering
+- Has a "Download SVG" button to get the SVG file
+- Allows right-click "Save Image As..." to save as SVG
+- Shows the PlantUML source code
 
 **Option 2: Using PlantUML command line (if installed)**
 ```bash
@@ -154,10 +158,15 @@ cd plantuml_sources
 plantuml -tsvg *.puml
 ```
 
-**Option 3: Using VS Code**
-- Install the "PlantUML" extension
+**Option 3: Using VS Code PlantUML extension**
+- Install the "PlantUML" extension by jebbs
 - Open any `.puml` file
-- Press `Alt+D` to preview or export
+- Press `Alt+D` to preview
+- Use the export function to save as SVG
+
+**Option 4: Online services**
+- [PlantUML Online Editor](http://www.plantuml.com/plantuml/uml/)
+- [Kroki.io](https://kroki.io/) - Supports PlantUML and many other diagram types
 
 ---
 
