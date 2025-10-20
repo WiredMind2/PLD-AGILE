@@ -57,6 +57,21 @@ def remove_delivery(delivery_id: str) -> bool:
     return False
 
 
+def update_delivery(delivery_id: str, **kwargs) -> bool:
+    if _current_map is None:
+        return False
+    for d in _current_map.deliveries:
+        if getattr(d, 'id', None) == delivery_id:
+            for k, v in kwargs.items():
+                try:
+                    setattr(d, k, v)
+                except Exception:
+                    # ignore invalid attributes
+                    pass
+            return True
+    return False
+
+
 def list_couriers() -> List[Courrier]:
     if _current_map is None:
         return []
@@ -102,6 +117,12 @@ def persist_state() -> None:
         with open(_tours_file, 'wb') as f:
             pickle.dump(_tours, f)
 
+def clear_state() -> None:
+    """Clear current map and tours from memory."""
+    global _current_map, _tours
+    with _lock:
+        _current_map = None
+        _tours = []
 
 def load_state() -> None:
     """Load map and tours from disk if present."""
