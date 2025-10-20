@@ -104,6 +104,7 @@ class ApiClient {
   }
 
   async assignDelivery(deliveryId: string, courierId: string | null): Promise<{ detail: string }> {
+    console.log("API assignDelivery", deliveryId, courierId);
     return this.request<{ detail: string }>(`/requests/${deliveryId}/assign`, {
       method: 'PATCH',
       body: JSON.stringify({ courier_id: courierId }),
