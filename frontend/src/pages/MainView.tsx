@@ -58,6 +58,7 @@ export default function MainView(): JSX.Element {
 
   const handleRequestUpload = () => {
     requestsInputRef.current?.click();
+    setOpenNewReq(false);
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
