@@ -340,22 +340,45 @@ export default function MainView(): JSX.Element {
                   setComputeNotice(null);
                   if (res && Array.isArray(res)) {
                     const points: DeliveryPoint[] = [];
+                    const deliveryIdCounter = { count: 0 }; // Counter for generating unique delivery IDs
+                    
                     res.forEach((t: any) => {
                       const courier = t.courier;
                       if (courier && courier.current_location) {
                         const cid = `courier-${courier.id}`;
                         points.push({ id: cid, position: [courier.current_location.latitude, courier.current_location.longitude], address: 'Courier start (warehouse)', type: 'courier', status: 'active' });
                       }
-                      (t.deliveries || []).forEach((d: any) => {
-                        const findInter = (addr: any) => {
-                          if (!addr) return null;
-                          if (typeof addr === 'string') return map?.intersections?.find((i: any) => String(i.id) === String(addr));
-                          return addr;
-                        };
-                        const p1 = findInter(d.pickup_addr);
-                        const p2 = findInter(d.delivery_addr);
-                        if (p1) points.push({ id: `pickup-${d.id}`, position: [p1.latitude, p1.longitude], address: 'Pickup Location', type: 'pickup', status: 'pending' });
-                        if (p2) points.push({ id: `delivery-${d.id}`, position: [p2.latitude, p2.longitude], address: 'Delivery Location', type: 'delivery', status: 'pending' });
+                      
+                      // t.deliveries is an array of tuples: [[pickup_id, delivery_id], ...]
+                      (t.deliveries || []).forEach((tuple: [string, string]) => {
+                        deliveryIdCounter.count++;
+                        const deliveryId = `D${deliveryIdCounter.count}`;
+                        
+                        // tuple[0] is pickup intersection ID, tuple[1] is delivery intersection ID
+                        const pickupId = tuple[0];
+                        const deliveryAddrId = tuple[1];
+                        
+                        const pickupInter = map?.intersections?.find((i: any) => String(i.id) === String(pickupId));
+                        const deliveryInter = map?.intersections?.find((i: any) => String(i.id) === String(deliveryAddrId));
+                        
+                        if (pickupInter) {
+                          points.push({ 
+                            id: `pickup-${deliveryId}`, 
+                            position: [pickupInter.latitude, pickupInter.longitude], 
+                            address: 'Pickup Location', 
+                            type: 'pickup', 
+                            status: 'pending' 
+                          });
+                        }
+                        if (deliveryInter) {
+                          points.push({ 
+                            id: `delivery-${deliveryId}`, 
+                            position: [deliveryInter.latitude, deliveryInter.longitude], 
+                            address: 'Delivery Location', 
+                            type: 'delivery', 
+                            status: 'pending' 
+                          });
+                        }
                       });
                     });
                     if (points.length > 0) {

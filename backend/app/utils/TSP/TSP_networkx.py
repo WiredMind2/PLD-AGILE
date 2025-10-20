@@ -181,7 +181,7 @@ class TSP:
 
         return G
 
-    def solve(self, tour: Tour):
+    def solve(self, tour: Tour, start_node: Optional[str] = None):
         """Construct a paired tour (pickup->delivery) then improve it while
         preserving pickup-before-delivery precedence. This approach builds an
         initial route by visiting each pickup followed immediately by its
@@ -193,6 +193,12 @@ class TSP:
         The function uses NetworkX shortest-paths for pairwise distances and
         the existing metric builder `_build_metric_complete_graph` to obtain
         symmetric metric distances between the involved nodes.
+        
+        Args:
+            tour: Tour object containing pickup-delivery pairs
+            start_node: Optional depot/start node ID. If provided, the tour will
+                       start and end at this node. The algorithm will find the
+                       closest pickup/delivery points to this start node.
         """
         # Extract pickup-delivery pairs from the provided Tour object
         pd_pairs = list(tour.deliveries)
@@ -217,6 +223,15 @@ class TSP:
                 f"Warning: {len(missing)} requested TSP nodes not present in map (examples: {missing[:5]})"
             )
             nodes_list = [n for n in nodes_list if n in G_map.nodes()]
+        
+        # If start_node is provided, add it to nodes_list for shortest path computation
+        if start_node is not None:
+            start_node = str(start_node)
+            if start_node not in G_map.nodes():
+                print(f"Warning: start_node {start_node} not in map, ignoring")
+                start_node = None
+            elif start_node not in nodes_list:
+                nodes_list.append(start_node)
 
         # Compute pairwise shortest-paths among nodes of interest
         sp_graph = {}
@@ -248,6 +263,11 @@ class TSP:
             # nothing mutually-reachable; return empty
             return [], 0.0
 
+        # Prepare pickup/delivery data structures
+        pickups = [p for p, _ in pd_pairs]
+        deliveries = [d for _, d in pd_pairs]
+        pair_of = {p: d for p, d in pd_pairs}
+
         # Helper: compute compact tour cost on the metric graph G
         def tour_cost(seq: List[str]) -> float:
             if not seq or len(seq) < 2:
@@ -258,8 +278,32 @@ class TSP:
                 s += G[u][v]["weight"]
             return s
 
-        # Build initial greedy paired tour: start from first pickup
-        start_p, start_d = pd_pairs[0]
+        # Build initial greedy paired tour
+        # If start_node is provided, find the closest pickup point to it
+        if start_node is not None and start_node in G.nodes():
+            # Find the closest pickup to the start_node using the metric graph
+            best_start_pickup = None
+            best_start_cost = float('inf')
+            for p in pickups:
+                if p in G.nodes():
+                    try:
+                        cost = G[start_node][p]["weight"] if start_node in G and p in G[start_node] else float('inf')
+                    except Exception:
+                        cost = float('inf')
+                    if cost < best_start_cost:
+                        best_start_cost = cost
+                        best_start_pickup = p
+            
+            if best_start_pickup is not None:
+                start_p = best_start_pickup
+                start_d = pair_of[start_p]
+            else:
+                # fallback to first pickup
+                start_p, start_d = pd_pairs[0]
+        else:
+            # No start_node provided, use first pickup
+            start_p, start_d = pd_pairs[0]
+            
         if start_p not in nodes_list or start_d not in nodes_list:
             # choose any available pickup/delivery pair present in nodes_list
             found = False
@@ -272,13 +316,16 @@ class TSP:
                 return [], 0.0
 
         # restrict to pickups/deliveries present in G
-        pickups = [p for p, _ in pd_pairs]
-        deliveries = [d for _, d in pd_pairs]
         remaining_pickups = [p for p in pickups if p in G.nodes()]
-        pair_of = {p: d for p, d in pd_pairs}
 
         current = start_p
         tour_seq: List[str] = []
+        
+        # If we have a start_node, begin the tour from it
+        if start_node is not None and start_node in G.nodes():
+            tour_seq.append(start_node)
+            current = start_node
+        
         # visit start pickup and its delivery
         tour_seq.append(start_p)
         tour_seq.append(start_d)
@@ -311,9 +358,16 @@ class TSP:
             remaining_pickups.remove(best)
             current = pair_of[best]
 
-        # close tour
-        if tour_seq and tour_seq[0] != tour_seq[-1]:
-            tour_seq.append(tour_seq[0])
+        # close tour back to start_node (or first node if no start_node)
+        if tour_seq:
+            if start_node is not None and start_node in G.nodes():
+                # Tour should return to the start_node
+                if tour_seq[-1] != start_node:
+                    tour_seq.append(start_node)
+            else:
+                # No start_node: close to first pickup (original behavior)
+                if tour_seq[0] != tour_seq[-1]:
+                    tour_seq.append(tour_seq[0])
 
         total = tour_cost(tour_seq)
 

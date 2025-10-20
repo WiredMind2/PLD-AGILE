@@ -172,9 +172,18 @@ class TSPService:
                 if d not in nodes_set:
                     nodes_set.append(d)
 
-            # run solver on the Tour object
+            # Get the depot node (courier start location) to pass to TSP solver
+            depot_node = None
             try:
-                compact_tour, compact_cost = tsp.solve(tour=tour)
+                depot_node = str(c.current_location.id)
+                if depot_node not in map_nodes:
+                    depot_node = None
+            except Exception:
+                depot_node = None
+
+            # run solver on the Tour object with the depot as start_node
+            try:
+                compact_tour, compact_cost = tsp.solve(tour=tour, start_node=depot_node)
             except Exception:
                 # fallback: return nodes_set as trivial tour
                 compact_tour, compact_cost = (
@@ -182,25 +191,19 @@ class TSPService:
                     0.0,
                 )
 
-            # build sp_graph for expansion
-            sp_graph = self._build_sp_graph(G_map, nodes_set)
+            # build sp_graph for expansion - include depot_node if present
+            expansion_nodes = list(nodes_set)
+            if depot_node and depot_node not in expansion_nodes:
+                expansion_nodes.append(depot_node)
+            
+            sp_graph = self._build_sp_graph(G_map, expansion_nodes)
             try:
                 full_route, full_cost = tsp.expand_tour_with_paths(compact_tour, sp_graph)
             except Exception:
                 full_route, full_cost = compact_tour, compact_cost
 
-            if isinstance(full_route, list):
-                # Ensure tour starts (and ends) at depot_node when available
-                try:
-                    depot_node = c.current_location.id
-
-                    full_route = full_route + [depot_node]
-                    # rotate to best position to start at depot
-                    # idx = full_route.index(depot_node)
-                    # rotated = full_route[idx:] + full_route[:idx]
-                    # full_route = rotated
-                except Exception:
-                    depot_node = None
+            # Note: The tour should already start and end at depot_node if it was provided
+            # No need for additional rotation logic since solve() handles this
 
             # attach expanded intersection route and totals to the existing Tour
             try:

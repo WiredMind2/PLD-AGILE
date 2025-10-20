@@ -32,10 +32,11 @@ export interface Delivery {
 
 export interface Tour {
   courier: Courier;
-  deliveries: Delivery[];
+  deliveries: [string, string][]; // Array of tuples [pickup_node_id, delivery_node_id]
   total_travel_time_s: number;
   total_service_time_s: number;
   total_distance_m: number;
+  route_intersections?: string[]; // Array of intersection IDs for the computed route
   start_time?: string;
   end_time?: string;
 }
