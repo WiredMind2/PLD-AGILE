@@ -46,7 +46,7 @@ export default function MainView(): JSX.Element {
   const [computeNotice, setComputeNotice] = useState<string | null>(null);
   const [successAlert, setSuccessAlert] = useState<string | null>(null);
   const [routes, setRoutes] = useState<{ id: string; color?: string; positions: [number, number][] }[]>([]);
-  const [showSegmentLabels, setShowSegmentLabels] = useState<boolean>(true);
+  const [showSegmentLabels, setShowSegmentLabels] = useState<boolean>(false);
   
   const handlePointClick = (point: any) => {
     console.log('Clicked delivery point:', point);
@@ -484,7 +484,7 @@ export default function MainView(): JSX.Element {
               <Truck className="h-4 w-4 text-blue-200" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">1</div>
+              <div className="text-2xl font-bold">{couriers.length}</div>
               <p className="text-xs text-blue-200">Bicycle couriers</p>
             </CardContent>
           </Card>
