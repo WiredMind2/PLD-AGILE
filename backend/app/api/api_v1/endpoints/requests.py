@@ -4,6 +4,10 @@ from fastapi import APIRouter, HTTPException, status, UploadFile
 from app.models.schemas import Delivery
 from app.core import state
 from app.services import XMLParser
+from pydantic import BaseModel
+
+class AssignCourierPayload(BaseModel):
+    courier_id: str | None
 
 router = APIRouter(prefix="/requests")
 
@@ -76,3 +80,26 @@ async def upload_requests_file(file: UploadFile):
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+
+@router.patch("/{delivery_id}/assign", tags=["Requests"], summary="Assign courier to delivery", description="Assign or unassign a courier to a delivery request.")
+def assign_courier(delivery_id: str, payload: AssignCourierPayload):
+    """Assign a courier to an existing delivery. Use courier_id = null to unassign."""
+    mp = state.get_map()
+    if mp is None:
+        raise HTTPException(status_code=400, detail='No map loaded')
+
+    # If courier_id is provided, ensure courier exists
+    courier_obj = None
+    if payload.courier_id is not None:
+        # resolve the courier id to the actual Courrier object stored in the map
+        courier_obj = next((c for c in mp.couriers if getattr(c, 'id', None) == payload.courier_id), None)
+        if courier_obj is None:
+            raise HTTPException(status_code=404, detail='Courier not found')
+
+    # Store the courier object (or None) on the delivery so frontend sees a consistent object shape
+    ok = state.update_delivery(delivery_id, courier=courier_obj)
+    if not ok:
+        raise HTTPException(status_code=404, detail='Delivery not found')
+    return {"detail": "assigned"}

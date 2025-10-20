@@ -1,6 +1,5 @@
 // DeliveryMap.tsx
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents } from 'react-leaflet';
-import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import { useState } from 'react';
 import 'leaflet/dist/leaflet.css';
