@@ -1,6 +1,7 @@
 // DeliveryMap.tsx
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
+import { useState } from 'react';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
@@ -35,6 +36,8 @@ export interface DeliveryPoint {
   address?: string;
   type: 'pickup' | 'delivery' | 'courier' | 'default';
   status?: 'pending' | 'in-progress' | 'completed' | 'active';
+  deliveryId?: string; // To link pickup and delivery points together
+  isHighlighted?: boolean; // NEW: For highlighting functionality
 }
 
 export interface RoadSegment {
@@ -47,8 +50,16 @@ const createCircularIcon = (
   backgroundColor: string, 
   icon: string, 
   textColor: string = 'white',
-  size: number = 40
+  size: number = 40,
+  isHighlighted: boolean = false
 ): L.DivIcon => {
+  // Add highlight effects when highlighted
+  const highlightStyles = isHighlighted ? `
+    border: 4px solid #fbbf24 !important;
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.8), 0 4px 8px rgba(0,0,0,0.3) !important;
+    animation: pulse-highlight 2s infinite;
+  ` : '';
+
   return L.divIcon({
     html: `
       <div style="
@@ -64,9 +75,19 @@ const createCircularIcon = (
         font-size: ${Math.floor(size * 0.45)}px;
         color: ${textColor};
         font-weight: bold;
+        ${highlightStyles}
       ">
         ${icon}
       </div>
+      ${isHighlighted ? `
+        <style>
+          @keyframes pulse-highlight {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+          }
+        </style>
+      ` : ''}
     `,
     className: 'custom-circular-marker',
     iconSize: [size, size],
@@ -75,11 +96,16 @@ const createCircularIcon = (
   });
 };
 
-const icons: Record<DeliveryPoint['type'], L.DivIcon> = {
-  pickup: createCircularIcon('#ef4444', '📦', 'white', 40),
-  delivery:  createCircularIcon('#3b82f6', '🏢', 'white', 40), 
-  courier:   createCircularIcon('#22c55e', '🚴', 'white', 40),
-  default:   createCircularIcon('#ff7b00ff', '●', 'white', 15),
+const getIcon = (type: DeliveryPoint['type'], isHighlighted: boolean = false): L.DivIcon => {
+  const iconConfigs = {
+    pickup: { color: '#ef4444', icon: '📦', size: 40 },
+    delivery: { color: '#3b82f6', icon: '🏢', size: 40 }, 
+    courier: { color: '#22c55e', icon: '🚴', size: 40 },
+    default: { color: '#ff7b00ff', icon: '●', size: 15 },
+  };
+  
+  const config = iconConfigs[type];
+  return createCircularIcon(config.color, config.icon, 'white', config.size, isHighlighted);
 };
 
 interface DeliveryMapProps {
@@ -109,7 +135,66 @@ export default function DeliveryMap({
   routes = [],
   showSegmentLabels = true,
 }: DeliveryMapProps) {
+  // State for managing highlighted points
+  const [highlightedPoints, setHighlightedPoints] = useState<Set<string>>(new Set());
+
   const style = { height: typeof height === 'number' ? `${height}px` : height, width: '100%' };
+
+  // Component to handle map click events
+  function MapClickHandler() {
+    useMapEvents({
+      click: () => {
+        // Clear all highlights when clicking on empty map space
+        setHighlightedPoints(new Set());
+      }
+    });
+    return null;
+  }
+
+  // Function to extract delivery ID from point ID
+  const getDeliveryId = (pointId: string): string | null => {
+    // Extract delivery ID from IDs like "pickup-D1" or "delivery-D1"
+    const match = pointId.match(/^(pickup|delivery)-(.+)$/);
+    return match ? match[2] : null;
+  };
+
+  // Handle point click with highlighting logic
+  const handlePointClick = (point: DeliveryPoint) => {
+    const deliveryId = getDeliveryId(point.id);
+    
+    if (deliveryId) {
+      const pickupId = `pickup-${deliveryId}`;
+      const deliveryPointId = `delivery-${deliveryId}`;
+      
+      // Check if this delivery pair is already highlighted
+      const isCurrentlyHighlighted = highlightedPoints.has(pickupId) || highlightedPoints.has(deliveryPointId);
+      
+      console.log(`🖱️ Clicked on ${point.type} point:`, {
+        pointId: point.id,
+        deliveryId,
+        pickupId,
+        deliveryPointId,
+        isCurrentlyHighlighted,
+        currentHighlights: Array.from(highlightedPoints)
+      });
+      
+      if (isCurrentlyHighlighted) {
+        // Remove highlight from this pair (clear all highlights)
+        setHighlightedPoints(new Set());
+        console.log(`🌟 Removed all highlights`);
+      } else {
+        // Clear previous highlights and add highlight to this pair only
+        const newSet = new Set<string>();
+        newSet.add(pickupId);
+        newSet.add(deliveryPointId);
+        setHighlightedPoints(newSet);
+        console.log(`✨ Set highlights for ${deliveryId} only`);
+      }
+    }
+    
+    // Call the original click handler if provided
+    onPointClick?.(point);
+  };
 
   // Helper: midpoint between two lat/lngs
   const midpoint = (a: [number, number], b: [number, number]): [number, number] => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
@@ -211,6 +296,7 @@ export default function DeliveryMap({
 
   return (
     <MapContainer center={center} zoom={zoom} style={style}>
+      <MapClickHandler />
       <TileLayer
         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -218,33 +304,59 @@ export default function DeliveryMap({
       />
 
       {/* Markers */}
-      {points.map((p) => (
-        <Marker
-          key={p.id}
-          position={p.position}
-          icon={icons[p.type]}
-          eventHandlers={{
-            click: () => onPointClick?.(p)
-          }}
-        >
-          <Popup>
-            <div>
-              <strong>
-                {p.type === 'pickup' ? '📦 Pickup' :
-                  p.type === 'delivery'  ? '🏢 Delivery' : 
-                  p.type === 'courier'   ? '🚴 Courier' :
-                  p.type === 'default'   ? '📍 Map Node' : 'Unknown'}
-              </strong>
-              {p.address && <div style={{ marginTop: 6 }}>{p.address}</div>}
-              {p.status && (
-                <div style={{ marginTop: 6, fontSize: 12 }}>
-                  Status: {p.status}
-                </div>
-              )}
-            </div>
-          </Popup>
-        </Marker>
-      ))}
+      {points.map((p) => {
+        const isHighlighted = highlightedPoints.has(p.id);
+        return (
+          <Marker
+            key={p.id}
+            position={p.position}
+            icon={getIcon(p.type, isHighlighted)}
+            eventHandlers={{
+              click: () => handlePointClick(p)
+            }}
+          >
+            <Popup>
+              <div>
+                <strong>
+                  {p.type === 'pickup' ? '📦 Pickup' :
+                    p.type === 'delivery'  ? '🏢 Delivery' : 
+                    p.type === 'courier'   ? '🚴 Courier' :
+                    p.type === 'default'   ? '📍 Map Node' : 'Unknown'}
+                </strong>
+                {p.address && <div style={{ marginTop: 6 }}>{p.address}</div>}
+                {p.status && (
+                  <div style={{ marginTop: 6, fontSize: 12 }}>
+                    Status: {p.status}
+                  </div>
+                )}
+              </div>
+            </Popup>
+          </Marker>
+        );
+      })}
+
+      {/* Connecting lines between highlighted pickup-delivery pairs */}
+      {Array.from(highlightedPoints).map(pointId => {
+        const deliveryId = getDeliveryId(pointId);
+        if (!deliveryId || !pointId.startsWith('pickup-')) return null;
+        
+        const pickupPoint = points.find(p => p.id === `pickup-${deliveryId}`);
+        const deliveryPoint = points.find(p => p.id === `delivery-${deliveryId}`);
+        
+        if (pickupPoint && deliveryPoint) {
+          return (
+            <Polyline
+              key={`connection-${deliveryId}`}
+              positions={[pickupPoint.position, deliveryPoint.position]}
+              color="#fbbf24"
+              weight={4}
+              opacity={0.8}
+              dashArray="10, 10"
+            />
+          );
+        }
+        return null;
+      })}
 
       {/* Road network from XML map */}
       {showRoadNetwork && roadSegments.map((segment, index) => (
