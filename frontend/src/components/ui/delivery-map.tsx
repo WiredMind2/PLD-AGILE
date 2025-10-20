@@ -1,6 +1,15 @@
 // DeliveryMap.tsx
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
+import { useState } from 'react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from './dropdown-menu';
+import { Package, Building2, Clipboard, X } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
@@ -82,6 +91,18 @@ const icons: Record<DeliveryPoint['type'], L.DivIcon> = {
   default:   createCircularIcon('#ff7b00ff', '●', 'white', 15),
 };
 
+// Minimal helper to listen to Leaflet right-clicks
+function MapRightClickHandler({ onContextMenu }: { onContextMenu: (e: L.LeafletMouseEvent) => void }) {
+  useMapEvents({
+    contextmenu: (e) => {
+      // Prevent the browser native context menu
+      e.originalEvent?.preventDefault?.();
+      onContextMenu(e);
+    },
+  });
+  return null;
+}
+
 interface DeliveryMapProps {
   points?: DeliveryPoint[];
   roadSegments?: RoadSegment[];
@@ -110,6 +131,23 @@ export default function DeliveryMap({
   showSegmentLabels = true,
 }: DeliveryMapProps) {
   const style = { height: typeof height === 'number' ? `${height}px` : height, width: '100%' };
+
+  // Context menu state (screen position + latlng)
+  const [ctxMenu, setCtxMenu] = useState<{
+    open: boolean;
+    x: number;
+    y: number;
+    latlng?: [number, number];
+  }>({ open: false, x: 0, y: 0 });
+
+  const handleMapContextMenu = (e: L.LeafletMouseEvent) => {
+    setCtxMenu({
+      open: true,
+      x: e.originalEvent.clientX,
+      y: e.originalEvent.clientY,
+      latlng: [e.latlng.lat, e.latlng.lng],
+    });
+  };
 
   // Helper: midpoint between two lat/lngs
   const midpoint = (a: [number, number], b: [number, number]): [number, number] => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
@@ -210,7 +248,10 @@ export default function DeliveryMap({
   }
 
   return (
+    <>
     <MapContainer center={center} zoom={zoom} style={style}>
+      {/* Right-click listener */}
+      <MapRightClickHandler onContextMenu={handleMapContextMenu} />
       <TileLayer
         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -273,5 +314,50 @@ export default function DeliveryMap({
         <Marker key={`seg-label-${lp.key}`} position={lp.pos} icon={createNumberIcon(String(lp.index))} interactive={false} />
       ))}
     </MapContainer>
+
+    {/* Context dropdown menu at cursor position */}
+    <DropdownMenu open={ctxMenu.open} onOpenChange={(o) => setCtxMenu((s) => ({ ...s, open: o }))}>
+      <DropdownMenuContent
+        align="start"
+        sideOffset={4}
+        // Position absolutely at the cursor using a fixed portal
+        style={{ position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, zIndex: 1000 }}
+        className="min-w-[14rem] p-2"
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        <DropdownMenuLabel className="text-xs opacity-70">
+          {ctxMenu.latlng ? `Lat: ${ctxMenu.latlng[0].toFixed(5)}  Lng: ${ctxMenu.latlng[1].toFixed(5)}` : 'Position inconnue'}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => { console.log('Ajouter pickup at', ctxMenu.latlng); setCtxMenu((s)=>({ ...s, open: false })); }}>
+          <Package />
+          Ajouter un pickup ici
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => { console.log('Ajouter livraison at', ctxMenu.latlng); setCtxMenu((s)=>({ ...s, open: false })); }}>
+          <Building2 />
+          Ajouter une livraison ici
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={async () => {
+          if (ctxMenu.latlng) {
+            try {
+              await navigator.clipboard.writeText(`${ctxMenu.latlng[0]}, ${ctxMenu.latlng[1]}`);
+            } catch (err) {
+              console.error('Clipboard error', err);
+            }
+          }
+          setCtxMenu((s)=>({ ...s, open: false }));
+        }}>
+          <Clipboard />
+          Copier les coordonnées
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => setCtxMenu((s)=>({ ...s, open: false }))}>
+          <X />
+          Annuler
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+    </>
   );
 }
