@@ -7,6 +7,7 @@ This document contains all the UML diagrams for the PLD-AGILE project.
 ```
 UML_Diagrams/
 ├── README.md                    # This file
+├── convert_plantuml.py          # Script to generate SVG from PlantUML
 ├── sprint_diagrams/             # Sprint kanban boards and planning
 │   ├── Sprint1.svg
 │   ├── Sprint1.pdf
@@ -16,12 +17,12 @@ UML_Diagrams/
 │   ├── Sprint2.pdf
 │   ├── Sprint3.svg
 │   └── Sprint3.pdf
-├── plantuml_sources/            # PlantUML source files
-│   ├── UC_Diagram.puml
-│   ├── data_model_class_diagram.puml
-│   ├── parse_map_sequence.puml
-│   ├── parse_deliveries_sequence.puml
-│   └── P_Diagram.puml
+├── plantuml_sources/            # PlantUML source files + generated SVGs
+│   ├── UC_Diagram.puml / .svg
+│   ├── data_model_class_diagram.puml / .svg
+│   ├── parse_map_sequence.puml / .svg
+│   ├── parse_deliveries_sequence.puml / .svg
+│   └── P_Diagram.puml / .svg
 └── documentation/               # Additional documentation
     ├── Glossary_AGILE.pdf
     ├── Use_case_description.pdf
@@ -64,12 +65,7 @@ UML_Diagrams/
 
 ## Use Case Diagram
 
-```plantuml
-@startuml
-' UC_Diagram.puml content
-!include plantuml_sources/UC_Diagram.puml
-@enduml
-```
+![Use Case Diagram](plantuml_sources/UC_Diagram.svg)
 
 [📝 View UC_Diagram.puml source](plantuml_sources/UC_Diagram.puml)
 
@@ -79,12 +75,7 @@ UML_Diagrams/
 
 ### Data Model Class Diagram
 
-```plantuml
-@startuml
-' data_model_class_diagram.puml content
-!include plantuml_sources/data_model_class_diagram.puml
-@enduml
-```
+![Data Model Class Diagram](plantuml_sources/data_model_class_diagram.svg)
 
 [📝 View data_model_class_diagram.puml source](plantuml_sources/data_model_class_diagram.puml)
 
@@ -94,23 +85,13 @@ UML_Diagrams/
 
 ### Parse Map Sequence
 
-```plantuml
-@startuml
-' parse_map_sequence.puml content
-!include plantuml_sources/parse_map_sequence.puml
-@enduml
-```
+![Parse Map Sequence Diagram](plantuml_sources/parse_map_sequence.svg)
 
 [📝 View parse_map_sequence.puml source](plantuml_sources/parse_map_sequence.puml)
 
 ### Parse Deliveries Sequence
 
-```plantuml
-@startuml
-' parse_deliveries_sequence.puml content
-!include plantuml_sources/parse_deliveries_sequence.puml
-@enduml
-```
+![Parse Deliveries Sequence Diagram](plantuml_sources/parse_deliveries_sequence.svg)
 
 [📝 View parse_deliveries_sequence.puml source](plantuml_sources/parse_deliveries_sequence.puml)
 
@@ -118,12 +99,7 @@ UML_Diagrams/
 
 ## Package Diagram
 
-```plantuml
-@startuml
-' P_Diagram.puml content
-!include plantuml_sources/P_Diagram.puml
-@enduml
-```
+![Package Diagram](plantuml_sources/P_Diagram.svg)
 
 [📝 View P_Diagram.puml source](plantuml_sources/P_Diagram.puml)
 
@@ -146,10 +122,12 @@ UML_Diagrams/
 
 ## 📝 Notes
 
-- ✅ SVG diagrams are directly embedded and viewable in this markdown file
-- ✅ PlantUML diagrams (.puml files) can be rendered using PlantUML tools or IDE plugins
-- ✅ PDF documents contain detailed documentation for each sprint and use cases
-- ✅ Files are organized into logical folders for easy navigation
+- ✅ **All diagrams are viewable as SVG images** - Sprint diagrams and PlantUML diagrams are all rendered as SVG
+- ✅ **SVG images are embedded** - View directly in this markdown file (GitHub, VS Code, etc.)
+- ✅ **PlantUML source files included** - Edit and regenerate diagrams as needed
+- ✅ **PDF documentation** - Detailed sprint and use case documentation
+- ✅ **Organized structure** - Files grouped logically for easy navigation
+- ✅ **Automated conversion** - Use `convert_plantuml.py` to regenerate SVGs from PlantUML sources
 
 ## 🔧 Working with PlantUML
 
@@ -160,25 +138,26 @@ To render PlantUML diagrams, you can use:
 - 🔌 VS Code extension: "PlantUML" by jebbs
 - 💻 Command line: `plantuml *.puml`
 
-### Generating SVG from PlantUML
+### Regenerating SVG from PlantUML
 
-To generate SVG images from the PlantUML source files:
+SVG files have already been generated and are included in the repository. To regenerate them after modifying `.puml` files:
 
+**Option 1: Using the Python script (recommended)**
 ```bash
-cd plantuml_sources
-plantuml -tsvg UC_Diagram.puml
-plantuml -tsvg data_model_class_diagram.puml
-plantuml -tsvg parse_map_sequence.puml
-plantuml -tsvg parse_deliveries_sequence.puml
-plantuml -tsvg P_Diagram.puml
+python convert_plantuml.py
 ```
+This script uses the PlantUML online server to convert all `.puml` files to SVG.
 
-Or generate all diagrams at once:
-
+**Option 2: Using PlantUML command line (if installed)**
 ```bash
 cd plantuml_sources
 plantuml -tsvg *.puml
 ```
+
+**Option 3: Using VS Code**
+- Install the "PlantUML" extension
+- Open any `.puml` file
+- Press `Alt+D` to preview or export
 
 ---
 
