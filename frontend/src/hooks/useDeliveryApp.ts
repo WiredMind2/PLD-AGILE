@@ -121,11 +121,11 @@ export function useDeliveryApp() {
     }
   }, [handleError]);
 
-  const saveTours = useCallback(async () => {
+  const saveTours = useCallback(async (tour: any) => {
     try {
       setLoading(true);
       setError(null);
-      await apiClient.saveTours();
+      await apiClient.saveTours(tour);
     } catch (err) {
       handleError(err);
       throw err;

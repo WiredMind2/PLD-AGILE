@@ -27,6 +27,7 @@ export default function MainView(): JSX.Element {
     deleteRequest,
     stats,
   map,
+  tours,
   deliveries,
   computeTours,
   } = useDeliveryApp();
@@ -58,7 +59,7 @@ const handleTourSave = async () => {
       setComputeNotice('No tours to save. Compute them first.');
       return;
     }
-    await saveTours();
+    await saveTours(tours);
     setSuccessAlert('Tours saved successfully!');
     setTimeout(() => setSuccessAlert(null), 4000);
   } catch (err) {
