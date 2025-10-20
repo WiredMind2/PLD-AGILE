@@ -2,20 +2,20 @@ import heapq
 import os
 import sys
 from typing import Dict, List, Optional, Any, cast
+from types import SimpleNamespace
+
+from app.models.schemas import Tour
+
 try:
     import networkx as nx
+    from networkx.algorithms import matching as nx_matching
 except Exception:
     raise
 
-try:
-    from app.services.XMLParser import XMLParser
-except Exception:
-    # fallback for direct script execution / tests
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-    from services.XMLParser import XMLParser
 
 
-class TSP():
+
+class TSP:
     def __init__(self):
         # No A* dependency here. We'll build a NetworkX graph from XML map
         # data and use NetworkX shortest-path routines which are C-optimized
@@ -33,15 +33,31 @@ class TSP():
         # If no explicit xml path is provided and we have a cached graph,
         # reuse it. If an xml path is provided, always rebuild from that file.
         if xml_file_path is None and self.graph is not None:
-            return self.graph, list(self._all_nodes) if self._all_nodes is not None else list(self.graph.nodes())
+            return self.graph, (
+                list(self._all_nodes)
+                if self._all_nodes is not None
+                else list(self.graph.nodes())
+            )
 
         if xml_file_path is None:
             current_dir = os.path.dirname(os.path.abspath(__file__))
             project_root = os.path.join(current_dir, "..", "..", "..", "..")
-            xml_file_path = os.path.join(project_root, "fichiersXMLPickupDelivery", "petitPlan.xml")
+            xml_file_path = os.path.join(
+                project_root, "fichiersXMLPickupDelivery", "petitPlan.xml"
+            )
 
-        with open(xml_file_path, 'r', encoding='utf-8') as f:
+        with open(xml_file_path, "r", encoding="utf-8") as f:
             xml_text = f.read()
+
+        # lazy import to avoid circular imports (app.services may import this module)
+        try:
+            from app.services.XMLParser import XMLParser  # type: ignore
+        except Exception:
+            # fallback for direct script execution / tests
+            sys.path.insert(
+                0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+            )
+            from services.XMLParser import XMLParser  # type: ignore
 
         map_data = XMLParser.parse_map(xml_text)
 
@@ -52,18 +68,20 @@ class TSP():
 
         # Add directed edges with weight = length_m
         for seg in map_data.road_segments:
-            start_id = str(getattr(seg.start, 'id', seg.start))
-            end_id = str(getattr(seg.end, 'id', seg.end))
+            start_id = str(getattr(seg.start, "id", seg.start))
+            end_id = str(getattr(seg.end, "id", seg.end))
             try:
                 weight = float(seg.length_m)
             except Exception:
-                weight = float('inf')
+                weight = float("inf")
             # If node ids are present, add the edge
             if start_id in G.nodes and end_id in G.nodes:
                 # If multiple edges exist, keep the smallest weight
                 prev = G.get_edge_data(start_id, end_id, default=None)
-                if prev is None or weight < prev.get('weight', float('inf')):
-                    G.add_edge(start_id, end_id, weight=weight, street_name=seg.street_name)
+                if prev is None or weight < prev.get("weight", float("inf")):
+                    G.add_edge(
+                        start_id, end_id, weight=weight, street_name=seg.street_name
+                    )
 
         # Cache the built graph for subsequent calls when no explicit
         # xml_file_path is provided.
@@ -86,7 +104,7 @@ class TSP():
         restricts the metric to the largest mutually-reachable component so callers
         may 'ignore' problematic nodes that prevent a complete metric.
         """
-        INF = float('inf')
+        INF = float("inf")
         nodes = list(graph.keys())
         if not nodes:
             return nx.Graph()
@@ -96,7 +114,7 @@ class TSP():
         for u in nodes:
             for v, info in graph.get(u, {}).items():
                 try:
-                    c = float(info.get('cost', INF))
+                    c = float(info.get("cost", INF))
                 except Exception:
                     c = INF
                 if c < C[u].get(v, INF):
@@ -156,218 +174,203 @@ class TSP():
             G.add_node(u)
 
         for i, u in enumerate(chosen_nodes):
-            for v in chosen_nodes[i+1:]:
+            for v in chosen_nodes[i + 1 :]:
                 d = float(min(C[u][v], C[v][u]))
                 # by construction via mutual reachability, d should be finite
                 G.add_edge(u, v, weight=d)
 
         return G
 
-    def solve(self, nodes=None, pickup_delivery_pairs: Optional[List[tuple]] = None):
-        """Return a compact tour and cost using a Christofides-style approximation.
+    def solve(self, tour: Tour):
+        """Construct a paired tour (pickup->delivery) then improve it while
+        preserving pickup-before-delivery precedence. This approach builds an
+        initial route by visiting each pickup followed immediately by its
+        delivery, selecting the next pickup greedily by metric distance from
+        the current location. After the greedy construction we run a
+        constrained 2-opt local search that only accepts changes which keep
+        every pickup before its corresponding delivery.
 
-        This function builds a metric complete graph among the requested nodes
-        (using shortest-path distances on the map), computes an approximate
-        TSP tour with Christofides steps (MST + minimum-weight matching +
-        Eulerian circuit shortcutting), and returns a compact tour (sequence
-        of location node ids) and the tour cost.
-
-        Args:
-            nodes: Optional iterable of node ids to consider for the TSP. If
-                omitted, all map nodes are used.
-            must_visit: Optional iterable of node ids that must be included in
-                the tour. When provided, the solver will take the union of
-                `nodes` and `must_visit`.
-            pickup_delivery_pairs: Optional iterable of (pickup, delivery)
-                node id pairs. When supplied the returned compact tour will
-                be post-processed to ensure each pickup appears before its
-                paired delivery. This is a lightweight precedence handling
-                step (keeps solver backward-compatible but enforces local
-                ordering by reordering the compact tour when necessary).
-
-        Returns:
-            (tour, total_cost) where `tour` is a list of node ids (closed
-            — first node equals last) and `total_cost` is the sum of metric
-            edge weights along the compact tour.
+        The function uses NetworkX shortest-paths for pairwise distances and
+        the existing metric builder `_build_metric_complete_graph` to obtain
+        symmetric metric distances between the involved nodes.
         """
-        # Compute pairwise shortest-paths among the TSP nodes using networkx
-        G_map, all_nodes = self._build_networkx_map_graph()
-        # Support `must_visit` similar to the removed solve(): if provided,
-        # take the union of `nodes` and `must_visit` so the solver computes
-        # pairwise distances among required locations and any extra nodes
-        # provided for connectivity.
-        # `nodes` should be the list of node ids to include in the TSP.
-        # For backward compatibility callers should pass nodes explicitly.
-        nodes_list = list(nodes) if nodes is not None else list(all_nodes)
+        # Extract pickup-delivery pairs from the provided Tour object
+        pd_pairs = list(tour.deliveries)
+        if not pd_pairs:
+            return [], 0.0
 
-        pdp = pickup_delivery_pairs
+        # Build the set/list of all involved nodes (pickups and deliveries)
+        pickups = [p for p, _ in pd_pairs]
+        deliveries = [d for _, d in pd_pairs]
+        nodes_list = []
+        for p, d in pd_pairs:
+            if p not in nodes_list:
+                nodes_list.append(p)
+            if d not in nodes_list:
+                nodes_list.append(d)
 
-        # Validate and filter out missing nodes in the map graph
+        # Build map graph and validate nodes
+        G_map, _ = self._build_networkx_map_graph()
         missing = [n for n in nodes_list if n not in G_map.nodes()]
         if missing:
-            print(f"Warning: {len(missing)} requested TSP nodes not present in map (examples: {missing[:5]})")
+            print(
+                f"Warning: {len(missing)} requested TSP nodes not present in map (examples: {missing[:5]})"
+            )
             nodes_list = [n for n in nodes_list if n in G_map.nodes()]
 
-        # If explicit pickup_delivery_pairs provided, add their nodes to nodes_list
-        if pdp:
-            extra = []
-            for p, d in pdp:
-                if p in G_map.nodes() and p not in nodes_list:
-                    extra.append(p)
-                if d in G_map.nodes() and d not in nodes_list:
-                    extra.append(d)
-            if extra:
-                nodes_list = list(dict.fromkeys(nodes_list + extra))
-
-        # Build sp_graph similar to solve()
+        # Compute pairwise shortest-paths among nodes of interest
         sp_graph = {}
         for src in nodes_list:
             try:
-                # NetworkX returns (distances: dict[node, float], paths: dict[node, list[node]])
-                lengths_raw, paths_raw = nx.single_source_dijkstra(G_map, src, weight='weight')
-                # help static type checkers and guard against unexpected return types
-                if isinstance(lengths_raw, dict):
-                    lengths: Dict[str, float] = cast(Dict[str, float], lengths_raw)
-                else:
-                    lengths = {}
-                if isinstance(paths_raw, dict):
-                    paths: Dict[str, List[str]] = cast(Dict[str, List[str]], paths_raw)
-                else:
-                    paths = {}
+                lengths_raw, paths_raw = nx.single_source_dijkstra(
+                    G_map, src, weight="weight"
+                )
+                lengths = cast(Dict[str, float], lengths_raw) if isinstance(lengths_raw, dict) else {}
+                paths = cast(Dict[str, List[str]], paths_raw) if isinstance(paths_raw, dict) else {}
             except Exception:
-                lengths = {}  # type: Dict[str, float]
-                paths = {}    # type: Dict[str, List[str]]
+                lengths = {}
+                paths = {}
             sp_graph[src] = {}
             for tgt in nodes_list:
-                if tgt == src:
-                    sp_graph[src][tgt] = {'path': [src], 'cost': 0.0}
-                else:
-                    sp_graph[src][tgt] = {'path': paths.get(tgt), 'cost': lengths.get(tgt, float('inf'))}
+                sp_graph[src][tgt] = {
+                    "path": [src] if src == tgt else paths.get(tgt),
+                    "cost": 0.0 if src == tgt else lengths.get(tgt, float("inf")),
+                }
 
+        # Build symmetric metric among the requested nodes
         G = self._build_metric_complete_graph(sp_graph)
+        if G.number_of_nodes() == 0:
+            return [], 0.0
 
-        # 1. MST
-        T = nx.minimum_spanning_tree(G, weight='weight')
+        # Filter pickup-delivery pairs to those fully present in the metric graph
+        pd_pairs = [(p, d) for (p, d) in pd_pairs if p in G.nodes() and d in G.nodes()]
+        if not pd_pairs:
+            # nothing mutually-reachable; return empty
+            return [], 0.0
 
-        # 2. Odd degree vertices
-        odd_nodes = [v for v, d in T.degree() if d % 2 == 1]
+        # Helper: compute compact tour cost on the metric graph G
+        def tour_cost(seq: List[str]) -> float:
+            if not seq or len(seq) < 2:
+                return 0.0
+            s = 0.0
+            for i in range(len(seq) - 1):
+                u, v = seq[i], seq[i + 1]
+                s += G[u][v]["weight"]
+            return s
 
-        # 3. Induced subgraph on odd degree vertices (complete within these nodes via G)
-        M = nx.Graph()
-        for i, u in enumerate(odd_nodes):
-            for v in odd_nodes[i+1:]:
-                w = G[u][v]['weight']
-                M.add_edge(u, v, weight=w)
+        # Build initial greedy paired tour: start from first pickup
+        start_p, start_d = pd_pairs[0]
+        if start_p not in nodes_list or start_d not in nodes_list:
+            # choose any available pickup/delivery pair present in nodes_list
+            found = False
+            for p, d in pd_pairs:
+                if p in nodes_list and d in nodes_list:
+                    start_p, start_d = p, d
+                    found = True
+                    break
+            if not found:
+                return [], 0.0
 
-        # 4. Minimum weight perfect matching on M (returns set of edges)
-        # use explicit import to satisfy static analyzers
-        from networkx.algorithms import matching as nx_matching
-        matching = nx_matching.min_weight_matching(M, weight='weight')
+        # restrict to pickups/deliveries present in G
+        pickups = [p for p, _ in pd_pairs]
+        deliveries = [d for _, d in pd_pairs]
+        remaining_pickups = [p for p in pickups if p in G.nodes()]
+        pair_of = {p: d for p, d in pd_pairs}
 
-        # 5. Combine edges of T and matching to form a multigraph
-        multigraph = nx.MultiGraph()
-        multigraph.add_nodes_from(T.nodes())
-        multigraph.add_edges_from(T.edges(data=True))
-        # add matching edges (as single edges)
-        for u, v in matching:
-            multigraph.add_edge(u, v, weight=G[u][v]['weight'])
+        current = start_p
+        tour_seq: List[str] = []
+        # visit start pickup and its delivery
+        tour_seq.append(start_p)
+        tour_seq.append(start_d)
+        if start_p in remaining_pickups:
+            remaining_pickups.remove(start_p)
+        current = start_d
 
-        # 6. Find Eulerian circuit
-        if not nx.is_eulerian(multigraph):
-            # should be Eulerian by construction, but ensure it
-            # connect components if necessary (shouldn't happen for connected G)
-            multigraph = nx.eulerize(multigraph)
-
-        euler_circuit = list(nx.eulerian_circuit(multigraph))
-
-        # 7. Shortcut repeated vertices to get Hamiltonian tour
-        tour = []
-        seen = set()
-        for u, v in euler_circuit:
-            if u not in seen:
-                tour.append(u)
-                seen.add(u)
-            # last edge's v possibly added on next iteration
-        # ensure all nodes included
-        for n in G.nodes():
-            if n not in seen:
-                tour.append(n)
+        # greedily choose next pickup as the nearest (in metric G) to current
+        INF = float("inf")
+        while remaining_pickups:
+            best = None
+            best_cost = INF
+            for p in remaining_pickups:
+                try:
+                    c = G[current][p]["weight"] if current in G and p in G[current] else INF
+                except Exception:
+                    c = INF
+                if c < best_cost:
+                    best_cost = c
+                    best = p
+            if best is None:
+                # no reachable remaining pickup; append them in arbitrary order
+                for p in remaining_pickups:
+                    tour_seq.append(p)
+                    tour_seq.append(pair_of.get(p, p))
+                break
+            # append pickup and its delivery
+            tour_seq.append(best)
+            tour_seq.append(pair_of[best])
+            remaining_pickups.remove(best)
+            current = pair_of[best]
 
         # close tour
-        if tour and tour[0] != tour[-1]:
-            tour.append(tour[0])
+        if tour_seq and tour_seq[0] != tour_seq[-1]:
+            tour_seq.append(tour_seq[0])
 
-        # compute total cost
-        total = 0.0
-        for i in range(len(tour)-1):
-            u, v = tour[i], tour[i+1]
-            total += G[u][v]['weight']
+        total = tour_cost(tour_seq)
 
-        # Post-process compact tour to enforce pickup-before-delivery ordering
-        # for any provided pickup-delivery pairs. The previous behavior moved
-        # deliveries to immediately follow their pickup (forcing immediate
-        # drop-off). Here we adopt a deferred-stable reorder: when a delivery
-        # appears before its pickup we defer it until its pickup has been
-        # visited in the tour. This allows accumulating multiple pickups
-        # before making deliveries and typically produces shorter, more
-        # realistic routes while still ensuring precedence.
-        if pdp:
-            # work on the compact tour without the duplicated closing node
-            closed = (len(tour) >= 2 and tour[0] == tour[-1])
-            core = tour[:-1] if closed else list(tour)
+        # Constrained 2-opt local search: try reversing segments while ensuring
+        # every pickup remains before its delivery.
+        # Work on the core (without final duplicated node) to make index checks easier.
+        closed = len(tour_seq) >= 2 and tour_seq[0] == tour_seq[-1]
+        core = tour_seq[:-1] if closed else list(tour_seq)
 
-            # build quick-lookup maps for pickups and deliveries
-            pickup_of = {p: d for p, d in pdp}
-            delivery_of = {d: p for p, d in pdp}
+        # Build quick lookup for precedence
+        pickup_set = set(p for p, _ in pd_pairs if p in nodes_list)
+        delivery_map = {d: p for p, d in pd_pairs if p in nodes_list and d in nodes_list}
 
-            result = []
-            seen_pickups = set()
-            deferred_deliveries = []  # deliveries whose pickup hasn't been seen yet (preserve order)
+        improved = True
+        max_iters = 500
+        iters = 0
+        n = len(core)
+        while improved and iters < max_iters:
+            improved = False
+            iters += 1
+            # try all i<j pairs for 2-opt (skip index 0 to keep start fixed)
+            for i in range(1, n - 2):
+                for j in range(i + 1, n - 1):
+                    # propose reversing core[i:j+1]
+                    new_core = core[:i] + list(reversed(core[i : j + 1])) + core[j + 1 :]
 
-            for node in core:
-                # if node is a pickup, append it and mark seen;
-                # then flush any deferred deliveries whose pickup is now seen
-                if node in pickup_of:
-                    result.append(node)
-                    seen_pickups.add(node)
-                    i = 0
-                    while i < len(deferred_deliveries):
-                        d = deferred_deliveries[i]
-                        p = delivery_of.get(d)
-                        if p in seen_pickups:
-                            result.append(d)
-                            deferred_deliveries.pop(i)
-                        else:
-                            i += 1
-                # if node is a delivery and its pickup was already seen, append;
-                # otherwise defer it until later
-                elif node in delivery_of:
-                    p = delivery_of[node]
-                    if p in seen_pickups:
-                        result.append(node)
-                    else:
-                        deferred_deliveries.append(node)
-                else:
-                    # normal node, keep original order
-                    result.append(node)
+                    # check precedence: for every delivery, pickup must come before delivery
+                    ok = True
+                    for d, p in delivery_map.items():
+                        try:
+                            idx_p = new_core.index(p)
+                            idx_d = new_core.index(d)
+                        except ValueError:
+                            ok = False
+                            break
+                        if idx_p >= idx_d:
+                            ok = False
+                            break
+                    if not ok:
+                        continue
 
-            # append any remaining deferred deliveries (their pickups were
-            # not present in the core order); preserve their original relative order
-            for d in deferred_deliveries:
-                result.append(d)
+                    new_seq = new_core + ([new_core[0]] if closed else [])
+                    new_cost = tour_cost(new_seq)
+                    if new_cost + 1e-9 < total:
+                        core = new_core
+                        total = new_cost
+                        improved = True
+                        # restart scanning
+                        break
+                if improved:
+                    break
 
-            # re-close tour
-            if closed and result:
-                result.append(result[0])
-            tour = result
+        # re-close tour
+        if closed and core:
+            core.append(core[0])
 
-            # recompute total after modifications
-            total = 0.0
-            for i in range(len(tour)-1):
-                u, v = tour[i], tour[i+1]
-                total += G[u][v]['weight']
-
-        return tour, total
+        return core, total
 
     # Note: multi-courier solver was intentionally removed. For multi-agent
     # routing, use a separate coordinator/service which can call `solve` per
@@ -385,26 +388,40 @@ class TSP():
         full_route = []
         total = 0.0
         for i in range(len(tour) - 1):
-            u, v = tour[i], tour[i+1]
+            u, v = tour[i], tour[i + 1]
             info = sp_graph.get(u, {}).get(v)
-            if info is None or info.get('path') is None:
+            if info is None or info.get("path") is None:
                 raise ValueError(f"No shortest-path from {u} to {v}")
-            path = info['path']
-            cost = info.get('cost', float('inf'))
+            path = info["path"]
+            cost = info.get("cost", float("inf"))
             if full_route and full_route[-1] == path[0]:
                 full_route.extend(path[1:])
             else:
                 full_route.extend(path)
             total += cost
         return full_route, total
-    
+
+
 if __name__ == "__main__":
     # Example usage
-
     tsp = TSP()
-    path, cost = tsp.solve()
-    print("Compact tour:", path)
-    print("Compact cost:", cost)
+    # create a minimal Tour-like object from available map nodes
+    G_map, nodes = tsp._build_networkx_map_graph()
+    if len(nodes) < 2:
+        print("Map does not contain enough nodes for a sample tour")
+    else:
+        # build up to 3 sample pickup-delivery pairs from map nodes
+        sample_pairs = []
+        for i in range(0, min(6, len(nodes)), 2):
+            a = nodes[i]
+            b = nodes[i + 1] if i + 1 < len(nodes) else nodes[0]
+            sample_pairs.append((a, b))
+
+        sample_tour = cast(Tour, SimpleNamespace(deliveries=sample_pairs))
+
+        path, cost = tsp.solve(sample_tour)
+        print("Compact tour:", path)
+        print("Compact cost:", cost)
     # If you want to expand the compact tour to the full node-level route,
     # recompute the pairwise sp_graph (as in solve_christofides) and call
     # expand_tour_with_paths(). Keeping example minimal here.

@@ -103,8 +103,19 @@ def main():
 
     # Run NetworkX solver
     t0 = perf_counter()
+    # Build a Tour-like object expected by the new NetworkX solver signature
+    from types import SimpleNamespace
+    sample_tour = SimpleNamespace(deliveries=pd_pairs)
+
     try:
-        tour_nx, cost_nx = tsp_nx.solve(nodes=nodes, pickup_delivery_pairs=pd_pairs)
+        tour_nx, cost_nx = tsp_nx.solve(sample_tour)
+    except TypeError:
+        # fallback to old signature if the solver still expects nodes + pairs
+        try:
+            tour_nx, cost_nx = tsp_nx.solve(nodes=nodes, pickup_delivery_pairs=pd_pairs)
+        except Exception as e:
+            print('NetworkX solver failed:', e)
+            return
     except Exception as e:
         print('NetworkX solver failed:', e)
         return
@@ -123,8 +134,15 @@ def main():
     if has_ortools and ORToolsTSP is not None:
         ort = ORToolsTSP()
         t0 = perf_counter()
+        # OR-Tools wrapper may implement different signatures. Try the new Tour signature first.
         try:
-            tour_or, cost_or, sp_paths = ort.solve(nodes=nodes, pickup_delivery_pairs=pd_pairs, time_limit_s=30)
+            tour_or, cost_or, sp_paths = ort.solve(sample_tour, time_limit_s=30)  # type: ignore
+        except TypeError:
+            try:
+                tour_or, cost_or, sp_paths = ort.solve(nodes=nodes, pickup_delivery_pairs=pd_pairs, time_limit_s=30)  # type: ignore
+            except Exception as e:
+                print('\nOR-Tools solver failed:', e)
+                return
         except Exception as e:
             print('\nOR-Tools solver failed:', e)
             return

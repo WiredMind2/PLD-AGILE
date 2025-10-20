@@ -3,7 +3,10 @@ import os
 import sys
 from unittest.mock import Mock, patch, MagicMock
 import networkx as nx
-from utils.TSP.TSP_networkx import TSP
+from app.utils.TSP.TSP_networkx import TSP
+from types import SimpleNamespace
+from typing import cast
+from app.models.schemas import Tour
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -70,14 +73,14 @@ class TestBuildMetricCompleteGraph:
     def test_empty_graph(self):
         tsp = TSP()
         G = tsp._build_metric_complete_graph({})
-        assert len(G.nodes()) == 0
+        assert G.number_of_nodes() == 0
 
     def test_single_node(self):
         tsp = TSP()
         sp_graph = {'A': {'A': {'cost': 0.0, 'path': ['A']}}}
         G = tsp._build_metric_complete_graph(sp_graph)
         # Single node component has size 1, returns empty graph
-        assert len(G.nodes()) == 0
+        assert G.number_of_nodes() == 0
 
     def test_two_mutually_reachable_nodes(self):
         tsp = TSP()
@@ -86,7 +89,7 @@ class TestBuildMetricCompleteGraph:
             'B': {'A': {'cost': 10.0}, 'B': {'cost': 0.0}}
         }
         G = tsp._build_metric_complete_graph(sp_graph)
-        assert len(G.nodes()) == 2
+        assert G.number_of_nodes() == 2
         assert G.has_edge('A', 'B')
         assert G['A']['B']['weight'] == 10.0
 
@@ -107,7 +110,7 @@ class TestBuildMetricCompleteGraph:
         }
         G = tsp._build_metric_complete_graph(sp_graph)
         # No mutual reachability
-        assert len(G.nodes()) == 0
+        assert G.number_of_nodes() == 0
 
 
 class TestSolve:
@@ -123,10 +126,11 @@ class TestSolve:
         G.add_edge('B', 'A', weight=10.0)
         
         mock_build_graph.return_value = (G, ['A', 'B', 'C'])
-        
+
         tsp = TSP()
-        tour, cost = tsp.solve(nodes=['A', 'B', 'C'])
-        
+        sample = cast(Tour, SimpleNamespace(courier=None, deliveries=[('A', 'B'), ('C', 'A')]))
+        tour, cost = tsp.solve(sample)
+
         assert isinstance(tour, list)
         assert isinstance(cost, float)
         assert len(tour) >= 4  # At least 3 nodes + return to start
@@ -139,11 +143,11 @@ class TestSolve:
         G.add_edge('B', 'A', weight=10.0)
         
         mock_build_graph.return_value = (G, ['A', 'B', 'C'])
-        
+
         tsp = TSP()
-        # must_visit parameter removed; pass nodes directly
-        tour, cost = tsp.solve(nodes=['A', 'B'])
-        
+        sample = cast(Tour, SimpleNamespace(courier=None, deliveries=[('A', 'B')]))
+        tour, cost = tsp.solve(sample)
+
         assert 'A' in tour
         assert 'B' in tour
 
@@ -153,10 +157,11 @@ class TestSolve:
         G.add_edge('A', 'B', weight=10.0)
         
         mock_build_graph.return_value = (G, ['A', 'B'])
-        
+
         tsp = TSP()
-        tour, cost = tsp.solve(nodes=['A', 'B', 'Z'])  # Z doesn't exist
-        
+        sample = cast(Tour, SimpleNamespace(courier=None, deliveries=[('A', 'B'), ('Z', 'A')]))
+        tour, cost = tsp.solve(sample)  # Z doesn't exist
+
         assert 'Z' not in tour
 
 

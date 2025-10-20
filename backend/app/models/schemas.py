@@ -55,23 +55,18 @@ class Delivery:
 @dataclass
 class Tour: 
     courier: Courrier
-    deliveries: List[Delivery] = Field(default_factory=list)
+    deliveries: List[Tuple[str, str]] = Field(default_factory=list)
     total_travel_time_s: int = 0
     total_service_time_s: int = 0
     total_distance_m: float = 0.0
-    start_time: Optional[time] = None
-    end_time: Optional[time] = None
     route_intersections: List[str] = Field(default_factory=list)
 
-    def add_delivery(self, delivery: Delivery):
-        self.deliveries.append(delivery)
-        # service time is pickup + delivery durations
-        self.total_service_time_s += delivery.pickup_service_s + delivery.delivery_service_s
-        # total_travel_time_s is cumulative travel; deliveries don't contain travel distance here
-        if delivery.courier == self.courier:
-            self.total_travel_time_s += delivery.pickup_service_s + delivery.delivery_service_s
-        # Note: total_distance_m should be updated based on actual route calculation
+    def add_delivery(self, pickup_addr: str, delivery_addr: str):
+        self.deliveries.append((pickup_addr, delivery_addr))
 
+    def add_deliveries(self, deliveries: List[Tuple[str, str]]):
+        for d in deliveries:
+            self.add_delivery(d[0], d[1])
 
 @dataclass
 class Map:
