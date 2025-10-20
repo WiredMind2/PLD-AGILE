@@ -319,7 +319,7 @@ export default function MainView(): JSX.Element {
               variant="outline" 
               className="gap-2 border-blue-200 text-blue-600 dark:border-blue-800 dark:text-blue-400"
               onClick={handleMapUpload}
-              disabled={loading}
+              disabled={loading || map !== null}
             >
               <Upload className="h-4 w-4" />
               {loading ? 'Loading...' : 'Load Map (XML)'}
@@ -594,6 +594,7 @@ export default function MainView(): JSX.Element {
                         size="sm" 
                         variant="outline" 
                         className="h-8 w-8 p-0 border-purple-200 text-purple-600"
+                        disabled={!map || loading}
                         onClick={async () => {
                           try {
                             // remove last courier if any
@@ -610,14 +611,30 @@ export default function MainView(): JSX.Element {
                         -
                       </Button>
                       <span className="text-lg font-semibold w-8 text-center text-purple-700 dark:text-purple-300">{stats.activeCouriers}</span>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
+                      <Button
+                        size="sm"
+                        variant="outline"
                         className="h-8 w-8 p-0 border-purple-200 text-purple-600"
+                        disabled={!map || loading}
                         onClick={async () => {
                           try {
-                            const name = `Courier ${stats.activeCouriers + 1}`;
-                            await addCourier({ name, id: `C${Date.now()}` });
+                            const existingNumbers = (couriers ?? [])
+                              .map((c: any) => Number(c.name?.match(/\d+$/)?.[0]))
+                              .filter(Boolean);
+
+                            const nextNum = existingNumbers.length ? Math.max(...existingNumbers) + 1 : 1;
+                            const name = `Courier ${nextNum}`;
+
+                            await addCourier({
+                              id: `C${Date.now()}`,
+                              name,
+                              current_location:
+                                map?.intersections?.[0] ?? {
+                                  id: '0',
+                                  latitude: mapCenter[0],
+                                  longitude: mapCenter[1],
+                                },
+                            });
                           } catch (e) {
                             // handled globally
                           }
@@ -740,7 +757,7 @@ export default function MainView(): JSX.Element {
                             <SelectTrigger size="sm">
                               <SelectValue placeholder="Unassigned" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className='max-h-64 overflow-auto'>
                               <SelectItem value={"none"} key="none">Unassigned</SelectItem>
                               {(couriers || []).map((c: any) => (
                                 <SelectItem key={c.name} value={String(c.id)}>{c.name}</SelectItem>
