@@ -265,6 +265,7 @@ export function useDeliveryApp() {
   // Computed values
   const stats = {
     activeCouriers: couriersState.length,
+    totalCouriers: 1,
     deliveryRequests: deliveries.length,
     totalDistance: tours.reduce((sum, tour) => sum + tour.total_distance_m, 0),
     totalTime: tours.reduce((sum, tour) => sum + tour.total_travel_time_s, 0),
