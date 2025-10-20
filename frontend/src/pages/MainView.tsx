@@ -5,11 +5,12 @@ import { Separator } from '@/components/ui/separator'
 import { Map, Truck, Clock, Save, Plus, Route, Upload, Timer, Package, Activity, Trash2 } from 'lucide-react'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import DeliveryMap, { DeliveryPoint } from '@/components/ui/delivery-map'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useDeliveryApp } from '@/hooks/useDeliveryApp'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 
 export default function MainView(): JSX.Element {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -30,14 +31,24 @@ export default function MainView(): JSX.Element {
   map,
   deliveries,
   computeTours,
+  fetchCouriers,
+  addCourier,
+  deleteCourier,
+  couriers,
+  clearServerState,
+  assignDeliveryToCourier,
   } = useDeliveryApp();
+
+  useEffect(() => {
+    clearServerState();
+  }, []);
 
   const [deliveryPoints, setDeliveryPoints] = useState<DeliveryPoint[]>();
   const [computeNotice, setComputeNotice] = useState<string | null>(null);
   const [successAlert, setSuccessAlert] = useState<string | null>(null);
   const [routes, setRoutes] = useState<{ id: string; color?: string; positions: [number, number][] }[]>([]);
   const [showSegmentLabels, setShowSegmentLabels] = useState<boolean>(true);
-
+  
   const handlePointClick = (point: any) => {
     console.log('Clicked delivery point:', point);
   };
@@ -358,7 +369,6 @@ export default function MainView(): JSX.Element {
                   setComputeNotice(null);
                   if (res && Array.isArray(res)) {
                     const points: DeliveryPoint[] = [];
-                    // prefer courier starts first
                     res.forEach((t: any) => {
                       const courier = t.courier;
                       if (courier && courier.current_location) {
@@ -492,7 +502,16 @@ export default function MainView(): JSX.Element {
               </div>
             </CardHeader>
             <CardContent>
-              <DeliveryMap
+              {!map ? (
+                <div className="h-[500px] rounded-lg bg-gradient-to-br from-blue-50/50 to-purple-50/50 dark:from-blue-950/30 dark:to-purple-950/30 border-2 border-dashed border-blue-200/50 dark:border-blue-800/50 flex items-center justify-center">
+                  <div className="text-center space-y-3">
+                    <Map className="h-10 w-10 text-blue-500 mx-auto" />
+                    <p className="text-sm text-blue-600 dark:text-blue-400">No map loaded</p>
+                    <p className="text-xs text-blue-500 dark:text-blue-500">Load an XML city map to visualize roads and compute tours</p>
+                  </div>
+                </div>
+              ) : (
+                <DeliveryMap
                 points={deliveryPoints}
                 roadSegments={roadSegments}
                 center={mapCenter}
@@ -524,9 +543,41 @@ export default function MainView(): JSX.Element {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Number of Couriers:</span>
                     <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-purple-200 text-purple-600">-</Button>
-                      <span className="text-lg font-semibold w-8 text-center text-purple-700 dark:text-purple-300">1</span>
-                      <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-purple-200 text-purple-600">+</Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-8 w-8 p-0 border-purple-200 text-purple-600"
+                        onClick={async () => {
+                          try {
+                            // remove last courier if any
+                            if (stats.activeCouriers > 0) {
+                              const cs = await fetchCouriers();
+                              const last = cs && cs.length ? cs[cs.length - 1] : null;
+                              if (last) await deleteCourier(String(last.id));
+                            }
+                          } catch (e) {
+                            // handled globally
+                          }
+                        }}
+                      >
+                        -
+                      </Button>
+                      <span className="text-lg font-semibold w-8 text-center text-purple-700 dark:text-purple-300">{stats.activeCouriers}</span>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-8 w-8 p-0 border-purple-200 text-purple-600"
+                        onClick={async () => {
+                          try {
+                            const name = `Courier ${stats.activeCouriers + 1}`;
+                            await addCourier({ name, id: `C${Date.now()}`, current_location: map?.intersections?.[0] ?? { id: '0', latitude: mapCenter[0], longitude: mapCenter[1] } });
+                          } catch (e) {
+                            // handled globally
+                          }
+                        }}
+                      >
+                        +
+                      </Button>
                     </div>
                   </div>
                   <div className="text-xs text-purple-500 dark:text-purple-400">
@@ -535,30 +586,40 @@ export default function MainView(): JSX.Element {
                 </div>
                 <Separator className="bg-purple-200 dark:bg-purple-800" />
                 <div className="space-y-2 bg-purple-50 dark:bg-purple-950/50 p-3 rounded-lg">
-                  <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Courier 1</p>
-                  <div className="text-xs text-purple-600 dark:text-purple-400">
-                    Status: <span className="text-emerald-600 font-medium">Available</span> • Requests: 0
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Couriers</p>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => fetchCouriers()}>Refresh</Button>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Timeline */}
-            <Card className="border-cyan-200 dark:border-cyan-800 shadow-lg">
-              <CardHeader className="bg-gradient-to-r from-cyan-50 to-blue-50 dark:from-cyan-950 dark:to-blue-950 mb-6">
-                <CardTitle className="flex items-center gap-2 text-cyan-700 dark:text-cyan-300">
-                  <Clock className="h-5 w-5 text-cyan-600" />
-                  Tour Schedule
-                </CardTitle>
-                <CardDescription className="text-cyan-600 dark:text-cyan-400">
-                  Pickup and delivery times for each courier
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-32 rounded-lg bg-gradient-to-br from-cyan-100/50 to-blue-100/50 dark:from-cyan-900/30 dark:to-blue-900/30 border-2 border-dashed border-cyan-300/50 dark:border-cyan-700/50 flex items-center justify-center">
-                  <div className="text-center">
-                    <Timer className="h-8 w-8 text-cyan-500 mx-auto mb-1 animate-pulse" />
-                    <p className="text-sm text-cyan-600 dark:text-cyan-400">No active tours</p>
+                  <div className="text-xs text-purple-600 dark:text-purple-400">
+                    <div className="space-y-2 max-h-[22rem] overflow-auto rounded-md border border-purple-200 dark:border-purple-800 divide-y divide-purple-100 dark:divide-purple-900 p-2">
+                        {(couriers && couriers.length > 0) ? (
+                          (() => {
+                            // compute assigned counts per courier
+                            const counts: Record<string, number> = {};
+                            (deliveries || []).forEach((d: any) => {
+                              const cid = d?.courier?.id ?? (typeof d?.courier === 'string' ? d.courier : null);
+                              if (cid) counts[String(cid)] = (counts[String(cid)] || 0) + 1;
+                            });
+                            return couriers.map((c: any) => (
+                              <div key={c.id} className="flex items-center justify-between px-2 py-2">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-medium text-purple-800 dark:text-purple-200 truncate">{c.name || c.id}</div>
+                                  <div className="text-xs text-purple-600 dark:text-purple-400 truncate">Requests: {counts[String(c.id)] ?? 0}</div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button size="sm" variant="outline" onClick={async () => { try { await deleteCourier(String(c.id)); } catch (e) {} }}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ));
+                          })()
+                        ) : (
+                          <div className="text-center text-xs text-purple-600">No couriers registered</div>
+                        )}
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -617,29 +678,53 @@ export default function MainView(): JSX.Element {
                             Pickup: {pickupId} • Drop: {deliveryId} • svc: {d.pickup_service_s + d.delivery_service_s}s
                           </div>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 gap-1 border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300"
-                          onClick={async () => {
-                            try {
-                              await deleteRequest(d.id);
-                              // remove markers if present
-                              setDeliveryPoints((prev) => prev?.filter((p) => p.id !== `pickup-${d.id}` && p.id !== `delivery-${d.id}`));
-                            } catch (e) {
-                              // handled globally
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Delete
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={(d?.courier?.id ?? (typeof d?.courier === 'string' ? d.courier : '')) || 'none'}
+                            onValueChange={async (val: string) => {
+                              const v = val === 'none' ? null : val;
+                              try {
+                                await assignDeliveryToCourier(d.id, v);
+                              } catch (err) {
+                                // handled globally
+                              }
+                            }}
+                          >
+                            <SelectTrigger size="sm">
+                              <SelectValue placeholder="Unassigned" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={"none"} key="none">Unassigned</SelectItem>
+                              {(couriers || []).map((c: any) => (
+                                <SelectItem key={c.name} value={String(c.id)}>{c.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-1 border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300"
+                            onClick={async () => {
+                              try {
+                                await deleteRequest(d.id);
+                                // remove markers if present
+                                setDeliveryPoints((prev) => prev?.filter((p) => p.id !== `pickup-${d.id}` && p.id !== `delivery-${d.id}`));
+                              } catch (e) {
+                                // handled globally
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
+                          </Button>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
             )}
+              
           </CardContent>
         </Card>
 

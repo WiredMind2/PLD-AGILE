@@ -25,6 +25,10 @@ class ApiClient {
     return response.json();
   }
 
+  async clearState(): Promise<void> {
+    return this.request<void>('/state/clear_state', { method: 'DELETE' });
+  }
+
   // Map endpoints
   async uploadMap(file: File): Promise<Map> {
     const formData = new FormData();
@@ -70,6 +74,14 @@ class ApiClient {
     })
   }
 
+  async getCouriers(): Promise<any[]> {
+    return this.request<any[]>('/couriers/', { method: 'GET' });
+  }
+
+  async deleteCourier(courierId: string): Promise<{ detail: string }> {
+    return this.request<{ detail: string }>(`/couriers/${courierId}`, { method: 'DELETE' });
+  }
+
   async addRequest(request: any): Promise<any> {
     return this.request<any>('/requests/', {
       method: 'POST',
@@ -88,6 +100,13 @@ class ApiClient {
   async deleteRequest(deliveryId: string): Promise<{ detail: string }> {
     return this.request<{ detail: string }>(`/requests/${deliveryId}`, {
       method: 'DELETE',
+    })
+  }
+
+  async assignDelivery(deliveryId: string, courierId: string | null): Promise<{ detail: string }> {
+    return this.request<{ detail: string }>(`/requests/${deliveryId}/assign`, {
+      method: 'PATCH',
+      body: JSON.stringify({ courier_id: courierId }),
     })
   }
 }

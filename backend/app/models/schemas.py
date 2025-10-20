@@ -22,7 +22,6 @@ class Courrier:
     id: str                   # ex: "C1"
     current_location: Intersection
     name : str
-    phone_number : str
 
 @dataclass
 class RoadSegment:

@@ -84,7 +84,7 @@ class TSPService:
             if first_wh is not None:
                 try:
                     # build a simple Courrier object and add it to map
-                    default_courier = Courrier(id='C1', current_location=first_wh, name='C1', phone_number='')
+                    default_courier = Courrier(id='C1', current_location=first_wh, name='C1')
                     try:
                         mp.add_courier(default_courier)
                     except Exception:
