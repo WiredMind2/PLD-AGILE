@@ -47,8 +47,7 @@ export function useDeliveryApp() {
           // if map has no couriers, create a default one on the server and update local state
           if ((mapData.couriers || []).length === 0) {
             try {
-              const loc = mapData.intersections?.[0] ?? { id: '0', latitude: 45.764043, longitude: 4.835659 };
-              const created = await apiClient.addCourier({ name: 'Courier 1', id: `C${Date.now()}`, current_location: loc as any });
+              const created = await apiClient.addCourier({ name: 'Courier 1', id: `C${Date.now()}` });
               setCouriersState((prev) => [...(prev || []), created as unknown as Courier]);
             } catch (e) {
               // ignore creation errors

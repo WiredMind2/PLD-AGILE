@@ -20,7 +20,6 @@ class Intersection:
 @dataclass
 class Courrier:
     id: str                   # ex: "C1"
-    current_location: Intersection
     name : str
 
 @dataclass
