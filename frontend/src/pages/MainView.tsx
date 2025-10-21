@@ -627,13 +627,7 @@ export default function MainView(): JSX.Element {
 
                             await addCourier({
                               id: `C${Date.now()}`,
-                              name,
-                              current_location:
-                                map?.intersections?.[0] ?? {
-                                  id: '0',
-                                  latitude: mapCenter[0],
-                                  longitude: mapCenter[1],
-                                },
+                              name
                             });
                           } catch (e) {
                             // handled globally
