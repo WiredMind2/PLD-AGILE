@@ -183,6 +183,8 @@ export default function DeliveryMap({
       y: e.originalEvent.clientY,
       latlng: [e.latlng.lat, e.latlng.lng],
     });
+  };
+
   // Component to handle map click events
   function MapClickHandler() {
     useMapEvents({
