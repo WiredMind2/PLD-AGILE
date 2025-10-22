@@ -215,10 +215,29 @@ export default function MainView(): JSX.Element {
 
   // New Delivery Request Sheet state
   const [openNewReq, setOpenNewReq] = useState(false);
+  const [openNewPopupTour, setOpenNewPopupTour] = useState(false);
+  const [nameTour, setNameTour] = useState('');
   const [pickupAddr, setPickupAddr] = useState('');
   const [deliveryAddr, setDeliveryAddr] = useState('');
   const [pickupService, setPickupService] = useState(300); // default 5 min
   const [deliveryService, setDeliveryService] = useState(300); // default 5 min
+
+  const { saveTours } = useDeliveryApp();
+const handleTourSave = async (e: React.FormEvent) => {
+  e.preventDefault()
+  setOpenNewPopupTour(false)
+  try {
+    if (!routes || routes.length === 0) {
+      setComputeNotice('No tours to save. Compute them first.');
+      return;
+    }
+    await saveTours({tours : tours, name_tour: nameTour}as any);
+    setSuccessAlert('Tours saved successfully!');
+    setTimeout(() => setSuccessAlert(null), 4000);
+  } catch (err) {
+    
+  }
+};
 
   const submitNewRequest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -336,7 +355,8 @@ export default function MainView(): JSX.Element {
             <Button size="sm" 
             variant="outline" 
             className="gap-2 border-cyan-200 text-cyan-600  dark:border-cyan-800 dark:text-cyan-400"
-            onClick={handleTourSave}
+            disabled={!map || loading}
+            onClick={() => setOpenNewPopupTour(true)}
             >
               <Save className="h-4 w-4" />
               Save Tours
@@ -708,6 +728,32 @@ export default function MainView(): JSX.Element {
                 <Button type="button" variant="outline" onClick={() => setOpenNewReq(false)}>Cancel</Button>
                 <Button type="submit" disabled={loading} className="bg-gradient-to-r from-emerald-500 to-green-600 text-white">
                   {loading ? 'Saving...' : 'Create request'}
+                </Button>
+              </div>
+            </form>
+          </SheetContent>
+        </Sheet>
+
+        <Sheet open={openNewPopupTour} onOpenChange={setOpenNewPopupTour}>
+          <SheetContent side="right" className="sm:max-w-md">
+            <SheetHeader>
+              <SheetTitle>New Save Tour Request</SheetTitle>
+              <SheetDescription>Provide tour name</SheetDescription>
+            </SheetHeader>
+            <form onSubmit={handleTourSave} className="mt-6 space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Tour Name</label>
+                <Input
+                  placeholder="e.g. Tour Lyon"
+                  value={nameTour}
+                  onChange={(e) => setNameTour(e.target.value)}
+                  required
+                />
+                </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setOpenNewPopupTour(false)}>Cancel</Button>
+                <Button type="submit" disabled={loading} className="bg-gradient-to-r from-emerald-500 to-green-600 text-white">
+                  {loading ? 'Saving...' : 'Save Tour'}
                 </Button>
               </div>
             </form>

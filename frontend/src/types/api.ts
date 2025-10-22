@@ -38,6 +38,7 @@ export interface Tour {
   total_distance_m: number;
   start_time?: string;
   end_time?: string;
+  name?: string;
 }
 
 export interface Map {

@@ -1,4 +1,4 @@
-import type { Map, Delivery, ApiError } from '@/types/api';
+import type { Map, Delivery, ApiError, Tour } from '@/types/api';
 
 const API_BASE_URL = 'http://localhost:8000/api/v1';
 
@@ -86,11 +86,14 @@ class ApiClient {
   }
 
   async saveTours(tour: any): Promise<any> {
-    return this.request<any>(`/tours/save`, { 
+    (tour.tours || []).forEach((t: Tour) => {
+      t.name=tour.tour_name;
+      return this.request<any>(`/tours/save`, { 
       method: 'POST', 
-      body: JSON.stringify(tour),
+      body: JSON.stringify(t),
     })
-  }
+  });
+}
 
   async saveState(): Promise<any> {
     return this.request<any>('/state/save', { method: 'POST' })
