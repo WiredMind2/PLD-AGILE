@@ -36,6 +36,8 @@ export default function MainView(): JSX.Element {
   couriers,
   clearServerState,
   assignDeliveryToCourier,
+  geocodeAddress,
+  findClosestIntersectionId
   } = useDeliveryApp();
 
   useEffect(() => {
@@ -208,28 +210,74 @@ export default function MainView(): JSX.Element {
   const [openNewReq, setOpenNewReq] = useState(false);
   const [pickupAddr, setPickupAddr] = useState('');
   const [deliveryAddr, setDeliveryAddr] = useState('');
+  const [pickupAddressText, setPickupAddressText] = useState('');
+  const [deliveryAddressText, setDeliveryAddressText] = useState('');
+  const [pickupGeocodeLoading, setPickupGeocodeLoading] = useState(false);
+  const [deliveryGeocodeLoading, setDeliveryGeocodeLoading] = useState(false);
   const [pickupService, setPickupService] = useState(300); // default 5 min
   const [deliveryService, setDeliveryService] = useState(300); // default 5 min
 
+
   const submitNewRequest = async (e: React.FormEvent) => {
     e.preventDefault();
+    let pickupNodeId = pickupAddr;
+    let deliveryNodeId = deliveryAddr;
     try {
+      // Si l'utilisateur a saisi une adresse pickup, géocode et trouve le nœud le plus proche
+      // Handle pickup address
+      if (pickupAddressText) {
+        setPickupGeocodeLoading(true);
+        try {
+          const geo = await geocodeAddress(deliveryAddressText);
+          setPickupGeocodeLoading(false);
+          if (!geo) {
+            throw new Error('L\'adresse de ramassage n\'a pas été trouvée : ' + pickupAddressText);
+          }
+          const closest = findClosestIntersectionId(geo.lat, geo.lon);
+          if (!closest) {
+            throw new Error(`Aucune intersection trouvée proche de l'adresse de ramassage`);
+          }
+          pickupNodeId = closest;
+        } catch (e) {
+            console.error(e);
+        }
+      }
+
+      // Handle delivery address
+      if (deliveryAddressText) {
+        setDeliveryGeocodeLoading(true);
+        try {
+          const geo = await geocodeAddress(deliveryAddressText);
+          setDeliveryGeocodeLoading(false);
+          if (!geo) {
+            throw new Error('L\'adresse de livraison n\'a pas été trouvée : ' + deliveryAddressText);
+          }
+          const closest = findClosestIntersectionId(geo.lat, geo.lon);
+          if (!closest) {
+            throw new Error(`Aucune intersection trouvée proche de l'adresse de livraison`);
+          }
+          deliveryNodeId = closest;
+        } catch (e) {
+            console.error(e);
+        }
+      }
+
       const created = await addRequest({
-        pickup_addr: pickupAddr,
-        delivery_addr: deliveryAddr,
+        pickup_addr: pickupNodeId,
+        delivery_addr: deliveryNodeId,
         pickup_service_s: Number(pickupService),
         delivery_service_s: Number(deliveryService)
       } as any);
       // If we have a map, add points on the fly for visualization
       if (map) {
         const findInter = (id: string) => map.intersections.find((i) => String(i.id) === String(id));
-        const pickupInter = findInter(pickupAddr);
-        const deliveryInter = findInter(deliveryAddr);
+        const pickupInter = findInter(pickupNodeId);
+        const deliveryInter = findInter(deliveryNodeId);
         setDeliveryPoints((prev) => {
           const base = prev ? [...prev] : [];
           if (pickupInter) {
             base.push({
-              id: `pickup-${created?.id ?? pickupAddr}`,
+              id: `pickup-${created?.id ?? pickupNodeId}`,
               position: [pickupInter.latitude, pickupInter.longitude],
               address: 'Pickup Location',
               type: 'pickup',
@@ -238,7 +286,7 @@ export default function MainView(): JSX.Element {
           }
           if (deliveryInter) {
             base.push({
-              id: `delivery-${created?.id ?? deliveryAddr}`,
+              id: `delivery-${created?.id ?? deliveryNodeId}`,
               position: [deliveryInter.latitude, deliveryInter.longitude],
               address: 'Delivery Location',
               type: 'delivery',
@@ -251,12 +299,16 @@ export default function MainView(): JSX.Element {
       // reset and close
       setPickupAddr('');
       setDeliveryAddr('');
+      setPickupAddressText('');
+      setDeliveryAddressText('');
       setPickupService(300);
       setDeliveryService(300);
       setOpenNewReq(false);
       setSuccessAlert('New delivery request created');
       setTimeout(() => setSuccessAlert(null), 5000);
     } catch (err) {
+      setPickupGeocodeLoading(false);
+      setDeliveryGeocodeLoading(false);
       // error is handled globally via hook
     }
   };
@@ -732,22 +784,26 @@ export default function MainView(): JSX.Element {
             </SheetHeader>
             <form onSubmit={submitNewRequest} className="mt-6 space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Pickup node id</label>
+                <label className="text-sm font-medium">Pickup address</label>
                 <Input
-                  placeholder="e.g. 25175791"
-                  value={pickupAddr}
-                  onChange={(e) => setPickupAddr(e.target.value)}
+                  placeholder="e.g. 10 rue de la République, 69001Lyon"
+                  value={pickupAddressText}
+                  onChange={(e) => setPickupAddressText(e.target.value)}
+                  disabled={!!pickupAddr}
                   required
                 />
+                {pickupGeocodeLoading && <span className="text-xs text-blue-500">Recherche de l'adresse...</span>}
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Delivery node id</label>
+                <label className="text-sm font-medium">Delivery address</label>
                 <Input
-                  placeholder="e.g. 25175792"
-                  value={deliveryAddr}
-                  onChange={(e) => setDeliveryAddr(e.target.value)}
+                  placeholder="e.g. 20 avenue Jean Jaurès, 69007 Lyon"
+                  value={deliveryAddressText}
+                  onChange={(e) => setDeliveryAddressText(e.target.value)}
+                  disabled={!!deliveryAddr}
                   required
                 />
+                {deliveryGeocodeLoading && <span className="text-xs text-blue-500">Recherche de l'adresse...</span>}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">

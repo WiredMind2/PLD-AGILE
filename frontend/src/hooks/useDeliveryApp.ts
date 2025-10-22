@@ -205,6 +205,41 @@ export function useDeliveryApp() {
     }
   }, [handleError]);
 
+  const geocodeAddress = useCallback(async (address: string): Promise<{ lat: number, lon: number } | null> => {
+    // Utilise Nominatim (OpenStreetMap) pour géocoder
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
+      console.log('Geocoding address with URL:', url);
+      const res = await fetch(url);
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+      }
+      throw new Error(`Aucun résultat pour l'adresse: ${address}`);
+    } catch (e) {
+      if (e instanceof Error) {
+        setError(`${e.message}`);
+        throw new Error(`${e.message}`);
+      }
+      setError(`Erreur inattendue lors du géocodage`);
+      throw new Error('Erreur inattendue lors du géocodage');
+    }
+  }, []);
+
+  const findClosestIntersectionId = useCallback((lat: number, lon: number): string | null => {
+    if (!map || !Array.isArray(map.intersections)) return null;
+    let minDist = Infinity;
+    let closestId = null;
+    for (const inter of map.intersections) {
+      const d = Math.sqrt(Math.pow(inter.latitude - lat, 2) + Math.pow(inter.longitude - lon, 2));
+      if (d < minDist) {
+        minDist = d;
+        closestId = inter.id;
+      }
+    }
+    return closestId;
+  }, [map]);
+
   // Computed values
   const stats = {
     activeCouriers: couriersState.length,
@@ -234,6 +269,8 @@ export function useDeliveryApp() {
     deleteCourier,
     computeTours,
     assignDeliveryToCourier,
+    geocodeAddress,
+    findClosestIntersectionId,
 
     clearServerState,
     
