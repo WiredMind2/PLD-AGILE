@@ -23,7 +23,6 @@ export default function MainView(): JSX.Element {
     error, 
     uploadMap,
     clearError,
-  addRequest,
   uploadRequestsFile,
     deleteRequest,
     stats,
@@ -37,7 +36,7 @@ export default function MainView(): JSX.Element {
   clearServerState,
   assignDeliveryToCourier,
   geocodeAddress,
-  findClosestIntersectionId
+  createRequestFromCoords,
   } = useDeliveryApp();
 
   useEffect(() => {
@@ -48,7 +47,7 @@ export default function MainView(): JSX.Element {
   const [computeNotice, setComputeNotice] = useState<string | null>(null);
   const [successAlert, setSuccessAlert] = useState<string | null>(null);
   const [routes, setRoutes] = useState<{ id: string; color?: string; positions: [number, number][] }[]>([]);
-  const [showSegmentLabels, setShowSegmentLabels] = useState<boolean>(true);
+  const [showSegmentLabels, setShowSegmentLabels] = useState<boolean>(false);
   
   const handlePointClick = (point: any) => {
     console.log('Clicked delivery point:', point);
@@ -60,6 +59,7 @@ export default function MainView(): JSX.Element {
 
   const handleRequestUpload = () => {
     requestsInputRef.current?.click();
+    setOpenNewReq(false);
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -220,26 +220,22 @@ export default function MainView(): JSX.Element {
 
   const submitNewRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    let pickupNodeId = pickupAddr;
-    let deliveryNodeId = deliveryAddr;
+    let pickupCoord: [number, number] = [0, 0];
+    let deliveryCoord: [number, number] = [0, 0];
     try {
-      // Si l'utilisateur a saisi une adresse pickup, géocode et trouve le nœud le plus proche
       // Handle pickup address
       if (pickupAddressText) {
         setPickupGeocodeLoading(true);
         try {
-          const geo = await geocodeAddress(deliveryAddressText);
+          const geo = await geocodeAddress(pickupAddressText);
           setPickupGeocodeLoading(false);
           if (!geo) {
-            throw new Error('L\'adresse de ramassage n\'a pas été trouvée : ' + pickupAddressText);
+            throw new Error('Pickup address not found: ' + pickupAddressText);
           }
-          const closest = findClosestIntersectionId(geo.lat, geo.lon);
-          if (!closest) {
-            throw new Error(`Aucune intersection trouvée proche de l'adresse de ramassage`);
-          }
-          pickupNodeId = closest;
+          pickupCoord = [geo.lat, geo.lon];
         } catch (e) {
-            console.error(e);
+          setPickupGeocodeLoading(false);
+          console.error(e);
         }
       }
 
@@ -250,52 +246,18 @@ export default function MainView(): JSX.Element {
           const geo = await geocodeAddress(deliveryAddressText);
           setDeliveryGeocodeLoading(false);
           if (!geo) {
-            throw new Error('L\'adresse de livraison n\'a pas été trouvée : ' + deliveryAddressText);
+            throw new Error('Delivery address not found: ' + deliveryAddressText);
           }
-          const closest = findClosestIntersectionId(geo.lat, geo.lon);
-          if (!closest) {
-            throw new Error(`Aucune intersection trouvée proche de l'adresse de livraison`);
-          }
-          deliveryNodeId = closest;
+          deliveryCoord = [geo.lat, geo.lon];
         } catch (e) {
             console.error(e);
         }
       }
 
-      const created = await addRequest({
-        pickup_addr: pickupNodeId,
-        delivery_addr: deliveryNodeId,
-        pickup_service_s: Number(pickupService),
-        delivery_service_s: Number(deliveryService)
-      } as any);
-      // If we have a map, add points on the fly for visualization
-      if (map) {
-        const findInter = (id: string) => map.intersections.find((i) => String(i.id) === String(id));
-        const pickupInter = findInter(pickupNodeId);
-        const deliveryInter = findInter(deliveryNodeId);
-        setDeliveryPoints((prev) => {
-          const base = prev ? [...prev] : [];
-          if (pickupInter) {
-            base.push({
-              id: `pickup-${created?.id ?? pickupNodeId}`,
-              position: [pickupInter.latitude, pickupInter.longitude],
-              address: 'Pickup Location',
-              type: 'pickup',
-              status: 'pending'
-            });
-          }
-          if (deliveryInter) {
-            base.push({
-              id: `delivery-${created?.id ?? deliveryNodeId}`,
-              position: [deliveryInter.latitude, deliveryInter.longitude],
-              address: 'Delivery Location',
-              type: 'delivery',
-              status: 'pending'
-            });
-          }
-          return base;
-        });
-      }
+      // Create the request using the API in the hook: options keys expected are pickup_service_s/delivery_service_s
+      await createRequestFromCoords(pickupCoord, deliveryCoord, { pickup_service_s: pickupService, delivery_service_s: deliveryService });
+      
+
       // reset and close
       setPickupAddr('');
       setDeliveryAddr('');
@@ -371,7 +333,7 @@ export default function MainView(): JSX.Element {
               variant="outline" 
               className="gap-2 border-blue-200 text-blue-600 dark:border-blue-800 dark:text-blue-400"
               onClick={handleMapUpload}
-              disabled={loading}
+              disabled={loading || map !== null}
             >
               <Upload className="h-4 w-4" />
               {loading ? 'Loading...' : 'Load Map (XML)'}
@@ -396,9 +358,31 @@ export default function MainView(): JSX.Element {
                     
                     res.forEach((t: any) => {
                       const courier = t.courier;
-                      if (courier && courier.current_location) {
+                      // Find courier start position from the deliveries' warehouse field
+                      // Many map uploads register the warehouse on each delivery (map.deliveries[].warehouse)
+                      // We search the loaded map deliveries for a matching warehouse id === courier.id
+                      const getCourierStartFromWarehouse = (c: any) => {
+                        if (!c) return null;
+                        try {
+                          if (map && Array.isArray(map.deliveries)) {
+                            const match = map.deliveries.find((d: any) => {
+                              const whId = d?.warehouse?.id ?? d?.warehouse;
+                              return whId && String(whId) === String(c.id);
+                            });
+                            if (match && match.warehouse && typeof match.warehouse.latitude === 'number' && typeof match.warehouse.longitude === 'number') {
+                              return [match.warehouse.latitude, match.warehouse.longitude] as [number, number];
+                            }
+                          }
+                        } catch (e) {
+                          // ignore and fall through to null
+                        }
+                        return null;
+                      };
+
+                      const startPos = getCourierStartFromWarehouse(courier);
+                      if (startPos) {
                         const cid = `courier-${courier.id}`;
-                        points.push({ id: cid, position: [courier.current_location.latitude, courier.current_location.longitude], address: 'Courier start (warehouse)', type: 'courier', status: 'active' });
+                        points.push({ id: cid, position: startPos, address: 'Courier start (warehouse)', type: 'courier', status: 'active' });
                       }
                       
                       // t.deliveries is an array of tuples: [[pickup_id, delivery_id], ...]
@@ -455,6 +439,36 @@ export default function MainView(): JSX.Element {
                           return { id: t.courier?.id ?? `route-${idx}`, color: colors[idx % colors.length], positions };
                         }).filter((r: any) => r.positions && r.positions.length > 0);
                         setRoutes(builtRoutes);
+
+                        // Ensure courier markers are placed at the start of each built route
+                        // The first node in `positions` is the courier's start (and last is the end)
+                        try {
+                          setDeliveryPoints((prev) => {
+                            const base = prev ? [...prev] : [];
+                            builtRoutes.forEach((route) => {
+                              if (!route.positions || route.positions.length === 0) return;
+                              const startPos = route.positions[0];
+                              const cid = `courier-${String(route.id)}`;
+                              const existingIndex = base.findIndex((p) => p.id === cid);
+                              const courierPoint: DeliveryPoint = {
+                                id: cid,
+                                position: startPos,
+                                address: 'Courier start (warehouse)',
+                                type: 'courier',
+                                status: 'active',
+                              };
+                              if (existingIndex >= 0) {
+                                // update existing marker position
+                                base[existingIndex] = { ...base[existingIndex], position: startPos, status: 'active' };
+                              } else {
+                                base.push(courierPoint);
+                              }
+                            });
+                            return base;
+                          });
+                        } catch (e) {
+                          console.error('Failed to place courier markers on map:', e);
+                        }
                       } else {
                         setRoutes([]);
                       }
@@ -484,7 +498,7 @@ export default function MainView(): JSX.Element {
               <Truck className="h-4 w-4 text-blue-200" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">1</div>
+              <div className="text-2xl font-bold">{couriers.length}</div>
               <p className="text-xs text-blue-200">Bicycle couriers</p>
             </CardContent>
           </Card>
@@ -567,6 +581,38 @@ export default function MainView(): JSX.Element {
                   showSegmentLabels={showSegmentLabels}
                   routes={routes}
                   onPointClick={handlePointClick}
+                  onCreateRequestFromCoords={async (pickup, delivery) => {
+                    if (!map) return;
+                    try {
+                      const res = await createRequestFromCoords?.(pickup, delivery);
+                      // Update markers immediately using returned nearest nodes
+                      if (res && res.pickupNode && res.deliveryNode) {
+                        setDeliveryPoints((prev) => {
+                          const base = prev ? [...prev] : [];
+                          const createdId = String((res.created as any)?.id ?? Date.now());
+                          base.push({
+                            id: `pickup-${createdId}`,
+                            position: [res.pickupNode.latitude, res.pickupNode.longitude],
+                            address: 'Pickup Location',
+                            type: 'pickup',
+                            status: 'pending',
+                          });
+                          base.push({
+                            id: `delivery-${createdId}`,
+                            position: [res.deliveryNode.latitude, res.deliveryNode.longitude],
+                            address: 'Delivery Location',
+                            type: 'delivery',
+                            status: 'pending',
+                          });
+                          return base;
+                        });
+                        setSuccessAlert('New delivery request created from map');
+                        setTimeout(() => setSuccessAlert(null), 4000);
+                      }
+                    } catch (e) {
+                      // Error already handled in hook
+                    }
+                  }}
                 />
               )}
             </CardContent>
@@ -594,6 +640,7 @@ export default function MainView(): JSX.Element {
                         size="sm" 
                         variant="outline" 
                         className="h-8 w-8 p-0 border-purple-200 text-purple-600"
+                        disabled={!map || loading}
                         onClick={async () => {
                           try {
                             // remove last courier if any
@@ -610,14 +657,24 @@ export default function MainView(): JSX.Element {
                         -
                       </Button>
                       <span className="text-lg font-semibold w-8 text-center text-purple-700 dark:text-purple-300">{stats.activeCouriers}</span>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
+                      <Button
+                        size="sm"
+                        variant="outline"
                         className="h-8 w-8 p-0 border-purple-200 text-purple-600"
+                        disabled={!map || loading}
                         onClick={async () => {
                           try {
-                            const name = `Courier ${stats.activeCouriers + 1}`;
-                            await addCourier({ name, id: `C${Date.now()}`, current_location: map?.intersections?.[0] ?? { id: '0', latitude: mapCenter[0], longitude: mapCenter[1] } });
+                            const existingNumbers = (couriers ?? [])
+                              .map((c: any) => Number(c.name?.match(/\d+$/)?.[0]))
+                              .filter(Boolean);
+
+                            const nextNum = existingNumbers.length ? Math.max(...existingNumbers) + 1 : 1;
+                            const name = `Courier ${nextNum}`;
+
+                            await addCourier({
+                              id: `C${Date.now()}`,
+                              name
+                            });
                           } catch (e) {
                             // handled globally
                           }
@@ -740,7 +797,7 @@ export default function MainView(): JSX.Element {
                             <SelectTrigger size="sm">
                               <SelectValue placeholder="Unassigned" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className='max-h-64 overflow-auto'>
                               <SelectItem value={"none"} key="none">Unassigned</SelectItem>
                               {(couriers || []).map((c: any) => (
                                 <SelectItem key={c.name} value={String(c.id)}>{c.name}</SelectItem>

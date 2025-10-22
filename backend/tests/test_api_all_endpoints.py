@@ -34,7 +34,6 @@ def test_full_api_flow(tmp_path):
     # add courier
     courier = {
         "id": "C1",
-        "current_location": {"id": "N1", "latitude": 48.8566, "longitude": 2.3522},
         "name": "Courier 1"
     }
     r = client.post("/api/v1/couriers/", json=courier)

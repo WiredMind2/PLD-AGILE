@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { apiClient } from '@/lib/api';
 import type { Map, Delivery, Tour, Courier } from '@/types/api';
 
@@ -47,8 +47,7 @@ export function useDeliveryApp() {
           // if map has no couriers, create a default one on the server and update local state
           if ((mapData.couriers || []).length === 0) {
             try {
-              const loc = mapData.intersections?.[0] ?? { id: '0', latitude: 45.764043, longitude: 4.835659 };
-              const created = await apiClient.addCourier({ name: 'Courier 1', id: `C${Date.now()}`, current_location: loc as any });
+              const created = await apiClient.addCourier({ name: 'Courier 1', id: `C${Date.now()}` });
               setCouriersState((prev) => [...(prev || []), created as unknown as Courier]);
             } catch (e) {
               // ignore creation errors
@@ -74,7 +73,18 @@ export function useDeliveryApp() {
       setLoading(true);
       setError(null);
       const newDeliveries = await apiClient.uploadDeliveryRequests(file);
-      setDeliveries((prev) => [...prev, ...newDeliveries]);
+      const defaultCourierId = couriersState?.[0]?.id ?? null;
+      if (defaultCourierId) {
+        await Promise.all(
+          newDeliveries.map((d: any) =>
+            apiClient.assignDelivery(String(d.id), String(defaultCourierId)).catch(() => undefined)
+          )
+        );
+      }
+      setDeliveries((prev) => [
+        ...prev,
+        ...(defaultCourierId ? newDeliveries.map((d: any) => ({ ...(d as any), courier: String(defaultCourierId) })) : newDeliveries),
+      ]);
       return newDeliveries;
     } catch (err) {
       handleError(err);
@@ -82,15 +92,20 @@ export function useDeliveryApp() {
     } finally {
       setLoading(false);
     }
-  }, [handleError]);
+  }, [handleError, couriersState]);
 
   const addRequest = useCallback(async (request: Pick<Delivery, 'pickup_addr' | 'delivery_addr' | 'pickup_service_s' | 'delivery_service_s'>) => {
     try {
       setLoading(true);
       setError(null);
       const created = await apiClient.addRequest(request);
-      // Append to local state; backend may return string node ids, so cast for now
-      setDeliveries((prev) => [...prev, created as unknown as Delivery]);
+      const defaultCourierId = couriersState?.[0]?.id ?? null;
+      if (defaultCourierId) {
+        await apiClient.assignDelivery(String(created.id), String(defaultCourierId)).catch(() => undefined);
+        setDeliveries((prev) => [...prev, { ...(created as any), courier: String(defaultCourierId) } as unknown as Delivery]);
+      } else {
+        setDeliveries((prev) => [...prev, created as unknown as Delivery]);
+      }
       return created;
     } catch (err) {
       handleError(err);
@@ -98,7 +113,43 @@ export function useDeliveryApp() {
     } finally {
       setLoading(false);
     }
-  }, [handleError]);
+  }, [handleError, couriersState]);
+
+  // Resolve nearest nodes then create request
+  const createRequestFromCoords = useCallback(
+    async (
+      pickup: [number, number],
+      delivery: [number, number],
+      options?: { pickup_service_s?: number; delivery_service_s?: number }
+    ) => {
+      const pickup_service_s = options?.pickup_service_s ?? 120;
+      const delivery_service_s = options?.delivery_service_s ?? 120;
+      try {
+        setLoading(true);
+        setError(null);
+        const ack = await apiClient.mapAckPair(pickup, delivery);
+        const pickupNode = ack?.pickup;
+        const deliveryNode = ack?.delivery;
+        if (!pickupNode || !deliveryNode) {
+          throw new Error('Nearest nodes not found for provided coordinates');
+        }
+        const created = await apiClient.addRequest({
+          pickup_addr: pickupNode as any,
+          delivery_addr: deliveryNode as any,
+          pickup_service_s,
+          delivery_service_s,
+        });
+        setDeliveries((prev) => [...prev, created as unknown as Delivery]);
+        return { created, pickupNode, deliveryNode };
+      } catch (err) {
+        handleError(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [handleError]
+  );
 
   // Courier operations
   const fetchCouriers = useCallback(async () => {
@@ -137,20 +188,61 @@ export function useDeliveryApp() {
       setError(null);
       await apiClient.deleteCourier(courierId);
       setCouriersState((prev) => prev.filter((c) => String(c.id) !== String(courierId)));
+      try {
+        const toUnassign = deliveries.filter((d) => {
+          try {
+        const assignedId = (d?.courier && typeof d.courier === 'string')
+          ? String(d.courier)
+          : (d?.courier?.id ? String(d.courier.id) : null);
+        return assignedId && String(assignedId) === String(courierId);
+          } catch {
+        return false;
+          }
+        });
+        await Promise.all(
+          toUnassign.map((d) =>
+            apiClient.assignDelivery(String(d.id), null).catch(() => undefined)
+          )
+        );
+      } catch (e) {
+      }
+      setDeliveries((prev) => prev.map((d) => {
+        try {
+          const assignedId = (d?.courier && typeof d.courier === 'string')
+        ? String(d.courier)
+        : (d?.courier?.id ? String(d.courier.id) : null);
+          if (assignedId && String(assignedId) === String(courierId)) {
+        return { ...d, courier: null } as any;
+          }
+        } catch (e) {
+        }
+        return d;
+      }));
     } catch (err) {
       handleError(err);
       throw err;
     } finally {
       setLoading(false);
     }
-  }, [handleError]);
+  }, [handleError, deliveries]);
 
   const uploadRequestsFile = useCallback(async (file: File) => {
     try {
       setLoading(true);
       setError(null);
       const newDeliveries = await apiClient.uploadRequestsFile(file);
-      setDeliveries((prev) => [...prev, ...newDeliveries]);
+      // Assign to default courier if present
+      const defaultCourierId = couriersState?.[0]?.id ?? null;
+      if (defaultCourierId) {
+        await Promise.all(
+          newDeliveries.map((d: any) => apiClient.assignDelivery(String(d.id), String(defaultCourierId)).catch(() => undefined))
+        );
+      }
+
+      setDeliveries((prev) => [
+        ...prev,
+        ...(defaultCourierId ? newDeliveries.map((d: any) => ({ ...(d as any), courier: String(defaultCourierId) })) : newDeliveries),
+      ]);
       return newDeliveries;
     } catch (err) {
       handleError(err);
@@ -158,7 +250,7 @@ export function useDeliveryApp() {
     } finally {
       setLoading(false);
     }
-  }, [handleError]);
+  }, [handleError, couriersState]);
 
   const deleteRequest = useCallback(async (deliveryId: string) => {
     try {
@@ -226,23 +318,10 @@ export function useDeliveryApp() {
     }
   }, []);
 
-  const findClosestIntersectionId = useCallback((lat: number, lon: number): string | null => {
-    if (!map || !Array.isArray(map.intersections)) return null;
-    let minDist = Infinity;
-    let closestId = null;
-    for (const inter of map.intersections) {
-      const d = Math.sqrt(Math.pow(inter.latitude - lat, 2) + Math.pow(inter.longitude - lon, 2));
-      if (d < minDist) {
-        minDist = d;
-        closestId = inter.id;
-      }
-    }
-    return closestId;
-  }, [map]);
-
   // Computed values
   const stats = {
     activeCouriers: couriersState.length,
+    totalCouriers: 1,
     deliveryRequests: deliveries.length,
     totalDistance: tours.reduce((sum, tour) => sum + tour.total_distance_m, 0),
     totalTime: tours.reduce((sum, tour) => sum + tour.total_travel_time_s, 0),
@@ -270,7 +349,7 @@ export function useDeliveryApp() {
     computeTours,
     assignDeliveryToCourier,
     geocodeAddress,
-    findClosestIntersectionId,
+    createRequestFromCoords,
 
     clearServerState,
     

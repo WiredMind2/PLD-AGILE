@@ -88,30 +88,24 @@ class TSPService:
         # This makes the `compute_tours` endpoint usable with map + requests
         # even when the XML map did not include explicit courier entries.
         if not couriers:
-            first_wh = None
-            for d in deliveries:
-                if getattr(d, "warehouse", None) is not None:
-                    first_wh = d.warehouse
-                    break
-            if first_wh is not None:
+            print("[TSPService] No couriers found in map; creating default courier at first warehouse.")
+
+            try:
+                # build a simple Courrier object and add it to map
+                default_courier = Courrier(
+                    id="C1", name="C1"
+                )
                 try:
-                    # build a simple Courrier object and add it to map
-                    default_courier = Courrier(
-                        id="C1", current_location=first_wh, name="C1"
-                    )
-                    try:
-                        mp.add_courier(default_courier)
-                    except Exception:
-                        # fallback: if Map doesn't expose add_courier, mutate list directly
-                        try:
-                            mp.couriers.append(default_courier)
-                        except Exception:
-                            pass
-                    couriers = [default_courier]
+                    mp.add_courier(default_courier)
                 except Exception:
-                    # if anything goes wrong just return empty result
-                    return []
-            else:
+                    # fallback: if Map doesn't expose add_courier, mutate list directly
+                    try:
+                        mp.couriers.append(default_courier)
+                    except Exception:
+                        pass
+                couriers = [default_courier]
+            except Exception:
+                # if anything goes wrong just return empty result
                 return []
 
         # Graph for shortest paths
@@ -173,10 +167,38 @@ class TSPService:
                     nodes_set.append(d)
 
             # Get the depot node (courier start location) to pass to TSP solver
+            # try to infer the courier's warehouse from assigned deliveries' `warehouse`
+            # field. If none found for this courier, fall back to the first
+            # warehouse available on the map (if any).
             depot_node = None
             try:
-                depot_node = str(c.current_location.id)
-                if depot_node not in map_nodes:
+                # First try: find a delivery assigned to this courier that has a warehouse
+                warehouse_node = None
+                for dd in mp.deliveries:
+                    try:
+                        # d.courier may be an object; compare ids safely
+                        dd_cid = getattr(dd.courier, "id", dd.courier)
+                        if dd_cid is None:
+                            continue
+                        if str(dd_cid) == str(c.id):
+                            wh = dd.warehouse
+                            if wh is not None:
+                                warehouse_node = str(getattr(wh, "id", wh))
+                                break
+                    except Exception:
+                        continue
+
+                # If not found, fallback to any warehouse present on the map deliveries
+                if not warehouse_node:
+                    for dd in mp.deliveries:
+                        wh = getattr(dd, "warehouse", None)
+                        if wh is not None:
+                            warehouse_node = str(getattr(wh, "id", wh))
+                            break
+
+                if warehouse_node and warehouse_node in map_nodes:
+                    depot_node = warehouse_node
+                else:
                     depot_node = None
             except Exception:
                 depot_node = None

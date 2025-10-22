@@ -1,7 +1,15 @@
 // DeliveryMap.tsx
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { useState } from 'react';
+import React, { useState } from 'react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from './dropdown-menu';
+import { Package, Building2, Clipboard, X } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
@@ -108,6 +116,18 @@ const getIcon = (type: DeliveryPoint['type'], isHighlighted: boolean = false): L
   return createCircularIcon(config.color, config.icon, 'white', config.size, isHighlighted);
 };
 
+// Minimal helper to listen to Leaflet right-clicks
+function MapRightClickHandler({ onContextMenu }: { onContextMenu: (e: L.LeafletMouseEvent) => void }) {
+  useMapEvents({
+    contextmenu: (e) => {
+      // Prevent the browser native context menu
+      e.originalEvent?.preventDefault?.();
+      onContextMenu(e);
+    },
+  });
+  return null;
+}
+
 interface DeliveryMapProps {
   points?: DeliveryPoint[];
   roadSegments?: RoadSegment[];
@@ -122,6 +142,10 @@ interface DeliveryMapProps {
     color?: string;
     positions: [number, number][];
   }[];
+  onCreateRequestFromCoords?: (
+    pickup: [number, number],
+    delivery: [number, number]
+  ) => Promise<void> | void;
 }
 
 export default function DeliveryMap({
@@ -134,11 +158,32 @@ export default function DeliveryMap({
   onPointClick,
   routes = [],
   showSegmentLabels = true,
+  onCreateRequestFromCoords,
 }: DeliveryMapProps) {
   // State for managing highlighted points
   const [highlightedPoints, setHighlightedPoints] = useState<Set<string>>(new Set());
 
   const style = { height: typeof height === 'number' ? `${height}px` : height, width: '100%' };
+
+  // Context menu state (screen position + latlng)
+  const [ctxMenu, setCtxMenu] = useState<{
+    open: boolean;
+    x: number;
+    y: number;
+    latlng?: [number, number];
+  }>({ open: false, x: 0, y: 0 });
+
+  // Two-click atomic creation: first set pickup, then set delivery and submit once
+  const [pendingPickup, setPendingPickup] = useState<[number, number] | null>(null);
+
+  const handleMapContextMenu = (e: L.LeafletMouseEvent) => {
+    setCtxMenu({
+      open: true,
+      x: e.originalEvent.clientX,
+      y: e.originalEvent.clientY,
+      latlng: [e.latlng.lat, e.latlng.lng],
+    });
+  };
 
   // Component to handle map click events
   function MapClickHandler() {
@@ -295,16 +340,19 @@ export default function DeliveryMap({
   }
 
   return (
-    <MapContainer center={center} zoom={zoom} style={style}>
-      <MapClickHandler />
-      <TileLayer
-        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        className="map-tiles"
-      />
+    <>
+      <MapContainer center={center} zoom={zoom} style={style}>
+        <MapClickHandler />
+      {/* Right-click listener */}
+        <MapRightClickHandler onContextMenu={handleMapContextMenu} />
+        <TileLayer
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          className="map-tiles"
+        />
 
       {/* Markers */}
-      {points.map((p) => {
+        {points.map((p) => {
         const isHighlighted = highlightedPoints.has(p.id);
         return (
           <Marker
@@ -333,10 +381,10 @@ export default function DeliveryMap({
             </Popup>
           </Marker>
         );
-      })}
+        })}
 
       {/* Connecting lines between highlighted pickup-delivery pairs */}
-      {Array.from(highlightedPoints).map(pointId => {
+        {Array.from(highlightedPoints).map(pointId => {
         const deliveryId = getDeliveryId(pointId);
         if (!deliveryId || !pointId.startsWith('pickup-')) return null;
         
@@ -356,10 +404,10 @@ export default function DeliveryMap({
           );
         }
         return null;
-      })}
+        })}
 
       {/* Road network from XML map */}
-      {showRoadNetwork && roadSegments.map((segment, index) => (
+        {showRoadNetwork && roadSegments.map((segment, index) => (
         <Polyline
           key={`road-${index}`}
           positions={[segment.start, segment.end]}
@@ -367,10 +415,10 @@ export default function DeliveryMap({
           weight={5}
           opacity={1}
         />
-      ))}
+        ))}
 
       {/* Computed routes (tours) */}
-      {routes.map((r) => (
+        {routes.map((r) => (
         <Polyline
           key={`route-${r.id}`}
           positions={r.positions}
@@ -378,12 +426,82 @@ export default function DeliveryMap({
           weight={5}
           opacity={0.85}
         />
-      ))}
+        ))}
 
       {/* Segment number labels (non-interactive) */}
-      {showSegmentLabels && labeledPositions.map((lp) => (
+        {showSegmentLabels && labeledPositions.map((lp) => (
         <Marker key={`seg-label-${lp.key}`} position={lp.pos} icon={createNumberIcon(String(lp.index))} interactive={false} />
-      ))}
-    </MapContainer>
+        ))}
+      </MapContainer>
+
+    {/* Context dropdown menu at cursor position */}
+    <DropdownMenu open={ctxMenu.open} onOpenChange={(o) => setCtxMenu((s) => ({ ...s, open: o }))}>
+      <DropdownMenuContent
+        align="start"
+        sideOffset={4}
+        // Position absolutely at the cursor using a fixed portal
+        style={{ position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, zIndex: 1000 }}
+        className="min-w-[14rem] p-2"
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        <DropdownMenuLabel className="text-xs opacity-70">
+          {pendingPickup
+            ? `Pickup fixé: ${pendingPickup[0].toFixed(5)}, ${pendingPickup[1].toFixed(5)}`
+            : ctxMenu.latlng
+              ? `Lat: ${ctxMenu.latlng[0].toFixed(5)}  Lng: ${ctxMenu.latlng[1].toFixed(5)}`
+              : 'Position inconnue'}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {pendingPickup === null ? (
+          <DropdownMenuItem onClick={() => {
+            if (ctxMenu.latlng) {
+              setPendingPickup(ctxMenu.latlng);
+            }
+            setCtxMenu((s)=>({ ...s, open: false }));
+          }}>
+            <Package />
+            Commencer une demande: fixer le pickup ici
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem onClick={async () => {
+            if (ctxMenu.latlng && pendingPickup) {
+              try {
+                await onCreateRequestFromCoords?.(pendingPickup, ctxMenu.latlng);
+              } catch (err) {
+                console.error('Create request from coords failed', err);
+              } finally {
+                setPendingPickup(null);
+              }
+            }
+            setCtxMenu((s)=>({ ...s, open: false }));
+          }}>
+            <Building2 />
+            Terminer la demande: fixer la livraison ici
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={async () => {
+          if (ctxMenu.latlng) {
+            try {
+              await navigator.clipboard.writeText(`${ctxMenu.latlng[0]}, ${ctxMenu.latlng[1]}`);
+            } catch (err) {
+              console.error('Clipboard error', err);
+            }
+          }
+          setCtxMenu((s)=>({ ...s, open: false }));
+        }}>
+          <Clipboard />
+          Copier les coordonnées
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {pendingPickup !== null && (
+          <DropdownMenuItem onClick={() => { setPendingPickup(null); setCtxMenu((s)=>({ ...s, open: false })); }}>
+            <X />
+            Annuler la demande en cours
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+    </>
   );
 }
