@@ -63,6 +63,10 @@ class ApiClient {
     return this.request<any>('/state/', { method: 'GET' })
   }
 
+   async getTours(): Promise<any> {
+    return this.request<any>('/state/tours', { method: 'GET' })
+  }
+
   async addCourier(courier: any): Promise<any> {
     return this.request<any>('/couriers/', {
       method: 'POST',

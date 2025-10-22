@@ -11,6 +11,8 @@ export function useDeliveryApp() {
   const [couriersState, setCouriersState] = useState<Courier[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [computedTours, setComputedTours] = useState<any[] | null>(null);
+
 
   const handleError = useCallback((err: unknown) => {
     const message = err instanceof Error ? err.message : 'An unexpected error occurred';
@@ -130,8 +132,86 @@ export function useDeliveryApp() {
       throw err;
     } finally {
       setLoading(false);
+      
     }
   }, [handleError]);
+
+  const loadTours = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const loadedTours = await apiClient.getTours();
+      setComputedTours(loadedTours as unknown as Tour[]);
+      return loadedTours;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [handleError]);
+
+  // Test function to set sample tour data for testing UI
+  const setTestTours = useCallback(() => {
+    const sampleTours = [
+      {
+        courier: { id: 'courier-1', name: 'Courier 1' },
+        total_distance_m: 2500,
+        total_travel_time_s: 1800,
+        deliveries: [
+          {
+            id: 'delivery-1',
+            pickup_addr: '12345',
+            delivery_addr: '67890',
+            pickup_service_s: 300,
+            delivery_service_s: 300
+          },
+          {
+            id: 'delivery-2',
+            pickup_addr: '11111',
+            delivery_addr: '22222',
+            pickup_service_s: 240,
+            delivery_service_s: 180
+          }
+        ],
+        route_intersections: ['12345', '11111', '22222', '67890']
+      },
+      {
+        courier: { id: 'courier-2', name: 'Courier 2' },
+        total_distance_m: 3200,
+        total_travel_time_s: 2400,
+        deliveries: [
+          {
+            id: 'delivery-3',
+            pickup_addr: '33333',
+            delivery_addr: '44444',
+            pickup_service_s: 360,
+            delivery_service_s: 240
+          },
+          {
+            id: 'delivery-4',
+            pickup_addr: '55555',
+            delivery_addr: '66666',
+            pickup_service_s: 180,
+            delivery_service_s: 300
+          },
+          {
+            id: 'delivery-5',
+            pickup_addr: '77777',
+            delivery_addr: '88888',
+            pickup_service_s: 300,
+            delivery_service_s: 180
+          }
+        ],
+        route_intersections: ['33333', '55555', '77777', '44444', '66666', '88888']
+      }
+    ];
+    
+    setToursState(sampleTours as unknown as Tour[]);
+    setComputedTours(sampleTours);
+    console.log('Test tours set:', sampleTours);
+  }, []);
+
 
   // Computed values
   const stats = {
@@ -159,6 +239,9 @@ export function useDeliveryApp() {
     deleteRequest,
     computeTours,
     saveTours,
+    loadTours,
+    computedTours,
+
     
     // Utils
     clearError: () => setError(null),

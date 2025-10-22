@@ -15,9 +15,9 @@ iniconfig==2.1.0
 networkx==3.1
 packaging==25.0
 pluggy==1.6.0
-pydantic==2.5.0
-pydantic-settings==2.1.0
-pydantic_core==2.14.1
+pydantic
+pydantic-settings
+pydantic_core
 Pygments==2.19.2
 pytest==8.4.2
 python-dotenv==1.0.0

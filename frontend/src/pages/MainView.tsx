@@ -30,6 +30,8 @@ export default function MainView(): JSX.Element {
   tours,
   deliveries,
   computeTours,
+  saveTours,
+  computedTours,
   } = useDeliveryApp();
 
   const [deliveryPoints, setDeliveryPoints] = useState<DeliveryPoint[]>();
@@ -37,6 +39,7 @@ export default function MainView(): JSX.Element {
   const [successAlert, setSuccessAlert] = useState<string | null>(null);
   const [routes, setRoutes] = useState<{ id: string; color?: string; positions: [number, number][] }[]>([]);
   const [showSegmentLabels, setShowSegmentLabels] = useState<boolean>(true);
+
 
   const handlePointClick = (point: any) => {
     console.log('Clicked delivery point:', point);
@@ -51,22 +54,20 @@ export default function MainView(): JSX.Element {
   };
 
 
-
-const { saveTours } = useDeliveryApp();
-const handleTourSave = async () => {
-  try {
-    if (!routes || routes.length === 0) {
-      setComputeNotice('No tours to save. Compute them first.');
-      return;
+  const handleTourSave = async () => {
+    try {
+      if (!tours || tours.length === 0) {
+        setComputeNotice('No tours to save. Compute them first.');
+        return;
+      }
+      await saveTours(tours);
+      setSuccessAlert('Tours saved successfully!');
+      setTimeout(() => setSuccessAlert(null), 4000);
+    } catch (err) {
+      console.error('Failed to save tours:', err);
+      setComputeNotice('Failed to save tours.');
     }
-    await saveTours(tours);
-    setSuccessAlert('Tours saved successfully!');
-    setTimeout(() => setSuccessAlert(null), 4000);
-  } catch (err) {
-    
-  }
-};
-
+  };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const input = event.currentTarget as HTMLInputElement;
@@ -725,8 +726,60 @@ const handleTourSave = async () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {computeNotice ? (
-              <div className="p-4 bg-yellow-50 rounded-md border border-yellow-200 text-yellow-800">{computeNotice}</div>
+            {computedTours ? (
+              <div className="p-4 bg-yellow-50 rounded-md border border-yellow-200 text-yellow-800">{computedTours}</div>
+            ) : tours && tours.length > 0 ? (
+              <div className="space-y-4">
+                {tours.map((tour: any, index: number) => (
+                  <div key={tour.courier?.id || index} className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4 border border-indigo-200 dark:border-indigo-800">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Truck className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                        <span className="font-medium text-indigo-900 dark:text-indigo-100">
+                          Courier {tour.courier?.id || index + 1}
+                        </span>
+                      </div>
+                      <div className="text-sm text-indigo-600 dark:text-indigo-400">
+                        {tour.deliveries?.length || 0} deliveries
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 mb-3 text-sm">
+                      <div>
+                        <span className="font-medium text-indigo-700 dark:text-indigo-300">Total Distance:</span>
+                        <span className="ml-2 text-indigo-600 dark:text-indigo-400">
+                          {tour.total_distance_m ? (tour.total_distance_m / 1000).toFixed(2) + ' km' : 'N/A'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-indigo-700 dark:text-indigo-300">Travel Time:</span>
+                        <span className="ml-2 text-indigo-600 dark:text-indigo-400">
+                          {tour.total_travel_time_s ? Math.round(tour.total_travel_time_s / 60) + ' min' : 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {tour.deliveries && tour.deliveries.length > 0 && (
+                      <div className="border-t border-indigo-200 dark:border-indigo-700 pt-3">
+                        <p className="text-xs font-medium text-indigo-700 dark:text-indigo-300 mb-2">Delivery Sequence:</p>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {tour.deliveries.map((delivery: any, idx: number) => (
+                            <div key={delivery.id || idx} className="text-xs text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                              <span className="bg-indigo-100 dark:bg-indigo-800 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded text-xs font-medium">
+                                {idx + 1}
+                              </span>
+                              <span>Delivery {delivery.id}</span>
+                              <span className="text-indigo-500 dark:text-indigo-500">
+                                ({typeof delivery.pickup_addr === 'string' ? delivery.pickup_addr : delivery.pickup_addr?.id} → {typeof delivery.delivery_addr === 'string' ? delivery.delivery_addr : delivery.delivery_addr?.id})
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             ) : (
               <div className="h-32 rounded-lg bg-gradient-to-br from-indigo-100/50 to-purple-100/50 dark:from-indigo-900/30 dark:to-purple-900/30 border-2 border-dashed border-indigo-300/50 dark:border-indigo-700/50 flex items-center justify-center">
                 <div className="text-center space-y-2">
