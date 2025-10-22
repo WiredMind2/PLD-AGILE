@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Any
 from fastapi import APIRouter, HTTPException
 
 from app.models.schemas import Tour
@@ -52,12 +52,11 @@ def get_tour(courier_id: str):
 
 # response_model attend une classe
 @router.post("/save", tags=["Tours"], summary="Save tours", description="Persist tours to disk (acknowledgement).")
-def save_tours(request: list[Tour]):
+def save_tour(request: Tour):
     mp = state.get_map()
     if mp is None:
         raise HTTPException(status_code=400, detail='No map loaded')
-    for tour in request :
-        state.save_tour(tour)
+    state.save_tour(request)
     return {"detail": "tours saved"}
 
 
