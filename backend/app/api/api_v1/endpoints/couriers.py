@@ -13,7 +13,7 @@ def list_couriers():
     return state.list_couriers()
 
 
-@router.post("/", response_model=Courrier, tags=["Couriers"], summary="Add courier", description="Register a new courier (id, current_location, name).")
+@router.post("/", response_model=Courrier, tags=["Couriers"], summary="Add courier", description="Register a new courier (id, name).")
 def add_courier(courier: Courrier):
     mp = state.get_map()
     if mp is None:

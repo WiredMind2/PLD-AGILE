@@ -35,7 +35,6 @@ def test_add_courier_and_request_and_compute():
     # add a courier
     courier = {
         "id": "C1",
-        "current_location": {"id": "N1", "latitude": 48.8566, "longitude": 2.3522},
         "name": "Courier 1",
     }
     r = client.post("/api/v1/couriers/", json=courier)

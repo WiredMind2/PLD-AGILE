@@ -23,6 +23,9 @@ from typing import List, cast, Dict
 
 from app.utils.TSP.TSP_networkx import TSP
 import networkx as nx
+from types import SimpleNamespace
+from typing import cast
+from app.models.schemas import Tour
 
 
 def build_sp_graph_from_map(G_map: nx.DiGraph, nodes_list: List[str]):
@@ -80,6 +83,8 @@ def pretty_format_path(path: List[str], max_items: int = 100, per_line: int = 20
 def main():
     parser = argparse.ArgumentParser(description='Demo NetworkX TSP solver with timings')
     parser.add_argument('--map', type=str, default=None, help='Optional map XML file to use (preferred)')
+    # legacy alias for older scripts
+    parser.add_argument('--xml', type=str, default=None, help='Legacy: optional map XML file (alias for --map)')
     parser.add_argument('--req', type=str, default=None, help='Optional delivery-requests XML file to use (contains <livraison> entries)')
     parser.add_argument('--nodes', type=int, default=0, help='Limit number of TSP nodes (0 = use all)')
     parser.add_argument('--all', action='store_true', help='Run benchmark across all provided XML maps in repository')
@@ -147,6 +152,7 @@ def main():
 
         for repeat_i in range(max(1, args.repeat)):
             # If a requests XML was provided for this run, parse deliveries and build nodes_list from them
+            deliveries = []
             if args.req:
                 try:
                     # lazy import XMLParser to avoid circular imports
@@ -179,9 +185,40 @@ def main():
 
             print(f"Run {repeat_i+1}/{max(1,args.repeat)}: solving TSP for {len(nodes_list)} nodes")
 
-            # solve
+            # build a Tour-like object (list of (pickup,delivery) pairs)
+            if args.req:
+                # deliveries variable exists when --req parsing succeeded above
+                try:
+                    # ensure 'deliveries' exists in this scope (set by earlier parsing)
+                    if 'deliveries' not in locals():
+                        deliveries = []
+                    tour_pairs = [
+                        (
+                            str(getattr(d, 'pickup_addr', d.pickup_addr)),
+                            str(getattr(d, 'delivery_addr', d.delivery_addr)),
+                        )
+                        for d in deliveries
+                    ]
+                except Exception:
+                    # fallback: pair adjacent nodes
+                    tour_pairs = []
+                    for k in range(0, len(nodes_list), 2):
+                        a = nodes_list[k]
+                        b = nodes_list[k + 1] if k + 1 < len(nodes_list) else nodes_list[0]
+                        tour_pairs.append((a, b))
+            else:
+                # pair adjacent nodes from the map to form pickup->delivery pairs
+                tour_pairs = []
+                for k in range(0, len(nodes_list), 2):
+                    a = nodes_list[k]
+                    b = nodes_list[k+1] if k+1 < len(nodes_list) else nodes_list[0]
+                    tour_pairs.append((a, b))
+
+            sample_tour = cast(Tour, SimpleNamespace(deliveries=tour_pairs))
+
+            # solve using new interface
             t0 = time.perf_counter()
-            tour, compact_cost = tsp.solve(nodes=nodes_list)
+            tour, compact_cost = tsp.solve(sample_tour)
             t1 = time.perf_counter()
             solve_time = t1 - t0
 

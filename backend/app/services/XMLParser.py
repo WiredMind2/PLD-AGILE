@@ -4,10 +4,12 @@ import xml.etree.ElementTree as ET
 
 try:
     from app.models.schemas import DEFAULT_SPEED_KMH, Delivery, Intersection, RoadSegment, Map
+    from app.core import state
 except ImportError:
     import sys, os
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
     from models.schemas import DEFAULT_SPEED_KMH, Delivery, Intersection, RoadSegment, Map
+    from app.core import state
 
 class XMLParser:
     # simple class-level counter to generate unique delivery IDs (D1, D2, ...)
@@ -46,20 +48,12 @@ class XMLParser:
 
         warehouse_intersection: Optional[Intersection] = None
         if entrepot_addr:
-            try:
-                from app.core import state  # type: ignore
-            except Exception:
-                state = None  # type: ignore
-            try:
-                mp = state.get_map() if state else None
-            except Exception:
-                mp = None
+            mp = state.get_map()
             if mp is not None:
-                try:
-                    inter_by_id = {str(i.id): i for i in getattr(mp, 'intersections', [])}
-                    warehouse_intersection = inter_by_id.get(str(entrepot_addr))
-                except Exception:
-                    warehouse_intersection = None
+                for i in getattr(mp, 'intersections', []):
+                    if str(i.id) == str(entrepot_addr):
+                        warehouse_intersection = i
+                        break
 
         deliveries: List[Delivery] = []
         for delivery_elem in root.findall('livraison'):

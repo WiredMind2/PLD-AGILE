@@ -3,7 +3,10 @@ import os
 import sys
 from unittest.mock import Mock, patch, MagicMock
 import networkx as nx
-from utils.TSP.TSP_networkx import TSP
+from app.utils.TSP.TSP_networkx import TSP
+from types import SimpleNamespace
+from typing import cast
+from app.models.schemas import Tour
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -70,14 +73,14 @@ class TestBuildMetricCompleteGraph:
     def test_empty_graph(self):
         tsp = TSP()
         G = tsp._build_metric_complete_graph({})
-        assert len(G.nodes()) == 0
+        assert G.number_of_nodes() == 0
 
     def test_single_node(self):
         tsp = TSP()
         sp_graph = {'A': {'A': {'cost': 0.0, 'path': ['A']}}}
         G = tsp._build_metric_complete_graph(sp_graph)
         # Single node component has size 1, returns empty graph
-        assert len(G.nodes()) == 0
+        assert G.number_of_nodes() == 0
 
     def test_two_mutually_reachable_nodes(self):
         tsp = TSP()
@@ -86,7 +89,7 @@ class TestBuildMetricCompleteGraph:
             'B': {'A': {'cost': 10.0}, 'B': {'cost': 0.0}}
         }
         G = tsp._build_metric_complete_graph(sp_graph)
-        assert len(G.nodes()) == 2
+        assert G.number_of_nodes() == 2
         assert G.has_edge('A', 'B')
         assert G['A']['B']['weight'] == 10.0
 
@@ -107,7 +110,7 @@ class TestBuildMetricCompleteGraph:
         }
         G = tsp._build_metric_complete_graph(sp_graph)
         # No mutual reachability
-        assert len(G.nodes()) == 0
+        assert G.number_of_nodes() == 0
 
 
 class TestSolve:
@@ -123,10 +126,11 @@ class TestSolve:
         G.add_edge('B', 'A', weight=10.0)
         
         mock_build_graph.return_value = (G, ['A', 'B', 'C'])
-        
+
         tsp = TSP()
-        tour, cost = tsp.solve(nodes=['A', 'B', 'C'])
-        
+        sample = cast(Tour, SimpleNamespace(courier=None, deliveries=[('A', 'B'), ('C', 'A')]))
+        tour, cost = tsp.solve(sample)
+
         assert isinstance(tour, list)
         assert isinstance(cost, float)
         assert len(tour) >= 4  # At least 3 nodes + return to start
@@ -139,10 +143,11 @@ class TestSolve:
         G.add_edge('B', 'A', weight=10.0)
         
         mock_build_graph.return_value = (G, ['A', 'B', 'C'])
-        
+
         tsp = TSP()
-        tour, cost = tsp.solve(must_visit=['A', 'B'])
-        
+        sample = cast(Tour, SimpleNamespace(courier=None, deliveries=[('A', 'B')]))
+        tour, cost = tsp.solve(sample)
+
         assert 'A' in tour
         assert 'B' in tour
 
@@ -152,75 +157,17 @@ class TestSolve:
         G.add_edge('A', 'B', weight=10.0)
         
         mock_build_graph.return_value = (G, ['A', 'B'])
-        
+
         tsp = TSP()
-        tour, cost = tsp.solve(nodes=['A', 'B', 'Z'])  # Z doesn't exist
-        
+        sample = cast(Tour, SimpleNamespace(courier=None, deliveries=[('A', 'B'), ('Z', 'A')]))
+        tour, cost = tsp.solve(sample)  # Z doesn't exist
+
         assert 'Z' not in tour
 
 
-class TestSolveMultiCouriers:
-    @patch.object(TSP, '_build_networkx_map_graph')
-    def test_single_courier_empty_nodes(self, mock_build_graph):
-        G = nx.DiGraph()
-        mock_build_graph.return_value = (G, [])
-        
-        tsp = TSP()
-        result = tsp.solve_multi_couriers(1, nodes=[])
-        
-        assert result['total_cost'] == 0.0
-
-    @patch.object(TSP, '_build_networkx_map_graph')
-    def test_multiple_couriers_distributes_nodes(self, mock_build_graph):
-        G = nx.DiGraph()
-        nodes = ['depot', 'A', 'B', 'C', 'D']
-        for i, n1 in enumerate(nodes):
-            for n2 in nodes[i+1:]:
-                G.add_edge(n1, n2, weight=10.0)
-                G.add_edge(n2, n1, weight=10.0)
-        
-        mock_build_graph.return_value = (G, nodes)
-        
-        tsp = TSP()
-        result = tsp.solve_multi_couriers(2, nodes=nodes, depot_node='depot')
-        
-        assert 'courier_1' in result
-        assert 'courier_2' in result
-        assert 'total_cost' in result
-        assert result['courier_1']['tour'][0] == 'depot'
-        assert result['courier_1']['tour'][-1] == 'depot'
-
-    @patch.object(TSP, '_build_networkx_map_graph')
-    def test_depot_only_returns_empty_tours(self, mock_build_graph):
-        G = nx.DiGraph()
-        G.add_node('depot')
-        
-        mock_build_graph.return_value = (G, ['depot'])
-        
-        tsp = TSP()
-        result = tsp.solve_multi_couriers(2, nodes=['depot'], depot_node='depot')
-        
-        assert result['total_cost'] == 0.0
-        assert len(result['courier_1']['tour']) == 1
-
-    @patch.object(TSP, '_build_networkx_map_graph')
-    def test_must_visit_with_nodes(self, mock_build_graph):
-        G = nx.DiGraph()
-        nodes = ['A', 'B', 'C']
-        for n1 in nodes:
-            for n2 in nodes:
-                if n1 != n2:
-                    G.add_edge(n1, n2, weight=10.0)
-        
-        mock_build_graph.return_value = (G, nodes)
-        
-        tsp = TSP()
-        result = tsp.solve_multi_couriers(1, nodes=['A'], must_visit=['B', 'C'])
-        
-        # Should visit all nodes
-        all_visited = set(result['courier_1']['tour'])
-        assert 'B' in all_visited
-        assert 'C' in all_visited
+    # Multi-courier solver removed from the utility; multi-agent routing
+    # responsibilities belong to the service layer which should call `solve`
+    # per agent after splitting locations.
 
 
 class TestExpandTourWithPaths:

@@ -47,7 +47,7 @@ export default function MainView(): JSX.Element {
   const [computeNotice, setComputeNotice] = useState<string | null>(null);
   const [successAlert, setSuccessAlert] = useState<string | null>(null);
   const [routes, setRoutes] = useState<{ id: string; color?: string; positions: [number, number][] }[]>([]);
-  const [showSegmentLabels, setShowSegmentLabels] = useState<boolean>(true);
+  const [showSegmentLabels, setShowSegmentLabels] = useState<boolean>(false);
   
   const handlePointClick = (point: any) => {
     console.log('Clicked delivery point:', point);
@@ -320,7 +320,7 @@ export default function MainView(): JSX.Element {
               variant="outline" 
               className="gap-2 border-blue-200 text-blue-600 dark:border-blue-800 dark:text-blue-400"
               onClick={handleMapUpload}
-              disabled={loading}
+              disabled={loading || map !== null}
             >
               <Upload className="h-4 w-4" />
               {loading ? 'Loading...' : 'Load Map (XML)'}
@@ -341,22 +341,67 @@ export default function MainView(): JSX.Element {
                   setComputeNotice(null);
                   if (res && Array.isArray(res)) {
                     const points: DeliveryPoint[] = [];
+                    const deliveryIdCounter = { count: 0 }; // Counter for generating unique delivery IDs
+                    
                     res.forEach((t: any) => {
                       const courier = t.courier;
-                      if (courier && courier.current_location) {
+                      // Find courier start position from the deliveries' warehouse field
+                      // Many map uploads register the warehouse on each delivery (map.deliveries[].warehouse)
+                      // We search the loaded map deliveries for a matching warehouse id === courier.id
+                      const getCourierStartFromWarehouse = (c: any) => {
+                        if (!c) return null;
+                        try {
+                          if (map && Array.isArray(map.deliveries)) {
+                            const match = map.deliveries.find((d: any) => {
+                              const whId = d?.warehouse?.id ?? d?.warehouse;
+                              return whId && String(whId) === String(c.id);
+                            });
+                            if (match && match.warehouse && typeof match.warehouse.latitude === 'number' && typeof match.warehouse.longitude === 'number') {
+                              return [match.warehouse.latitude, match.warehouse.longitude] as [number, number];
+                            }
+                          }
+                        } catch (e) {
+                          // ignore and fall through to null
+                        }
+                        return null;
+                      };
+
+                      const startPos = getCourierStartFromWarehouse(courier);
+                      if (startPos) {
                         const cid = `courier-${courier.id}`;
-                        points.push({ id: cid, position: [courier.current_location.latitude, courier.current_location.longitude], address: 'Courier start (warehouse)', type: 'courier', status: 'active' });
+                        points.push({ id: cid, position: startPos, address: 'Courier start (warehouse)', type: 'courier', status: 'active' });
                       }
-                      (t.deliveries || []).forEach((d: any) => {
-                        const findInter = (addr: any) => {
-                          if (!addr) return null;
-                          if (typeof addr === 'string') return map?.intersections?.find((i: any) => String(i.id) === String(addr));
-                          return addr;
-                        };
-                        const p1 = findInter(d.pickup_addr);
-                        const p2 = findInter(d.delivery_addr);
-                        if (p1) points.push({ id: `pickup-${d.id}`, position: [p1.latitude, p1.longitude], address: 'Pickup Location', type: 'pickup', status: 'pending' });
-                        if (p2) points.push({ id: `delivery-${d.id}`, position: [p2.latitude, p2.longitude], address: 'Delivery Location', type: 'delivery', status: 'pending' });
+                      
+                      // t.deliveries is an array of tuples: [[pickup_id, delivery_id], ...]
+                      (t.deliveries || []).forEach((tuple: [string, string]) => {
+                        deliveryIdCounter.count++;
+                        const deliveryId = `D${deliveryIdCounter.count}`;
+                        
+                        // tuple[0] is pickup intersection ID, tuple[1] is delivery intersection ID
+                        const pickupId = tuple[0];
+                        const deliveryAddrId = tuple[1];
+                        
+                        const pickupInter = map?.intersections?.find((i: any) => String(i.id) === String(pickupId));
+                        const deliveryInter = map?.intersections?.find((i: any) => String(i.id) === String(deliveryAddrId));
+                        
+                        if (pickupInter) {
+                          points.push({ 
+                            id: `pickup-${deliveryId}`, 
+                            position: [pickupInter.latitude, pickupInter.longitude], 
+                            address: 'Pickup Location', 
+                            type: 'pickup', 
+                            status: 'pending' 
+                          });
+                        }
+                        if (deliveryInter) {
+                          points.push({ 
+                            id: `delivery-${deliveryId}`, 
+                            position: [deliveryInter.latitude, deliveryInter.longitude], 
+                            address: 'Delivery Location', 
+                            type: 'delivery', 
+                            status: 'pending' 
+                          });
+                        }
                       });
                     });
                     if (points.length > 0) {
@@ -381,6 +426,36 @@ export default function MainView(): JSX.Element {
                           return { id: t.courier?.id ?? `route-${idx}`, color: colors[idx % colors.length], positions };
                         }).filter((r: any) => r.positions && r.positions.length > 0);
                         setRoutes(builtRoutes);
+
+                        // Ensure courier markers are placed at the start of each built route
+                        // The first node in `positions` is the courier's start (and last is the end)
+                        try {
+                          setDeliveryPoints((prev) => {
+                            const base = prev ? [...prev] : [];
+                            builtRoutes.forEach((route) => {
+                              if (!route.positions || route.positions.length === 0) return;
+                              const startPos = route.positions[0];
+                              const cid = `courier-${String(route.id)}`;
+                              const existingIndex = base.findIndex((p) => p.id === cid);
+                              const courierPoint: DeliveryPoint = {
+                                id: cid,
+                                position: startPos,
+                                address: 'Courier start (warehouse)',
+                                type: 'courier',
+                                status: 'active',
+                              };
+                              if (existingIndex >= 0) {
+                                // update existing marker position
+                                base[existingIndex] = { ...base[existingIndex], position: startPos, status: 'active' };
+                              } else {
+                                base.push(courierPoint);
+                              }
+                            });
+                            return base;
+                          });
+                        } catch (e) {
+                          console.error('Failed to place courier markers on map:', e);
+                        }
                       } else {
                         setRoutes([]);
                       }
@@ -410,7 +485,7 @@ export default function MainView(): JSX.Element {
               <Truck className="h-4 w-4 text-blue-200" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">1</div>
+              <div className="text-2xl font-bold">{couriers.length}</div>
               <p className="text-xs text-blue-200">Bicycle couriers</p>
             </CardContent>
           </Card>
@@ -552,6 +627,7 @@ export default function MainView(): JSX.Element {
                         size="sm" 
                         variant="outline" 
                         className="h-8 w-8 p-0 border-purple-200 text-purple-600"
+                        disabled={!map || loading}
                         onClick={async () => {
                           try {
                             // remove last courier if any
@@ -568,14 +644,24 @@ export default function MainView(): JSX.Element {
                         -
                       </Button>
                       <span className="text-lg font-semibold w-8 text-center text-purple-700 dark:text-purple-300">{stats.activeCouriers}</span>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
+                      <Button
+                        size="sm"
+                        variant="outline"
                         className="h-8 w-8 p-0 border-purple-200 text-purple-600"
+                        disabled={!map || loading}
                         onClick={async () => {
                           try {
-                            const name = `Courier ${stats.activeCouriers + 1}`;
-                            await addCourier({ name, id: `C${Date.now()}`, current_location: map?.intersections?.[0] ?? { id: '0', latitude: mapCenter[0], longitude: mapCenter[1] } });
+                            const existingNumbers = (couriers ?? [])
+                              .map((c: any) => Number(c.name?.match(/\d+$/)?.[0]))
+                              .filter(Boolean);
+
+                            const nextNum = existingNumbers.length ? Math.max(...existingNumbers) + 1 : 1;
+                            const name = `Courier ${nextNum}`;
+
+                            await addCourier({
+                              id: `C${Date.now()}`,
+                              name
+                            });
                           } catch (e) {
                             // handled globally
                           }
@@ -698,7 +784,7 @@ export default function MainView(): JSX.Element {
                             <SelectTrigger size="sm">
                               <SelectValue placeholder="Unassigned" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className='max-h-64 overflow-auto'>
                               <SelectItem value={"none"} key="none">Unassigned</SelectItem>
                               {(couriers || []).map((c: any) => (
                                 <SelectItem key={c.name} value={String(c.id)}>{c.name}</SelectItem>
