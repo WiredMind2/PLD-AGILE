@@ -36,6 +36,7 @@ export default function MainView(): JSX.Element {
   couriers,
   clearServerState,
   assignDeliveryToCourier,
+  createRequestFromCoords,
   } = useDeliveryApp();
 
   useEffect(() => {
@@ -567,6 +568,38 @@ export default function MainView(): JSX.Element {
                   showSegmentLabels={showSegmentLabels}
                   routes={routes}
                   onPointClick={handlePointClick}
+                  onCreateRequestFromCoords={async (pickup, delivery) => {
+                    if (!map) return;
+                    try {
+                      const res = await createRequestFromCoords?.(pickup, delivery);
+                      // Update markers immediately using returned nearest nodes
+                      if (res && res.pickupNode && res.deliveryNode) {
+                        setDeliveryPoints((prev) => {
+                          const base = prev ? [...prev] : [];
+                          const createdId = String((res.created as any)?.id ?? Date.now());
+                          base.push({
+                            id: `pickup-${createdId}`,
+                            position: [res.pickupNode.latitude, res.pickupNode.longitude],
+                            address: 'Pickup Location',
+                            type: 'pickup',
+                            status: 'pending',
+                          });
+                          base.push({
+                            id: `delivery-${createdId}`,
+                            position: [res.deliveryNode.latitude, res.deliveryNode.longitude],
+                            address: 'Delivery Location',
+                            type: 'delivery',
+                            status: 'pending',
+                          });
+                          return base;
+                        });
+                        setSuccessAlert('New delivery request created from map');
+                        setTimeout(() => setSuccessAlert(null), 4000);
+                      }
+                    } catch (e) {
+                      // Error already handled in hook
+                    }
+                  }}
                 />
               )}
             </CardContent>

@@ -115,6 +115,42 @@ export function useDeliveryApp() {
     }
   }, [handleError, couriersState]);
 
+  // From map clicks: resolve nearest nodes then create request
+  const createRequestFromCoords = useCallback(
+    async (
+      pickup: [number, number],
+      delivery: [number, number],
+      options?: { pickup_service_s?: number; delivery_service_s?: number }
+    ) => {
+      const pickup_service_s = options?.pickup_service_s ?? 120;
+      const delivery_service_s = options?.delivery_service_s ?? 120;
+      try {
+        setLoading(true);
+        setError(null);
+        const ack = await apiClient.mapAckPair(pickup, delivery);
+        const pickupNode = ack?.pickup;
+        const deliveryNode = ack?.delivery;
+        if (!pickupNode || !deliveryNode) {
+          throw new Error('Nearest nodes not found for provided coordinates');
+        }
+        const created = await apiClient.addRequest({
+          pickup_addr: pickupNode as any,
+          delivery_addr: deliveryNode as any,
+          pickup_service_s,
+          delivery_service_s,
+        });
+        setDeliveries((prev) => [...prev, created as unknown as Delivery]);
+        return { created, pickupNode, deliveryNode };
+      } catch (err) {
+        handleError(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [handleError]
+  );
+
   // Courier operations
   const fetchCouriers = useCallback(async () => {
     try {
@@ -291,6 +327,7 @@ export function useDeliveryApp() {
     deleteCourier,
     computeTours,
     assignDeliveryToCourier,
+  createRequestFromCoords,
 
     clearServerState,
     
