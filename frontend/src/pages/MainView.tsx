@@ -228,14 +228,15 @@ export default function MainView(): JSX.Element {
         setPickupGeocodeLoading(true);
         try {
           const geo = await geocodeAddress(pickupAddressText);
-          setPickupGeocodeLoading(false);
           if (!geo) {
             throw new Error('Pickup address not found: ' + pickupAddressText);
           }
           pickupCoord = [geo.lat, geo.lon];
         } catch (e) {
-          setPickupGeocodeLoading(false);
           console.error(e);
+          throw e;
+        } finally {
+          setPickupGeocodeLoading(false);
         }
       }
 
@@ -244,19 +245,44 @@ export default function MainView(): JSX.Element {
         setDeliveryGeocodeLoading(true);
         try {
           const geo = await geocodeAddress(deliveryAddressText);
-          setDeliveryGeocodeLoading(false);
           if (!geo) {
             throw new Error('Delivery address not found: ' + deliveryAddressText);
           }
           deliveryCoord = [geo.lat, geo.lon];
         } catch (e) {
             console.error(e);
+            throw e;
+        } finally {
+          setDeliveryGeocodeLoading(false);
         }
       }
 
       // Create the request using the API in the hook: options keys expected are pickup_service_s/delivery_service_s
-      await createRequestFromCoords(pickupCoord, deliveryCoord, { pickup_service_s: pickupService, delivery_service_s: deliveryService });
-      
+      const res = await createRequestFromCoords(pickupCoord, deliveryCoord, { pickup_service_s: pickupService, delivery_service_s: deliveryService });
+      // update map points
+      if (res && res.pickupNode && res.deliveryNode) {
+                        setDeliveryPoints((prev) => {
+                          const base = prev ? [...prev] : [];
+                          const createdId = String((res.created as any)?.id ?? Date.now());
+                          base.push({
+                            id: `pickup-${createdId}`,
+                            position: [res.pickupNode.latitude, res.pickupNode.longitude],
+                            address: 'Pickup Location',
+                            type: 'pickup',
+                            status: 'pending',
+                          });
+                          base.push({
+                            id: `delivery-${createdId}`,
+                            position: [res.deliveryNode.latitude, res.deliveryNode.longitude],
+                            address: 'Delivery Location',
+                            type: 'delivery',
+                            status: 'pending',
+                          });
+                          return base;
+                        });
+                        setSuccessAlert('New delivery request created from map');
+                        setTimeout(() => setSuccessAlert(null), 4000);
+                      }
 
       // reset and close
       setPickupAddr('');
@@ -272,8 +298,11 @@ export default function MainView(): JSX.Element {
       setPickupGeocodeLoading(false);
       setDeliveryGeocodeLoading(false);
       // error is handled globally via hook
+    } finally {
+      setOpenNewReq(false);
     }
   };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-cyan-50 dark:from-gray-950 ">
       {/* Hidden file input for map upload */}
@@ -837,13 +866,14 @@ export default function MainView(): JSX.Element {
           <SheetContent side="right" className="sm:max-w-md">
             <SheetHeader>
               <SheetTitle>New Delivery Request</SheetTitle>
-              <SheetDescription>Provide node IDs and service durations in seconds.</SheetDescription>
+              <SheetDescription>Provide pickup and delivery addresses, and service durations.
+                The nearest delivery points will be suggested based on the provided addresses.</SheetDescription>
             </SheetHeader>
             <form onSubmit={submitNewRequest} className="mt-6 space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Pickup address</label>
                 <Input
-                  placeholder="e.g. 10 rue de la République, 69001Lyon"
+                  placeholder="e.g. 10 rue de la République, 69001 Lyon"
                   value={pickupAddressText}
                   onChange={(e) => setPickupAddressText(e.target.value)}
                   disabled={!!pickupAddr}
