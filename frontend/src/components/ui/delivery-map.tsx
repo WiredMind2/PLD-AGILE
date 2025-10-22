@@ -117,6 +117,10 @@ interface DeliveryMapProps {
     color?: string;
     positions: [number, number][];
   }[];
+  onCreateRequestFromCoords?: (
+    pickup: [number, number],
+    delivery: [number, number]
+  ) => Promise<void> | void;
 }
 
 export default function DeliveryMap({
@@ -129,6 +133,7 @@ export default function DeliveryMap({
   onPointClick,
   routes = [],
   showSegmentLabels = true,
+  onCreateRequestFromCoords,
 }: DeliveryMapProps) {
   const style = { height: typeof height === 'number' ? `${height}px` : height, width: '100%' };
 
@@ -139,6 +144,9 @@ export default function DeliveryMap({
     y: number;
     latlng?: [number, number];
   }>({ open: false, x: 0, y: 0 });
+
+  // Two-click atomic creation: first set pickup, then set delivery and submit once
+  const [pendingPickup, setPendingPickup] = useState<[number, number] | null>(null);
 
   const handleMapContextMenu = (e: L.LeafletMouseEvent) => {
     setCtxMenu({
@@ -326,17 +334,40 @@ export default function DeliveryMap({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         <DropdownMenuLabel className="text-xs opacity-70">
-          {ctxMenu.latlng ? `Lat: ${ctxMenu.latlng[0].toFixed(5)}  Lng: ${ctxMenu.latlng[1].toFixed(5)}` : 'Position inconnue'}
+          {pendingPickup
+            ? `Pickup fixé: ${pendingPickup[0].toFixed(5)}, ${pendingPickup[1].toFixed(5)}`
+            : ctxMenu.latlng
+              ? `Lat: ${ctxMenu.latlng[0].toFixed(5)}  Lng: ${ctxMenu.latlng[1].toFixed(5)}`
+              : 'Position inconnue'}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => { console.log('Ajouter pickup at', ctxMenu.latlng); setCtxMenu((s)=>({ ...s, open: false })); }}>
-          <Package />
-          Ajouter un pickup ici
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => { console.log('Ajouter livraison at', ctxMenu.latlng); setCtxMenu((s)=>({ ...s, open: false })); }}>
-          <Building2 />
-          Ajouter une livraison ici
-        </DropdownMenuItem>
+        {pendingPickup === null ? (
+          <DropdownMenuItem onClick={() => {
+            if (ctxMenu.latlng) {
+              setPendingPickup(ctxMenu.latlng);
+            }
+            setCtxMenu((s)=>({ ...s, open: false }));
+          }}>
+            <Package />
+            Commencer une demande: fixer le pickup ici
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem onClick={async () => {
+            if (ctxMenu.latlng && pendingPickup) {
+              try {
+                await onCreateRequestFromCoords?.(pendingPickup, ctxMenu.latlng);
+              } catch (err) {
+                console.error('Create request from coords failed', err);
+              } finally {
+                setPendingPickup(null);
+              }
+            }
+            setCtxMenu((s)=>({ ...s, open: false }));
+          }}>
+            <Building2 />
+            Terminer la demande: fixer la livraison ici
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={async () => {
           if (ctxMenu.latlng) {
@@ -352,10 +383,12 @@ export default function DeliveryMap({
           Copier les coordonnées
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => setCtxMenu((s)=>({ ...s, open: false }))}>
-          <X />
-          Annuler
-        </DropdownMenuItem>
+        {pendingPickup !== null && (
+          <DropdownMenuItem onClick={() => { setPendingPickup(null); setCtxMenu((s)=>({ ...s, open: false })); }}>
+            <X />
+            Annuler la demande en cours
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
     </>
