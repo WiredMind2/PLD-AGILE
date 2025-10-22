@@ -1,7 +1,7 @@
 // DeliveryMap.tsx
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -183,6 +183,8 @@ export default function DeliveryMap({
       y: e.originalEvent.clientY,
       latlng: [e.latlng.lat, e.latlng.lng],
     });
+  };
+
   // Component to handle map click events
   function MapClickHandler() {
     useMapEvents({
@@ -340,8 +342,9 @@ export default function DeliveryMap({
   return (
     <>
     <MapContainer center={center} zoom={zoom} style={style}>
-      {/* Right-click listener */}
+      {/* Right-click + click listeners */}
       <MapRightClickHandler onContextMenu={handleMapContextMenu} />
+      <MapClickHandler />
       <TileLayer
         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -432,14 +435,14 @@ export default function DeliveryMap({
     </MapContainer>
 
     {/* Context dropdown menu at cursor position */}
-    <DropdownMenu open={ctxMenu.open} onOpenChange={(o) => setCtxMenu((s) => ({ ...s, open: o }))}>
+    <DropdownMenu open={ctxMenu.open} onOpenChange={(o: boolean) => setCtxMenu((s) => ({ ...s, open: o }))}>
       <DropdownMenuContent
         align="start"
         sideOffset={4}
         // Position absolutely at the cursor using a fixed portal
         style={{ position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, zIndex: 1000 }}
         className="min-w-[14rem] p-2"
-        onCloseAutoFocus={(e) => e.preventDefault()}
+  onCloseAutoFocus={(e: React.FocusEvent) => e.preventDefault()}
       >
         <DropdownMenuLabel className="text-xs opacity-70">
           {pendingPickup
