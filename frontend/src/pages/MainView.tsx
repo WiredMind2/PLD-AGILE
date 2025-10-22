@@ -345,9 +345,31 @@ export default function MainView(): JSX.Element {
                     
                     res.forEach((t: any) => {
                       const courier = t.courier;
-                      if (courier && courier.current_location) {
+                      // Find courier start position from the deliveries' warehouse field
+                      // Many map uploads register the warehouse on each delivery (map.deliveries[].warehouse)
+                      // We search the loaded map deliveries for a matching warehouse id === courier.id
+                      const getCourierStartFromWarehouse = (c: any) => {
+                        if (!c) return null;
+                        try {
+                          if (map && Array.isArray(map.deliveries)) {
+                            const match = map.deliveries.find((d: any) => {
+                              const whId = d?.warehouse?.id ?? d?.warehouse;
+                              return whId && String(whId) === String(c.id);
+                            });
+                            if (match && match.warehouse && typeof match.warehouse.latitude === 'number' && typeof match.warehouse.longitude === 'number') {
+                              return [match.warehouse.latitude, match.warehouse.longitude] as [number, number];
+                            }
+                          }
+                        } catch (e) {
+                          // ignore and fall through to null
+                        }
+                        return null;
+                      };
+
+                      const startPos = getCourierStartFromWarehouse(courier);
+                      if (startPos) {
                         const cid = `courier-${courier.id}`;
-                        points.push({ id: cid, position: [courier.current_location.latitude, courier.current_location.longitude], address: 'Courier start (warehouse)', type: 'courier', status: 'active' });
+                        points.push({ id: cid, position: startPos, address: 'Courier start (warehouse)', type: 'courier', status: 'active' });
                       }
                       
                       // t.deliveries is an array of tuples: [[pickup_id, delivery_id], ...]
@@ -404,6 +426,36 @@ export default function MainView(): JSX.Element {
                           return { id: t.courier?.id ?? `route-${idx}`, color: colors[idx % colors.length], positions };
                         }).filter((r: any) => r.positions && r.positions.length > 0);
                         setRoutes(builtRoutes);
+
+                        // Ensure courier markers are placed at the start of each built route
+                        // The first node in `positions` is the courier's start (and last is the end)
+                        try {
+                          setDeliveryPoints((prev) => {
+                            const base = prev ? [...prev] : [];
+                            builtRoutes.forEach((route) => {
+                              if (!route.positions || route.positions.length === 0) return;
+                              const startPos = route.positions[0];
+                              const cid = `courier-${String(route.id)}`;
+                              const existingIndex = base.findIndex((p) => p.id === cid);
+                              const courierPoint: DeliveryPoint = {
+                                id: cid,
+                                position: startPos,
+                                address: 'Courier start (warehouse)',
+                                type: 'courier',
+                                status: 'active',
+                              };
+                              if (existingIndex >= 0) {
+                                // update existing marker position
+                                base[existingIndex] = { ...base[existingIndex], position: startPos, status: 'active' };
+                              } else {
+                                base.push(courierPoint);
+                              }
+                            });
+                            return base;
+                          });
+                        } catch (e) {
+                          console.error('Failed to place courier markers on map:', e);
+                        }
                       } else {
                         setRoutes([]);
                       }
@@ -608,13 +660,7 @@ export default function MainView(): JSX.Element {
 
                             await addCourier({
                               id: `C${Date.now()}`,
-                              name,
-                              current_location:
-                                map?.intersections?.[0] ?? {
-                                  id: '0',
-                                  latitude: mapCenter[0],
-                                  longitude: mapCenter[1],
-                                },
+                              name
                             });
                           } catch (e) {
                             // handled globally

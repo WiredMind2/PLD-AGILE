@@ -21,9 +21,7 @@ package "app.models.schemas" {
 
     DATACLASS Courrier {
         +id: str
-        +current_location: Intersection
         +name: str
-        +phone_number: str
     }
 
     DATACLASS RoadSegment {
@@ -135,7 +133,6 @@ package "app.core" {
 ' ========== RELATIONSHIPS ==========
 
 ' Core relationships
-Courrier -- Intersection : current_location
 RoadSegment <-- Intersection : end/start
 Delivery -- Intersection : pickup_addr
 Delivery -- Intersection : delivery_addr
