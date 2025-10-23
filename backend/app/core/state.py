@@ -1,7 +1,9 @@
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from threading import Lock
 import os
 import pickle
+import re
+from datetime import datetime
 
 try:
     from app.models.schemas import Map, Delivery, Courrier, Tour
@@ -17,6 +19,8 @@ _data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data'
 os.makedirs(_data_dir, exist_ok=True)
 _map_file = os.path.join(_data_dir, 'map.pkl')
 _tours_file = os.path.join(_data_dir, 'tours.pkl')
+_saved_dir = os.path.join(_data_dir, 'saved_tours')
+os.makedirs(_saved_dir, exist_ok=True)
 
 
 def set_map(m: Map) -> None:
@@ -154,3 +158,86 @@ def load_state() -> None:
 
         except Exception:
             _tours = []
+
+
+# ---------------------- Named snapshots (Saved Tours) ----------------------
+
+_SAFE_NAME_RE = re.compile(r"[^a-zA-Z0-9_-]+")
+
+
+def _sanitize_name(name: str) -> str:
+    """Make a filesystem-safe name."""
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("Empty name not allowed")
+    safe = _SAFE_NAME_RE.sub("_", name)
+    return safe[:128]
+
+
+def save_snapshot(name: str) -> Dict[str, Any]:
+    """Save the current map and tours into a named snapshot."""
+    with _lock:
+        if _current_map is None:
+            raise RuntimeError("No map loaded")
+
+        safe = _sanitize_name(name)
+        path = os.path.join(_saved_dir, f"{safe}.pkl")
+        payload = {
+            "saved_at": datetime.utcnow(),
+            "name": safe,
+            "map": _current_map,
+            "tours": list(_tours),
+        }
+        with open(path, 'wb') as f:
+            pickle.dump(payload, f)
+
+        stat = os.stat(path)
+        return {
+            "name": safe,
+            "saved_at": payload["saved_at"].isoformat() + "Z",
+            "size_bytes": stat.st_size,
+        }
+
+
+def list_snapshots() -> List[Dict[str, Any]]:
+    """List saved snapshots with metadata."""
+    entries: List[Dict[str, Any]] = []
+    for fname in sorted(os.listdir(_saved_dir)):
+        if not fname.endswith('.pkl'):
+            continue
+        fpath = os.path.join(_saved_dir, fname)
+        try:
+            with open(fpath, 'rb') as f:
+                payload = pickle.load(f)
+            name = payload.get('name') or os.path.splitext(fname)[0]
+            saved_at = payload.get('saved_at')
+            if isinstance(saved_at, datetime):
+                saved_str = saved_at.isoformat() + "Z"
+            else:
+                saved_str = str(saved_at)
+            stat = os.stat(fpath)
+            entries.append({
+                "name": name,
+                "saved_at": saved_str,
+                "size_bytes": stat.st_size,
+            })
+        except Exception:
+            # skip unreadable/legacy file
+            continue
+    # most recent first
+    entries.sort(key=lambda e: e.get('saved_at') or '', reverse=True)
+    return entries
+
+
+def load_snapshot(name: str) -> None:
+    """Load a named snapshot into memory (map + tours)."""
+    global _current_map, _tours
+    safe = _sanitize_name(name)
+    path = os.path.join(_saved_dir, f"{safe}.pkl")
+    if not os.path.isfile(path):
+        raise FileNotFoundError("Snapshot not found")
+    with _lock:
+        with open(path, 'rb') as f:
+            payload = pickle.load(f)
+        _current_map = payload.get('map')
+        _tours = payload.get('tours') or []

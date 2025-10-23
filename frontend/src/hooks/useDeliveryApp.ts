@@ -297,6 +297,54 @@ export function useDeliveryApp() {
     }
   }, [handleError]);
 
+  // Saved tours (named snapshots)
+  const listSavedTours = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      return await apiClient.listSavedTours();
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [handleError]);
+
+  const saveNamedTour = useCallback(async (name: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await apiClient.saveNamedTour(name);
+      return res;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [handleError]);
+
+  const loadNamedTour = useCallback(async (name: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await apiClient.loadNamedTour(name);
+      const st = (res && (res as any).state) || (await apiClient.getState());
+      const mp = st?.map ?? null;
+      setMap(mp as Map | null);
+      setCouriersState((st?.couriers ?? []) as Courier[]);
+      setDeliveries((st?.deliveries ?? []) as Delivery[]);
+      setToursState((st?.tours ?? []) as Tour[]);
+      return st;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [handleError]);
+
   // Computed values
   const stats = {
     activeCouriers: couriersState.length,
@@ -330,6 +378,9 @@ export function useDeliveryApp() {
   createRequestFromCoords,
 
     clearServerState,
+    listSavedTours,
+    saveNamedTour,
+    loadNamedTour,
     
     // Utils
     clearError: () => setError(null),

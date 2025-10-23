@@ -20,14 +20,3 @@ def get_state():
 def clear_state():
     state.clear_state()
     return {"detail": "state cleared"}
-
-@router.post('/save', tags=["State"], summary="Persist state", description="Persist current map and tours to disk.")
-def save_state():
-    state.persist_state()
-    return {"detail": "state persisted"}
-
-
-@router.post('/load', tags=["State"], summary="Load persisted state", description="Load persisted map and tours from disk into memory.")
-def load_state():
-    state.load_state()
-    return {"detail": "state loaded"}

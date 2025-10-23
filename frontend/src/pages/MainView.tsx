@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Map, Truck, Clock, Save, Plus, Route, Upload, Timer, Package, Activity, Trash2, Eye, EyeOff } from 'lucide-react'
+import { Map, Truck, Clock, Save, Plus, Route, Upload, Timer, Package, Activity, Trash2, Eye, EyeOff, Download, RefreshCw } from 'lucide-react'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import DeliveryMap, { DeliveryPoint } from '@/components/ui/delivery-map'
 import { useState, useRef, useEffect } from 'react'
@@ -37,19 +37,27 @@ export default function MainView(): JSX.Element {
   clearServerState,
   assignDeliveryToCourier,
   createRequestFromCoords,
+  listSavedTours,
+  saveNamedTour,
+  loadNamedTour,
   } = useDeliveryApp();
 
   useEffect(() => {
     clearServerState();
+    // Load saved tours list initially
+    refreshSavedTours();
   }, []);
 
   const [deliveryPoints, setDeliveryPoints] = useState<DeliveryPoint[]>();
-  const [computeNotice, setComputeNotice] = useState<string | null>(null);
   const [successAlert, setSuccessAlert] = useState<string | null>(null);
-  const [routes, setRoutes] = useState<{ id: string; color?: string; positions: [number, number][] }[]>([]);
+  const [routes, setRoutes] = useState<{ id: string; courierId?: string; color?: string; positions: [number, number][] }[]>([]);
   const [showSegmentLabels, setShowSegmentLabels] = useState<boolean>(false);
   // per-courier route visibility (true = hidden)
   const [hiddenRoutes, setHiddenRoutes] = useState<Record<string, boolean>>({});
+  // Saved tours state
+  const [savedTours, setSavedTours] = useState<Array<{ name: string; saved_at?: string; size_bytes?: number }>>([]);
+  const [openSaveSheet, setOpenSaveSheet] = useState(false);
+  const [saveName, setSaveName] = useState('');
 
   const toggleRouteVisibility = (courierId: string) => {
     setHiddenRoutes((prev) => ({ ...prev, [String(courierId)]: !prev[String(courierId)] }));
@@ -160,6 +168,13 @@ export default function MainView(): JSX.Element {
     }
   };
 
+  const refreshSavedTours = async () => {
+    try {
+      const lst = await listSavedTours?.();
+      if (Array.isArray(lst)) setSavedTours(lst as any);
+    } catch (e) {}
+  };
+
   const handleRequestsFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const input = event.currentTarget as HTMLInputElement;
     const file = input.files?.[0];
@@ -267,6 +282,75 @@ export default function MainView(): JSX.Element {
       // error is handled globally via hook
     }
   };
+
+  // Helper: Rebuild markers and routes from state (map + tours)
+  const rebuildFromState = (currentMap: any, currentTours: any[]) => {
+    try {
+      // Build points from deliveries
+      const points: DeliveryPoint[] = [];
+      const getCoords = (addr: any): [number, number] | null => {
+        if (!addr) return null;
+        if (typeof addr === 'string') {
+          const inter = currentMap?.intersections?.find((i: any) => String(i.id) === String(addr));
+          return inter ? [inter.latitude, inter.longitude] : null;
+        }
+        if (typeof addr.latitude === 'number' && typeof addr.longitude === 'number') {
+          return [addr.latitude, addr.longitude];
+        }
+        return null;
+      };
+      (currentMap?.deliveries || []).forEach((d: any) => {
+        const p1 = getCoords(d.pickup_addr);
+        const p2 = getCoords(d.delivery_addr);
+        if (p1) points.push({ id: `pickup-${d.id}`, position: p1, address: 'Pickup Location', type: 'pickup', status: 'pending' });
+        if (p2) points.push({ id: `delivery-${d.id}`, position: p2, address: 'Delivery Location', type: 'delivery', status: 'pending' });
+        const wh = d.warehouse;
+        if (wh && typeof wh.latitude === 'number' && typeof wh.longitude === 'number') {
+          const cid = `courier-${String(wh.id)}`;
+          if (!points.some((p) => p.id === cid)) {
+            points.push({ id: cid, position: [wh.latitude, wh.longitude], address: 'Courier start (warehouse)', type: 'courier', status: 'active' });
+          }
+        }
+      });
+      setDeliveryPoints(points);
+
+      // Build routes from tours
+      const colors = ['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6'];
+      const builtRoutes = (currentTours || []).map((t: any, idx: number) => {
+        const ids: string[] = Array.isArray(t.route_intersections) ? t.route_intersections : [];
+        const positions: [number, number][] = ids
+          .map((nodeId: string) => {
+            const inter = currentMap?.intersections?.find((i: any) => String(i.id) === String(nodeId));
+            return inter ? ([inter.latitude, inter.longitude] as [number, number]) : null;
+          })
+          .filter(Boolean) as [number, number][];
+        const courierId = String(t.courier?.id ?? 'route');
+        return { id: `${courierId}-${idx}`, courierId, color: colors[idx % colors.length], positions };
+      }).filter((r: any) => r.positions && r.positions.length > 0);
+      setRoutes(builtRoutes);
+
+      // Drop courier markers at route starts
+      setDeliveryPoints((prev) => {
+        const base = prev ? [...prev] : [];
+        builtRoutes.forEach((r) => {
+          if (!r.positions || r.positions.length === 0) return;
+          const startPos = r.positions[0];
+          const cid = `courier-${String(r.id)}`;
+          const idx = base.findIndex((p) => p.id === cid);
+          const pt: DeliveryPoint = { id: cid, position: startPos, address: 'Courier start (warehouse)', type: 'courier', status: 'active' };
+          if (idx >= 0) base[idx] = { ...base[idx], position: startPos, status: 'active' } as any;
+          else base.push(pt);
+        });
+        return base;
+      });
+
+      // Center map
+      const firstPoint = (builtRoutes[0]?.positions?.[0]) || (currentMap?.intersections?.[0] ? [currentMap.intersections[0].latitude, currentMap.intersections[0].longitude] : null);
+      if (firstPoint) setMapCenter(firstPoint as [number, number]);
+    } catch (e) {
+      // ignore rebuild failures
+    }
+  };
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-cyan-50 dark:from-gray-950 ">
       {/* Hidden file input for map upload */}
@@ -331,7 +415,14 @@ export default function MainView(): JSX.Element {
               <Upload className="h-4 w-4" />
               {loading ? 'Loading...' : 'Load Map (XML)'}
             </Button>
-            <Button size="sm" variant="outline" className="gap-2 border-cyan-200 text-cyan-600  dark:border-cyan-800 dark:text-cyan-400">
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="gap-2 border-cyan-200 text-cyan-600  dark:border-cyan-800 dark:text-cyan-400"
+              onClick={() => setOpenSaveSheet(true)}
+              disabled={loading || !map}
+              title={!map ? 'Load a map and compute tours first' : undefined}
+            >
               <Save className="h-4 w-4" />
               Save Tours
             </Button>
@@ -344,7 +435,7 @@ export default function MainView(): JSX.Element {
                 try {
                   const res = await computeTours?.();
                   console.log('Compute tours response:', res);
-                  setComputeNotice(null);
+                  // clear any previous notices (deprecated)
                   if (res && Array.isArray(res)) {
                     const points: DeliveryPoint[] = [];
                     const deliveryIdCounter = { count: 0 }; // Counter for generating unique delivery IDs
@@ -415,21 +506,21 @@ export default function MainView(): JSX.Element {
                       // pan to first point if any
                       setMapCenter(points[0].position);
                     } else {
-                      // do not clear existing points — show a notice so user knows nothing was computed
-                      setComputeNotice('No tours were computed (no couriers or no assignable deliveries). Make sure the map includes couriers/warehouses and deliveries.');
+                      // do not clear existing points — keep markers unchanged
                       console.warn('Compute returned empty tour list; leaving existing markers unchanged.');
                     }
                     // build route polylines from returned tours
                     try {
                       if (res && Array.isArray(res) && res.length > 0 && map) {
                         const colors = ['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6'];
-                        const builtRoutes = res.map((t: any, idx: number) => {
+                          const builtRoutes = res.map((t: any, idx: number) => {
                           const ids: string[] = Array.isArray(t.route_intersections) ? t.route_intersections : [];
                           const positions: [number, number][] = ids.map((nodeId: string) => {
                             const inter = map.intersections.find((i: any) => String(i.id) === String(nodeId));
                             return inter ? [inter.latitude, inter.longitude] as [number, number] : null;
                           }).filter(Boolean) as [number, number][];
-                          return { id: t.courier?.id ?? `route-${idx}`, color: colors[idx % colors.length], positions };
+                            const courierId = String(t.courier?.id ?? `route`);
+                            return { id: `${courierId}-${idx}`, courierId, color: colors[idx % colors.length], positions };
                         }).filter((r: any) => r.positions && r.positions.length > 0);
                         setRoutes(builtRoutes);
 
@@ -573,7 +664,7 @@ export default function MainView(): JSX.Element {
                   showRoadNetwork={false}
                   showSegmentLabels={showSegmentLabels}
                   // filter out routes that have been hidden by the user
-                  routes={routes.filter((r) => !hiddenRoutes[String(r.id)])}
+                  routes={routes.filter((r) => !hiddenRoutes[String((r as any).courierId ?? r.id)])}
                   onPointClick={handlePointClick}
                   onCreateRequestFromCoords={async (pickup, delivery) => {
                     if (!map) return;
@@ -830,7 +921,7 @@ export default function MainView(): JSX.Element {
           </CardContent>
         </Card>
 
-        {/* New Delivery Request Sheet */}
+  {/* New Delivery Request Sheet */}
         <Sheet open={openNewReq} onOpenChange={setOpenNewReq}>
           <SheetContent side="right" className="sm:max-w-md">
             <SheetHeader>
@@ -906,32 +997,99 @@ export default function MainView(): JSX.Element {
           </SheetContent>
         </Sheet>
 
-        {/* Tour Results Section */}
+        {/* Saved Tours Section */}
         <Card className="border-indigo-200 dark:border-indigo-800 shadow-lg">
           <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950 dark:to-purple-950 mb-6">
             <CardTitle className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300">
               <Route className="h-5 w-5 text-indigo-600" />
-              Optimized Tours
+              Saved Tours
             </CardTitle>
             <CardDescription className="text-indigo-600 dark:text-indigo-400">
-              Computed delivery tours with addresses, arrival and departure times
+              Save and load full sessions (map, deliveries, couriers, and tours)
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {computeNotice ? (
-              <div className="p-4 bg-yellow-50 rounded-md border border-yellow-200 text-yellow-800">{computeNotice}</div>
-            ) : (
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm text-indigo-700 dark:text-indigo-300">{savedTours.length} saved snapshot(s)</div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={refreshSavedTours}>
+                  <RefreshCw className="h-3.5 w-3.5 mr-1" /> Refresh
+                </Button>
+              </div>
+            </div>
+            {savedTours.length === 0 ? (
               <div className="h-32 rounded-lg bg-gradient-to-br from-indigo-100/50 to-purple-100/50 dark:from-indigo-900/30 dark:to-purple-900/30 border-2 border-dashed border-indigo-300/50 dark:border-indigo-700/50 flex items-center justify-center">
                 <div className="text-center space-y-2">
                   <Route className="h-8 w-8 text-indigo-500 mx-auto" />
-                  <p className="text-sm text-indigo-600 dark:text-indigo-400">No optimized tours</p>
-                  <p className="text-xs text-indigo-500 dark:text-indigo-500">Add requests and optimize to see results</p>
+                  <p className="text-sm text-indigo-600 dark:text-indigo-400">No saved tours yet</p>
+                  <p className="text-xs text-indigo-500 dark:text-indigo-500">Click "Save Tours" to create a snapshot</p>
                 </div>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-56 overflow-auto rounded-md border border-indigo-200 dark:border-indigo-800 divide-y divide-indigo-100 dark:divide-indigo-900">
+                {savedTours.map((s) => (
+                  <div key={s.name} className="flex items-center justify-between px-3 py-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-indigo-800 dark:text-indigo-200 truncate">{s.name}</div>
+                      <div className="text-xs text-indigo-600 dark:text-indigo-400 truncate">{s.saved_at ? new Date(s.saved_at).toLocaleString() : ''}</div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" className="gap-1" onClick={async () => {
+                        try {
+                          const st = await loadNamedTour?.(s.name);
+                          if (st?.map) {
+                            rebuildFromState(st.map, st.tours || []);
+                            setSuccessAlert(`Loaded \"${s.name}\"`);
+                            setTimeout(() => setSuccessAlert(null), 4000);
+                          }
+                        } catch (e) {}
+                      }}>
+                        <Download className="h-3.5 w-3.5" /> Load
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Save Tours Sheet */}
+      <Sheet open={openSaveSheet} onOpenChange={setOpenSaveSheet}>
+        <SheetContent side="right" className="sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>Save Current Tours</SheetTitle>
+            <SheetDescription>Give your snapshot a name. It will include the map, deliveries, couriers, and tours.</SheetDescription>
+          </SheetHeader>
+          <div className="mt-6 space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Save name</label>
+              <Input placeholder="e.g. run-2025-10-23" value={saveName} onChange={(e) => setSaveName(e.target.value)} />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setOpenSaveSheet(false)}>Cancel</Button>
+              <Button
+                type="button"
+                disabled={!saveName || loading || !map}
+                onClick={async () => {
+                  try {
+                    await saveNamedTour?.(saveName);
+                    setOpenSaveSheet(false);
+                    setSaveName('');
+                    await refreshSavedTours();
+                    setSuccessAlert('Tours saved successfully');
+                    setTimeout(() => setSuccessAlert(null), 3000);
+                  } catch (e) {}
+                }}
+                className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+              >
+                <Save className="h-4 w-4 mr-1" /> Save
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
       {successAlert && (
         <div className="fixed right-6 bottom-6 z-50 w-80">
           <Alert>
