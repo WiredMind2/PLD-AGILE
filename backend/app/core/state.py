@@ -44,53 +44,63 @@ def list_deliveries() -> List[Delivery]:
 def add_delivery(delivery: Delivery) -> None:
     if _current_map is None:
         raise RuntimeError('No map loaded')
+
     _current_map.add_delivery(delivery)
 
 
 def remove_delivery(delivery_id: str) -> bool:
     if _current_map is None:
         return False
-    for i, d in enumerate(_current_map.deliveries):
-        if getattr(d, 'id', None) == delivery_id:
+
+    for i, delivery in enumerate(_current_map.deliveries):
+        if getattr(delivery, 'id', None) == delivery_id:
             del _current_map.deliveries[i]
             return True
+
     return False
 
 
 def update_delivery(delivery_id: str, **kwargs) -> bool:
     if _current_map is None:
         return False
-    for d in _current_map.deliveries:
-        if getattr(d, 'id', None) == delivery_id:
+    
+    for delivery in _current_map.deliveries:
+        if getattr(delivery, 'id', None) == delivery_id:
             for k, v in kwargs.items():
                 try:
-                    setattr(d, k, v)
+                    setattr(delivery, k, v)
                 except Exception:
                     # ignore invalid attributes
                     pass
+
             return True
+
     return False
 
 
 def list_couriers() -> List[Courrier]:
     if _current_map is None:
         return []
+
     return _current_map.couriers
 
 
 def add_courier(c: Courrier) -> None:
     if _current_map is None:
         raise RuntimeError('No map loaded')
+
     _current_map.add_courier(c)
 
 
 def remove_courier(courier_id: str) -> bool:
     if _current_map is None:
         return False
-    for i, c in enumerate(_current_map.couriers):
-        if getattr(c, 'id', None) == courier_id:
+
+    for i, courier in enumerate(_current_map.couriers):
+        if getattr(courier, 'id', None) == courier_id:
             del _current_map.couriers[i]
             return True
+
     return False
 
 
@@ -114,6 +124,7 @@ def persist_state() -> None:
     with _lock:
         with open(_map_file, 'wb') as f:
             pickle.dump(_current_map, f)
+
         with open(_tours_file, 'wb') as f:
             pickle.dump(_tours, f)
 
@@ -132,11 +143,14 @@ def load_state() -> None:
             if os.path.isfile(_map_file):
                 with open(_map_file, 'rb') as f:
                     _current_map = pickle.load(f)
+
         except Exception:
             _current_map = None
+
         try:
             if os.path.isfile(_tours_file):
                 with open(_tours_file, 'rb') as f:
                     _tours = pickle.load(f) or []
+
         except Exception:
             _tours = []

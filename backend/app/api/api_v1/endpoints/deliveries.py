@@ -21,14 +21,14 @@ async def upload_deliveries_file(file: UploadFile):
         data = await file.read()
         text = data.decode('utf-8')
         deliveries = XMLParser.parse_deliveries(text)
+
         if not deliveries:
             raise HTTPException(status_code=400, detail='No deliveries parsed from file')
+
         for d in deliveries:
             state.add_delivery(d)
-        try:
-            print(f"[deliveries.upload_deliveries_file] added {len(deliveries)} deliveries from {file.filename}")
-        except Exception:
-            pass
+
+        print(f"[deliveries.upload_deliveries_file] added {len(deliveries)} deliveries from {file.filename}")
         return deliveries
     except HTTPException:
         raise

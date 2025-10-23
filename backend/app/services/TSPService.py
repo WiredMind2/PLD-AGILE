@@ -1,9 +1,7 @@
 """Simple TSPService wrapper used by endpoints.
 
 This service currently implements a simple, deterministic compute_tours()
-method which assigns deliveries to couriers in a round-robin fashion and
-creates `Tour` objects saved into `app.state`. This keeps endpoints
-functional while leaving the advanced solver in `app.utils.TSP` intact.
+method which creates `Tour` objects saved into `app.state`.
 """
 
 from typing import List, Set, Dict, Any, Tuple, cast
@@ -81,33 +79,7 @@ class TSPService:
             raise RuntimeError("No map loaded")
 
         deliveries: List[Delivery] = list(mp.deliveries)
-        couriers: List[Courrier] = list(mp.couriers)
-
-        # If no couriers are registered but deliveries include a warehouse
-        # we create a default courier located at the first warehouse found.
-        # This makes the `compute_tours` endpoint usable with map + requests
-        # even when the XML map did not include explicit courier entries.
-        if not couriers:
-            print("[TSPService] No couriers found in map; creating default courier at first warehouse.")
-
-            try:
-                # build a simple Courrier object and add it to map
-                default_courier = Courrier(
-                    id="C1", name="C1"
-                )
-                try:
-                    mp.add_courier(default_courier)
-                except Exception:
-                    # fallback: if Map doesn't expose add_courier, mutate list directly
-                    try:
-                        mp.couriers.append(default_courier)
-                    except Exception:
-                        pass
-                couriers = [default_courier]
-            except Exception:
-                # if anything goes wrong just return empty result
-                return []
-
+        
         # Graph for shortest paths
         G_map = self._build_nx_graph_from_map(mp)
 
@@ -120,6 +92,8 @@ class TSPService:
         tsp = TSP()
         tours_result: Dict[str, Tour] = {}  # Use courier ID as key instead of Courrier object
 
+        # assign deliveries to couriers and build Tour objects
+        # ignore unassigned deliveries
         for d in deliveries:
             if d.courier is None:
                 # ignore unassigned deliveries
@@ -147,6 +121,7 @@ class TSPService:
             tours_result[courier_id].add_deliveries(pickup_delivery_pairs)
 
 
+        # expand each Tour using TSP solver
         results_list: List[Tour] = []
         for courier_id, tour in list(tours_result.items()):
             # collect assigned deliveries for this courier
@@ -198,10 +173,8 @@ class TSPService:
 
                 if warehouse_node and warehouse_node in map_nodes:
                     depot_node = warehouse_node
-                else:
-                    depot_node = None
             except Exception:
-                depot_node = None
+                pass
 
             # run solver on the Tour object with the depot as start_node
             try:
@@ -224,13 +197,11 @@ class TSPService:
             except Exception:
                 full_route, full_cost = compact_tour, compact_cost
 
-            # Note: The tour should already start and end at depot_node if it was provided
-            # No need for additional rotation logic since solve() handles this
-
             # attach expanded intersection route and totals to the existing Tour
             try:
                 tour.route_intersections = list(full_route) if isinstance(full_route, list) else []
             except Exception:
+                print("[TSPService.compute_tours] failed to set route_intersections")
                 tour.route_intersections = []
 
             tour.total_distance_m = float(full_cost)

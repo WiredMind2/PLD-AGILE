@@ -14,11 +14,13 @@ def compute_tour(courier_id: str):
     mp = state.get_map()
     if mp is None:
         raise HTTPException(status_code=400, detail='No map loaded')
+
     try:
         svc = TSPService()
         tours = svc.compute_tours()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
     return tours
 
 
@@ -28,11 +30,13 @@ def compute_all_tours():
     mp = state.get_map()
     if mp is None:
         raise HTTPException(status_code=400, detail='No map loaded')
+
     try:
         svc = TSPService()
         tours = svc.compute_tours()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
     return tours
 
 
@@ -47,6 +51,7 @@ def get_tour(courier_id: str):
     filtered = [t for t in tours if getattr(t.courier, 'id', None) == courier_id]
     if not filtered:
         raise HTTPException(status_code=404, detail='No tour found for courier')
+
     return filtered
 
 

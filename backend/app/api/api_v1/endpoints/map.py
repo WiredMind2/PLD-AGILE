@@ -17,6 +17,7 @@ async def upload_map(file: UploadFile):
         data = await file.read()
         text = data.decode("utf-8")
         mp = XMLParser.parse_map(text)
+
         # build adjacency if the Map has the method
         try:
             mp.build_adjacency()
@@ -24,7 +25,9 @@ async def upload_map(file: UploadFile):
             raise HTTPException(status_code=400, detail=str(e))
         finally:
             state.set_map(mp)
+
         return mp
+
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -34,4 +37,5 @@ def get_map():
     mp = state.get_map()
     if mp is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No map loaded')
+
     return mp
