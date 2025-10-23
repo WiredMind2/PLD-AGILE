@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Map, Truck, Clock, Save, Plus, Route, Upload, Timer, Package, Activity, Trash2 } from 'lucide-react'
+import { Map, Truck, Clock, Save, Plus, Route, Upload, Timer, Package, Activity, Trash2, Eye, EyeOff } from 'lucide-react'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import DeliveryMap, { DeliveryPoint } from '@/components/ui/delivery-map'
 import { useState, useRef, useEffect } from 'react'
@@ -48,6 +48,12 @@ export default function MainView(): JSX.Element {
   const [successAlert, setSuccessAlert] = useState<string | null>(null);
   const [routes, setRoutes] = useState<{ id: string; color?: string; positions: [number, number][] }[]>([]);
   const [showSegmentLabels, setShowSegmentLabels] = useState<boolean>(false);
+  // per-courier route visibility (true = hidden)
+  const [hiddenRoutes, setHiddenRoutes] = useState<Record<string, boolean>>({});
+
+  const toggleRouteVisibility = (courierId: string) => {
+    setHiddenRoutes((prev) => ({ ...prev, [String(courierId)]: !prev[String(courierId)] }));
+  };
   
   const handlePointClick = (point: any) => {
     console.log('Clicked delivery point:', point);
@@ -566,7 +572,8 @@ export default function MainView(): JSX.Element {
                   height="500px"
                   showRoadNetwork={false}
                   showSegmentLabels={showSegmentLabels}
-                  routes={routes}
+                  // filter out routes that have been hidden by the user
+                  routes={routes.filter((r) => !hiddenRoutes[String(r.id)])}
                   onPointClick={handlePointClick}
                   onCreateRequestFromCoords={async (pickup, delivery) => {
                     if (!map) return;
@@ -700,7 +707,11 @@ export default function MainView(): JSX.Element {
                                   <div className="text-xs text-purple-600 dark:text-purple-400 truncate">Requests: {counts[String(c.id)] ?? 0}</div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <Button size="sm" variant="outline" onClick={async () => { try { await deleteCourier(String(c.id)); } catch (e) {} }}>
+                                  {/* Toggle route visibility */}
+                                  <Button size="sm" variant="outline" onClick={() => toggleRouteVisibility(c.id)} title={hiddenRoutes[String(c.id)] ? 'Show route' : 'Hide route'}>
+                                    {hiddenRoutes[String(c.id)] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                  </Button>
+                                  <Button size="sm" variant="outline" onClick={async () => { try { await deleteCourier(String(c.id)); setHiddenRoutes((h) => { const copy = { ...h }; delete copy[String(c.id)]; return copy; }); } catch (e) {} }}>
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </Button>
                                 </div>
