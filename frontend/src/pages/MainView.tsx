@@ -36,6 +36,7 @@ export default function MainView(): JSX.Element {
   couriers,
   clearServerState,
   assignDeliveryToCourier,
+  createRequestFromCoords,
   } = useDeliveryApp();
 
   useEffect(() => {
@@ -46,7 +47,7 @@ export default function MainView(): JSX.Element {
   const [computeNotice, setComputeNotice] = useState<string | null>(null);
   const [successAlert, setSuccessAlert] = useState<string | null>(null);
   const [routes, setRoutes] = useState<{ id: string; color?: string; positions: [number, number][] }[]>([]);
-  const [showSegmentLabels, setShowSegmentLabels] = useState<boolean>(true);
+  const [showSegmentLabels, setShowSegmentLabels] = useState<boolean>(false);
   
   const handlePointClick = (point: any) => {
     console.log('Clicked delivery point:', point);
@@ -319,7 +320,7 @@ export default function MainView(): JSX.Element {
               variant="outline" 
               className="gap-2 border-blue-200 text-blue-600 dark:border-blue-800 dark:text-blue-400"
               onClick={handleMapUpload}
-              disabled={loading}
+              disabled={loading || map !== null}
             >
               <Upload className="h-4 w-4" />
               {loading ? 'Loading...' : 'Load Map (XML)'}
@@ -484,7 +485,7 @@ export default function MainView(): JSX.Element {
               <Truck className="h-4 w-4 text-blue-200" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">1</div>
+              <div className="text-2xl font-bold">{couriers.length}</div>
               <p className="text-xs text-blue-200">Bicycle couriers</p>
             </CardContent>
           </Card>
@@ -567,6 +568,38 @@ export default function MainView(): JSX.Element {
                   showSegmentLabels={showSegmentLabels}
                   routes={routes}
                   onPointClick={handlePointClick}
+                  onCreateRequestFromCoords={async (pickup, delivery) => {
+                    if (!map) return;
+                    try {
+                      const res = await createRequestFromCoords?.(pickup, delivery);
+                      // Update markers immediately using returned nearest nodes
+                      if (res && res.pickupNode && res.deliveryNode) {
+                        setDeliveryPoints((prev) => {
+                          const base = prev ? [...prev] : [];
+                          const createdId = String((res.created as any)?.id ?? Date.now());
+                          base.push({
+                            id: `pickup-${createdId}`,
+                            position: [res.pickupNode.latitude, res.pickupNode.longitude],
+                            address: 'Pickup Location',
+                            type: 'pickup',
+                            status: 'pending',
+                          });
+                          base.push({
+                            id: `delivery-${createdId}`,
+                            position: [res.deliveryNode.latitude, res.deliveryNode.longitude],
+                            address: 'Delivery Location',
+                            type: 'delivery',
+                            status: 'pending',
+                          });
+                          return base;
+                        });
+                        setSuccessAlert('New delivery request created from map');
+                        setTimeout(() => setSuccessAlert(null), 4000);
+                      }
+                    } catch (e) {
+                      // Error already handled in hook
+                    }
+                  }}
                 />
               )}
             </CardContent>
@@ -594,6 +627,7 @@ export default function MainView(): JSX.Element {
                         size="sm" 
                         variant="outline" 
                         className="h-8 w-8 p-0 border-purple-200 text-purple-600"
+                        disabled={!map || loading}
                         onClick={async () => {
                           try {
                             // remove last courier if any
@@ -610,14 +644,24 @@ export default function MainView(): JSX.Element {
                         -
                       </Button>
                       <span className="text-lg font-semibold w-8 text-center text-purple-700 dark:text-purple-300">{stats.activeCouriers}</span>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
+                      <Button
+                        size="sm"
+                        variant="outline"
                         className="h-8 w-8 p-0 border-purple-200 text-purple-600"
+                        disabled={!map || loading}
                         onClick={async () => {
                           try {
-                            const name = `Courier ${stats.activeCouriers + 1}`;
-                            await addCourier({ name, id: `C${Date.now()}` });
+                            const existingNumbers = (couriers ?? [])
+                              .map((c: any) => Number(c.name?.match(/\d+$/)?.[0]))
+                              .filter(Boolean);
+
+                            const nextNum = existingNumbers.length ? Math.max(...existingNumbers) + 1 : 1;
+                            const name = `Courier ${nextNum}`;
+
+                            await addCourier({
+                              id: `C${Date.now()}`,
+                              name
+                            });
                           } catch (e) {
                             // handled globally
                           }
@@ -740,7 +784,7 @@ export default function MainView(): JSX.Element {
                             <SelectTrigger size="sm">
                               <SelectValue placeholder="Unassigned" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className='max-h-64 overflow-auto'>
                               <SelectItem value={"none"} key="none">Unassigned</SelectItem>
                               {(couriers || []).map((c: any) => (
                                 <SelectItem key={c.name} value={String(c.id)}>{c.name}</SelectItem>
