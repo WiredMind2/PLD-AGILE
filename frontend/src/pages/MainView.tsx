@@ -53,6 +53,37 @@ export default function MainView(): JSX.Element {
     console.log('Clicked delivery point:', point);
   };
 
+  // Helper to add pickup/delivery markers for a manually created delivery id
+  const addPickupDeliveryMarkers = (
+    createdId: string,
+    pickupPos: [number, number] | null,
+    deliveryPos: [number, number] | null,
+  ) => {
+    if (!pickupPos && !deliveryPos) return;
+    setDeliveryPoints((prev) => {
+      const base = prev ? [...prev] : [];
+      if (pickupPos) {
+        base.push({
+          id: `pickup-${createdId}`,
+          position: pickupPos,
+          address: 'Pickup Location',
+          type: 'pickup',
+          status: 'pending',
+        });
+      }
+      if (deliveryPos) {
+        base.push({
+          id: `delivery-${createdId}`,
+          position: deliveryPos,
+          address: 'Delivery Location',
+          type: 'delivery',
+          status: 'pending',
+        });
+      }
+      return base;
+    });
+  };
+
   const handleMapUpload = () => {
     fileInputRef.current?.click();
   };
@@ -261,28 +292,13 @@ export default function MainView(): JSX.Element {
       const res = await createRequestFromCoords(pickupCoord, deliveryCoord, { pickup_service_s: pickupService, delivery_service_s: deliveryService });
       // update map points
       if (res && res.pickupNode && res.deliveryNode) {
-                        setDeliveryPoints((prev) => {
-                          const base = prev ? [...prev] : [];
-                          const createdId = String((res.created as any)?.id ?? Date.now());
-                          base.push({
-                            id: `pickup-${createdId}`,
-                            position: [res.pickupNode.latitude, res.pickupNode.longitude],
-                            address: 'Pickup Location',
-                            type: 'pickup',
-                            status: 'pending',
-                          });
-                          base.push({
-                            id: `delivery-${createdId}`,
-                            position: [res.deliveryNode.latitude, res.deliveryNode.longitude],
-                            address: 'Delivery Location',
-                            type: 'delivery',
-                            status: 'pending',
-                          });
-                          return base;
-                        });
-                        setSuccessAlert('New delivery request created from map');
-                        setTimeout(() => setSuccessAlert(null), 4000);
-                      }
+        const createdId = String((res.created as any)?.id ?? Date.now());
+        const pickupPos = [res.pickupNode.latitude, res.pickupNode.longitude] as [number, number];
+        const deliveryPos = [res.deliveryNode.latitude, res.deliveryNode.longitude] as [number, number];
+        addPickupDeliveryMarkers(createdId, pickupPos, deliveryPos);
+        setSuccessAlert('New delivery request created from form');
+        setTimeout(() => setSuccessAlert(null), 4000);
+      }
 
       // reset and close
       setPickupAddr('');
@@ -616,25 +632,10 @@ export default function MainView(): JSX.Element {
                       const res = await createRequestFromCoords?.(pickup, delivery);
                       // Update markers immediately using returned nearest nodes
                       if (res && res.pickupNode && res.deliveryNode) {
-                        setDeliveryPoints((prev) => {
-                          const base = prev ? [...prev] : [];
-                          const createdId = String((res.created as any)?.id ?? Date.now());
-                          base.push({
-                            id: `pickup-${createdId}`,
-                            position: [res.pickupNode.latitude, res.pickupNode.longitude],
-                            address: 'Pickup Location',
-                            type: 'pickup',
-                            status: 'pending',
-                          });
-                          base.push({
-                            id: `delivery-${createdId}`,
-                            position: [res.deliveryNode.latitude, res.deliveryNode.longitude],
-                            address: 'Delivery Location',
-                            type: 'delivery',
-                            status: 'pending',
-                          });
-                          return base;
-                        });
+                        const createdId = String((res.created as any)?.id ?? Date.now());
+                        const pickupPos = [res.pickupNode.latitude, res.pickupNode.longitude] as [number, number];
+                        const deliveryPos = [res.deliveryNode.latitude, res.deliveryNode.longitude] as [number, number];
+                        addPickupDeliveryMarkers(createdId, pickupPos, deliveryPos);
                         setSuccessAlert('New delivery request created from map');
                         setTimeout(() => setSuccessAlert(null), 4000);
                       }
@@ -808,7 +809,7 @@ export default function MainView(): JSX.Element {
                         <div className="min-w-0">
                           <div className="text-sm font-medium text-emerald-800 dark:text-emerald-200 truncate">Delivery {d.id}</div>
                           <div className="text-xs text-emerald-600 dark:text-emerald-400 truncate">
-                            Pickup: {pickupId} • Drop: {deliveryId} • svc: {d.pickup_service_s + d.delivery_service_s}s
+                            Pickup: {pickupId} • Drop: {deliveryId} • Service duration: {d.pickup_service_s + d.delivery_service_s}s
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
