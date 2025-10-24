@@ -666,10 +666,10 @@ export default function MainView(): JSX.Element {
                   // filter out routes that have been hidden by the user
                   routes={routes.filter((r) => !hiddenRoutes[String((r as any).courierId ?? r.id)])}
                   onPointClick={handlePointClick}
-                  onCreateRequestFromCoords={async (pickup, delivery) => {
+                  onCreateRequestFromCoords={async (pickup, delivery, options) => {
                     if (!map) return;
                     try {
-                      const res = await createRequestFromCoords?.(pickup, delivery);
+                      const res = await createRequestFromCoords?.(pickup, delivery, options);
                       // Update markers immediately using returned nearest nodes
                       if (res && res.pickupNode && res.deliveryNode) {
                         setDeliveryPoints((prev) => {
