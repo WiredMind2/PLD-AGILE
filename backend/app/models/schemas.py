@@ -90,20 +90,25 @@ class Map:
         self.couriers.append(courier)
 
     def build_adjacency(self) -> None:
-        """Construit la liste d’adjacence orientée (origine -> destination)."""
+        """Construit la liste d'adjacence orientée (origine -> destination)."""
         self.adjacency_list.clear()
         # build a lookup of intersections by id
         inter_by_id = {str(i.id): i for i in self.intersections}
+
         for seg in self.road_segments:
             # start/end may be Intersection objects or raw ids
             start_id = getattr(seg.start, 'id', seg.start)
             end_id = getattr(seg.end, 'id', seg.end)
+
             if start_id is None or end_id is None:
                 continue
+
             start_id = str(start_id)
             end_id = str(end_id)
             dst = inter_by_id.get(end_id)
+
             if dst is None:
                 # unknown destination; skip
                 continue
+
             self.adjacency_list.setdefault(start_id, []).append((dst, seg))

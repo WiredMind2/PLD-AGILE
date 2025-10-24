@@ -13,7 +13,6 @@ httpx
 idna
 iniconfig
 networkx
-ortools
 packaging
 pluggy
 pydantic

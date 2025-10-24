@@ -28,6 +28,29 @@ rectangle "Tour Planning System" as System {
     usecase UC_Restore      as "Restore Tours from File"
 
     usecase UC_addDeliveryManual as "Add a delivery request manually" <<core>>
+
+    ' --- Layout constraints: EXACT two HORIZONTAL ROWS (6 top, 5 bottom) ---
+    ' Top row (left -> right):
+    '   UC_Load, UC_Receive, UC_Compute, UC_addDeliveryManual, UC_DisplayTour, UC_Save
+    UC_Load -[hidden]right- UC_Receive
+    UC_Receive -[hidden]right- UC_Compute
+    UC_Compute -[hidden]right- UC_addDeliveryManual
+    UC_addDeliveryManual -[hidden]right- UC_DisplayTour
+    UC_DisplayTour -[hidden]right- UC_Save
+
+    ' Bottom row (left -> right):
+    '   UC_SetCouriers, UC_SelectCourier, UC_Pickup_Delivery, UC_ServiceTimes, UC_Restore
+    UC_SetCouriers -[hidden]right- UC_SelectCourier
+    UC_SelectCourier -[hidden]right- UC_Pickup_Delivery
+    UC_Pickup_Delivery -[hidden]right- UC_ServiceTimes
+    UC_ServiceTimes -[hidden]right- UC_Restore
+
+    ' Align rows vertically by columns (first five positions)
+    UC_Load -[hidden]down- UC_SetCouriers
+    UC_Receive -[hidden]down- UC_SelectCourier
+    UC_Compute -[hidden]down- UC_Pickup_Delivery
+    UC_addDeliveryManual -[hidden]down- UC_ServiceTimes
+    UC_DisplayTour -[hidden]down- UC_Restore
 }
 
 ' Actor → Use cases

@@ -145,6 +145,7 @@ interface DeliveryMapProps {
   onCreateRequestFromCoords?: (
     pickup: [number, number],
     delivery: [number, number]
+    , options?: { pickup_service_s?: number; delivery_service_s?: number }
   ) => Promise<void> | void;
 }
 
@@ -175,6 +176,10 @@ export default function DeliveryMap({
 
   // Two-click atomic creation: first set pickup, then set delivery and submit once
   const [pendingPickup, setPendingPickup] = useState<[number, number] | null>(null);
+
+  // Service durations in seconds (editable in context menu per step)
+  const [pickupDurationSec, setPickupDurationSec] = useState<number>(300); // default 5 min
+  const [deliveryDurationSec, setDeliveryDurationSec] = useState<number>(300); // default 5 min
 
   const handleMapContextMenu = (e: L.LeafletMouseEvent) => {
     setCtxMenu({
@@ -441,7 +446,7 @@ export default function DeliveryMap({
         sideOffset={4}
         // Position absolutely at the cursor using a fixed portal
         style={{ position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, zIndex: 1000 }}
-        className="min-w-[14rem] p-2"
+        className="min-w-[14rem] p-2 rounded-md border shadow-md bg-white text-neutral-900 border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-700"
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         <DropdownMenuLabel className="text-xs opacity-70">
@@ -451,6 +456,43 @@ export default function DeliveryMap({
               ? `Lat: ${ctxMenu.latlng[0].toFixed(5)}  Lng: ${ctxMenu.latlng[1].toFixed(5)}`
               : 'Position inconnue'}
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+
+        {/* Step-specific duration editor (seconds) */}
+        {pendingPickup === null ? (
+          <div className="mb-2 text-sm">
+            <label className="flex items-center justify-between gap-3">
+              <span className="text-neutral-700 dark:text-neutral-200">Durée pickup (sec)</span>
+              <input
+                type="number"
+                min={0}
+                step={5}
+                value={pickupDurationSec}
+                onChange={(e) => setPickupDurationSec(Math.max(0, Number(e.target.value)))}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+                className="w-24 rounded border px-2 py-1 text-right bg-white text-neutral-900 border-neutral-300 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-neutral-800 dark:text-neutral-100 dark:border-neutral-600 dark:placeholder:text-neutral-500 dark:focus:ring-blue-400"
+              />
+            </label>
+          </div>
+        ) : (
+          <div className="mb-2 text-sm">
+            <label className="flex items-center justify-between gap-3">
+              <span className="text-neutral-700 dark:text-neutral-200">Durée delivery (sec)</span>
+              <input
+                type="number"
+                min={0}
+                step={5}
+                value={deliveryDurationSec}
+                onChange={(e) => setDeliveryDurationSec(Math.max(0, Number(e.target.value)))}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+                className="w-24 rounded border px-2 py-1 text-right bg-white text-neutral-900 border-neutral-300 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-neutral-800 dark:text-neutral-100 dark:border-neutral-600 dark:placeholder:text-neutral-500 dark:focus:ring-blue-400"
+              />
+            </label>
+          </div>
+        )}
+
         <DropdownMenuSeparator />
         {pendingPickup === null ? (
           <DropdownMenuItem onClick={() => {
@@ -466,7 +508,10 @@ export default function DeliveryMap({
           <DropdownMenuItem onClick={async () => {
             if (ctxMenu.latlng && pendingPickup) {
               try {
-                await onCreateRequestFromCoords?.(pendingPickup, ctxMenu.latlng);
+                await onCreateRequestFromCoords?.(pendingPickup, ctxMenu.latlng, {
+                  pickup_service_s: pickupDurationSec,
+                  delivery_service_s: deliveryDurationSec,
+                });
               } catch (err) {
                 console.error('Create request from coords failed', err);
               } finally {

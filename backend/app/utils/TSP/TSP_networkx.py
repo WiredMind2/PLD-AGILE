@@ -1,23 +1,17 @@
-import heapq
 import os
 import sys
-from typing import Dict, List, Optional, Any, cast
+import random
+import math
+from typing import Dict, List, Optional, Any, cast, Tuple
 from types import SimpleNamespace
 
 from app.models.schemas import Tour
 
-try:
-    import networkx as nx
-    from networkx.algorithms import matching as nx_matching
-except Exception:
-    raise
-
-
-
+import networkx as nx
 
 class TSP:
     def __init__(self):
-        # No A* dependency here. We'll build a NetworkX graph from XML map
+        # We'll build a NetworkX graph from XML map
         # data and use NetworkX shortest-path routines which are C-optimized
         # and much faster than the Python A* implementation for this workload.
         # cache for the parsed/constructed map graph to avoid reparsing XML
@@ -182,14 +176,19 @@ class TSP:
         return G
 
     def solve(self, tour: Tour, start_node: Optional[str] = None):
-        """Construct a paired tour (pickup->delivery) then improve it while
-        preserving pickup-before-delivery precedence. This approach builds an
-        initial route by visiting each pickup followed immediately by its
-        delivery, selecting the next pickup greedily by metric distance from
-        the current location. After the greedy construction we run a
-        constrained 2-opt local search that only accepts changes which keep
-        every pickup before its corresponding delivery.
-
+        """Adaptive TSP solver that switches strategies based on problem size.
+        
+        Problem Size Strategy:
+        - Small (≤4 nodes): Fast greedy with light 2-opt
+        - Medium (5-12 nodes): Multi-heuristic with moderate local search
+        - Large (>12 nodes): Best single heuristic with focused 2-opt
+        
+        This implementation uses:
+        1. Multiple initial solution strategies (greedy, savings, nearest neighbor)
+        2. Enhanced local search with 2-opt, Or-Opt, and node insertion moves
+        3. Precedence constraints (pickup before delivery)
+        4. Adaptive iteration budgets based on problem complexity
+        
         The function uses NetworkX shortest-paths for pairwise distances and
         the existing metric builder `_build_metric_complete_graph` to obtain
         symmetric metric distances between the involved nodes.
@@ -204,6 +203,35 @@ class TSP:
         pd_pairs = list(tour.deliveries)
         if not pd_pairs:
             return [], 0.0
+        
+        # Determine problem size for adaptive strategy selection
+        num_nodes = len(pd_pairs) * 2  # Each pair has pickup + delivery
+        
+        # Adaptive parameters based on problem size
+        if num_nodes <= 4:
+            # Small problem: Fast greedy
+            strategy = "fast"
+            num_heuristics = 1
+            num_restarts = 1
+            iterations_per_restart = 200
+            use_simulated_annealing = False
+            use_or_opt = False
+        elif num_nodes <= 12:
+            # Medium problem: Balanced approach
+            strategy = "balanced"
+            num_heuristics = 2
+            num_restarts = 2
+            iterations_per_restart = 800
+            use_simulated_annealing = True
+            use_or_opt = True
+        else:
+            # Large problem: Best single heuristic, focused search
+            strategy = "focused"
+            num_heuristics = 1
+            num_restarts = 1
+            iterations_per_restart = 500
+            use_simulated_annealing = False
+            use_or_opt = False
 
         # Build the set/list of all involved nodes (pickups and deliveries)
         pickups = [p for p, _ in pd_pairs]
@@ -278,152 +306,395 @@ class TSP:
                 s += G[u][v]["weight"]
             return s
 
-        # Build initial greedy paired tour
-        # If start_node is provided, find the closest pickup point to it
-        if start_node is not None and start_node in G.nodes():
-            # Find the closest pickup to the start_node using the metric graph
-            best_start_pickup = None
-            best_start_cost = float('inf')
-            for p in pickups:
-                if p in G.nodes():
-                    try:
-                        cost = G[start_node][p]["weight"] if start_node in G and p in G[start_node] else float('inf')
-                    except Exception:
-                        cost = float('inf')
-                    if cost < best_start_cost:
-                        best_start_cost = cost
-                        best_start_pickup = p
-            
-            if best_start_pickup is not None:
-                start_p = best_start_pickup
-                start_d = pair_of[start_p]
-            else:
-                # fallback to first pickup
-                start_p, start_d = pd_pairs[0]
-        else:
-            # No start_node provided, use first pickup
-            start_p, start_d = pd_pairs[0]
-            
-        if start_p not in nodes_list or start_d not in nodes_list:
-            # choose any available pickup/delivery pair present in nodes_list
-            found = False
-            for p, d in pd_pairs:
-                if p in nodes_list and d in nodes_list:
-                    start_p, start_d = p, d
-                    found = True
-                    break
-            if not found:
-                return [], 0.0
-
-        # restrict to pickups/deliveries present in G
-        remaining_pickups = [p for p in pickups if p in G.nodes()]
-
-        current = start_p
-        tour_seq: List[str] = []
-        
-        # If we have a start_node, begin the tour from it
-        if start_node is not None and start_node in G.nodes():
-            tour_seq.append(start_node)
-            current = start_node
-        
-        # visit start pickup and its delivery
-        tour_seq.append(start_p)
-        tour_seq.append(start_d)
-        if start_p in remaining_pickups:
-            remaining_pickups.remove(start_p)
-        current = start_d
-
-        # greedily choose next pickup as the nearest (in metric G) to current
-        INF = float("inf")
-        while remaining_pickups:
-            best = None
-            best_cost = INF
-            for p in remaining_pickups:
+        # Helper: check if a tour respects pickup-before-delivery precedence
+        def is_valid_tour(seq: List[str]) -> bool:
+            for d, p in delivery_map.items():
                 try:
-                    c = G[current][p]["weight"] if current in G and p in G[current] else INF
-                except Exception:
-                    c = INF
-                if c < best_cost:
-                    best_cost = c
-                    best = p
-            if best is None:
-                # no reachable remaining pickup; append them in arbitrary order
-                for p in remaining_pickups:
-                    tour_seq.append(p)
-                    tour_seq.append(pair_of.get(p, p))
-                break
-            # append pickup and its delivery
-            tour_seq.append(best)
-            tour_seq.append(pair_of[best])
-            remaining_pickups.remove(best)
-            current = pair_of[best]
-
-        # close tour back to start_node (or first node if no start_node)
-        if tour_seq:
-            if start_node is not None and start_node in G.nodes():
-                # Tour should return to the start_node
-                if tour_seq[-1] != start_node:
-                    tour_seq.append(start_node)
-            else:
-                # No start_node: close to first pickup (original behavior)
-                if tour_seq[0] != tour_seq[-1]:
-                    tour_seq.append(tour_seq[0])
-
-        total = tour_cost(tour_seq)
-
-        # Constrained 2-opt local search: try reversing segments while ensuring
-        # every pickup remains before its delivery.
-        # Work on the core (without final duplicated node) to make index checks easier.
-        closed = len(tour_seq) >= 2 and tour_seq[0] == tour_seq[-1]
-        core = tour_seq[:-1] if closed else list(tour_seq)
+                    idx_p = seq.index(p)
+                    idx_d = seq.index(d)
+                    if idx_p >= idx_d:
+                        return False
+                except ValueError:
+                    return False
+            return True
 
         # Build quick lookup for precedence
         pickup_set = set(p for p, _ in pd_pairs if p in nodes_list)
         delivery_map = {d: p for p, d in pd_pairs if p in nodes_list and d in nodes_list}
 
-        improved = True
-        max_iters = 500
-        iters = 0
-        n = len(core)
-        while improved and iters < max_iters:
-            improved = False
-            iters += 1
-            # try all i<j pairs for 2-opt (skip index 0 to keep start fixed)
-            for i in range(1, n - 2):
-                for j in range(i + 1, n - 1):
-                    # propose reversing core[i:j+1]
-                    new_core = core[:i] + list(reversed(core[i : j + 1])) + core[j + 1 :]
+        INF = float("inf")
 
-                    # check precedence: for every delivery, pickup must come before delivery
-                    ok = True
-                    for d, p in delivery_map.items():
-                        try:
-                            idx_p = new_core.index(p)
-                            idx_d = new_core.index(d)
-                        except ValueError:
-                            ok = False
-                            break
-                        if idx_p >= idx_d:
-                            ok = False
-                            break
-                    if not ok:
-                        continue
+        # =================================================================
+        # STRATEGY 1: Nearest Neighbor from best starting point
+        # =================================================================
+        def build_nearest_neighbor_tour() -> Tuple[List[str], float]:
+            """Build tour by nearest neighbor, considering all unvisited nodes."""
+            # Try starting from each pickup and keep best
+            best_tour = None
+            best_cost = INF
+            
+            for start_pickup in pickups[:3]:  # Try first 3 pickups as starts
+                if start_pickup not in G.nodes():
+                    continue
+                    
+                unvisited = set(pickups + deliveries)
+                if start_node is not None and start_node in G.nodes():
+                    current = start_node
+                    route = [start_node]
+                    # Need to add the first pickup and remove from unvisited
+                    route.append(start_pickup)
+                    unvisited.discard(start_pickup)
+                    current = start_pickup
+                else:
+                    # No start_node, so start directly from the pickup
+                    current = start_pickup
+                    route = [start_pickup]
+                    unvisited.discard(start_pickup)
+                
+                while unvisited:
+                    # Find nearest node that maintains precedence
+                    best_next = None
+                    best_dist = INF
+                    
+                    for node in unvisited:
+                        # Check if we can visit this node (precedence)
+                        can_visit = True
+                        if node in deliveries:
+                            # Check if pickup was already visited
+                            req_pickup = delivery_map[node]
+                            if req_pickup in unvisited:
+                                can_visit = False
+                        
+                        if can_visit:
+                            dist = G[current][node]["weight"]
+                            if dist < best_dist:
+                                best_dist = dist
+                                best_next = node
+                    
+                    if best_next is None:
+                        # Forced to add remaining (shouldn't happen with valid precedence)
+                        best_next = list(unvisited)[0]
+                    
+                    route.append(best_next)
+                    unvisited.discard(best_next)
+                    current = best_next
+                
+                # Close tour
+                if start_node is not None and start_node in G.nodes():
+                    if route[-1] != start_node:
+                        route.append(start_node)
+                else:
+                    if route[0] != route[-1]:
+                        route.append(route[0])
+                
+                cost = tour_cost(route)
+                if cost < best_cost and is_valid_tour(route[:-1] if route[0] == route[-1] else route):
+                    best_cost = cost
+                    best_tour = route
+            
+            return best_tour or [], best_cost
 
-                    new_seq = new_core + ([new_core[0]] if closed else [])
-                    new_cost = tour_cost(new_seq)
-                    if new_cost + 1e-9 < total:
-                        core = new_core
-                        total = new_cost
-                        improved = True
-                        # restart scanning
-                        break
-                if improved:
+        # =================================================================
+        # STRATEGY 2: Savings algorithm adaptation
+        # =================================================================
+        def build_savings_tour() -> Tuple[List[str], float]:
+            """Build tour using Clarke-Wright savings heuristic adapted for precedence."""
+            # Start with individual pickup->delivery routes
+            routes = []
+            depot = start_node if start_node and start_node in G.nodes() else pickups[0]
+            
+            for p, d in pd_pairs:
+                if p in G.nodes() and d in G.nodes():
+                    routes.append([p, d])
+            
+            # Calculate savings for merging routes
+            savings = []
+            for i in range(len(routes)):
+                for j in range(i + 1, len(routes)):
+                    route_i, route_j = routes[i], routes[j]
+                    # Try merging: depot -> route_i -> route_j -> depot
+                    # Savings = dist(i_end, depot) + dist(depot, j_start) - dist(i_end, j_start)
+                    i_end = route_i[-1]
+                    j_start = route_j[0]
+                    s = (G[i_end][depot]["weight"] + G[depot][j_start]["weight"] - 
+                         G[i_end][j_start]["weight"])
+                    savings.append((s, i, j))
+            
+            savings.sort(reverse=True)
+            
+            # Merge routes greedily
+            merged = [False] * len(routes)
+            final_route = []
+            
+            for s, i, j in savings[:len(routes)//2]:  # Limit merges
+                if not merged[i] and not merged[j]:
+                    routes[i].extend(routes[j])
+                    merged[j] = True
+            
+            # Combine remaining routes
+            for i, route in enumerate(routes):
+                if not merged[i]:
+                    final_route.extend(route)
+            
+            if not final_route:
+                return [], INF
+            
+            # Add depot if needed
+            if start_node and start_node in G.nodes():
+                final_route = [start_node] + final_route + [start_node]
+            else:
+                final_route.append(final_route[0])
+            
+            cost = tour_cost(final_route)
+            return final_route, cost
+
+        # =================================================================
+        # STRATEGY 3: Insertion heuristic with smart ordering
+        # =================================================================
+        def build_insertion_tour() -> Tuple[List[str], float]:
+            """Build tour by inserting pickup-delivery pairs in best positions."""
+            depot = start_node if start_node and start_node in G.nodes() else pickups[0]
+            
+            # Start with first pickup-delivery pair
+            if not pd_pairs:
+                return [], INF
+            
+            # Find pair closest to depot
+            best_pair = None
+            best_dist = INF
+            for p, d in pd_pairs:
+                if p in G.nodes() and d in G.nodes():
+                    dist = G[depot][p]["weight"] if depot != p else 0
+                    if dist < best_dist:
+                        best_dist = dist
+                        best_pair = (p, d)
+            
+            if not best_pair:
+                return [], INF
+            
+            p0, d0 = best_pair
+            if start_node and start_node in G.nodes():
+                route = [start_node, p0, d0, start_node]
+            else:
+                route = [p0, d0, p0]
+            
+            remaining = [(p, d) for (p, d) in pd_pairs if (p, d) != best_pair 
+                        and p in G.nodes() and d in G.nodes()]
+            
+            # Insert remaining pairs at best positions
+            while remaining:
+                best_insertion = None
+                best_cost_increase = INF
+                best_pair_idx = -1
+                
+                for pair_idx, (p, d) in enumerate(remaining):
+                    # Try inserting p and d at all valid positions
+                    for i in range(1, len(route)):
+                        for j in range(i, len(route)):
+                            # Insert p at position i, d at position j
+                            new_route = route[:i] + [p] + route[i:j] + [d] + route[j:]
+                            
+                            if not is_valid_tour(new_route[:-1] if new_route[0] == new_route[-1] else new_route):
+                                continue
+                            
+                            new_cost = tour_cost(new_route)
+                            old_cost = tour_cost(route)
+                            cost_increase = new_cost - old_cost
+                            
+                            if cost_increase < best_cost_increase:
+                                best_cost_increase = cost_increase
+                                best_insertion = new_route
+                                best_pair_idx = pair_idx
+                
+                if best_insertion is None:
+                    # No valid insertion found, append remaining
+                    for p, d in remaining:
+                        route.insert(-1, p)
+                        route.insert(-1, d)
                     break
+                
+                route = best_insertion
+                remaining.pop(best_pair_idx)
+            
+            cost = tour_cost(route)
+            return route, cost
 
-        # re-close tour
+        # =================================================================
+        # Generate initial solutions (adaptive based on strategy)
+        # =================================================================
+        candidate_tours = []
+        
+        # Always use Nearest Neighbor (fast and reliable)
+        nn_tour, nn_cost = build_nearest_neighbor_tour()
+        if nn_tour:
+            candidate_tours.append((nn_tour, nn_cost))
+        
+        # Add more heuristics for medium problems
+        if num_heuristics >= 2:
+            # Strategy 2: Insertion (better quality, slower)
+            ins_tour, ins_cost = build_insertion_tour()
+            if ins_tour and is_valid_tour(ins_tour[:-1] if ins_tour[0] == ins_tour[-1] else ins_tour):
+                candidate_tours.append((ins_tour, ins_cost))
+        
+        if num_heuristics >= 3:
+            # Strategy 3: Savings (good for clustered deliveries)
+            sv_tour, sv_cost = build_savings_tour()
+            if sv_tour and is_valid_tour(sv_tour[:-1] if sv_tour[0] == sv_tour[-1] else sv_tour):
+                candidate_tours.append((sv_tour, sv_cost))
+        
+        # Pick best initial tour
+        if not candidate_tours:
+            return [], 0.0
+        
+        candidate_tours.sort(key=lambda x: x[1])
+        tour_seq, total = candidate_tours[0]
+        
+        # =================================================================
+        # Adaptive local search with multiple operators
+        # =================================================================
+        closed = len(tour_seq) >= 2 and tour_seq[0] == tour_seq[-1]
+        core = tour_seq[:-1] if closed else list(tour_seq)
+        
+        # Handle small tours (less than 3 nodes can't be improved much)
+        if len(core) < 3:
+            if closed and core:
+                core.append(core[0])
+            return core, tour_cost(core) if core else 0.0
+        
+        # Multi-start with adaptive parameters
+        best_core = list(core)
+        best_cost = total
+        
+        for restart in range(num_restarts):
+            if restart > 0 and len(best_core) >= 3:
+                # Perturb by doing random swaps that maintain precedence
+                perturbed = list(best_core)
+                num_swaps = min(3, len(perturbed) // 3)
+                for _ in range(num_swaps):
+                    if len(perturbed) < 3:
+                        break
+                    i = random.randint(1, len(perturbed) - 2)
+                    j = random.randint(1, len(perturbed) - 2)
+                    if i != j:
+                        perturbed[i], perturbed[j] = perturbed[j], perturbed[i]
+                        if not is_valid_tour(perturbed):
+                            perturbed[i], perturbed[j] = perturbed[j], perturbed[i]
+                core = perturbed
+                total = tour_cost(core + ([core[0]] if closed else []))
+            
+            # Simulated annealing parameters (only for medium problems)
+            if use_simulated_annealing:
+                temperature = total * 0.05  # Reduced from 0.1
+                cooling_rate = 0.99  # Faster cooling
+                min_temperature = 0.01
+            else:
+                temperature = 0
+                min_temperature = 0
+            
+            improved = True
+            max_iters = iterations_per_restart
+            iters = 0
+            n = len(core)
+            
+            while (improved or temperature > min_temperature) and iters < max_iters:
+                improved = False
+                iters += 1
+                
+                # Operator 1: 2-opt (always enabled)
+                for i in range(1, min(n - 2, n)):
+                    if iters >= max_iters:
+                        break
+                    # Limit neighborhood size for large problems
+                    max_j = min(n, i + 15) if strategy == "focused" else n
+                    for j in range(i + 2, max_j):
+                        # Reverse segment [i:j]
+                        new_core = core[:i] + list(reversed(core[i:j])) + core[j:]
+                        
+                        if not is_valid_tour(new_core):
+                            continue
+                        
+                        new_seq = new_core + ([new_core[0]] if closed else [])
+                        new_cost = tour_cost(new_seq)
+                        delta = new_cost - total
+                        
+                        # Accept if better OR with SA probability
+                        accept = delta < -1e-9
+                        if not accept and temperature > min_temperature:
+                            accept = random.random() < math.exp(-delta / temperature)
+                        
+                        if accept:
+                            core = new_core
+                            total = new_cost
+                            improved = True
+                            
+                            if delta < -1e-9:  # Real improvement
+                                break
+                    
+                    if improved and temperature <= min_temperature:
+                        break
+                
+                # Operator 2: Or-Opt (only for medium problems with balance strategy)
+                if use_or_opt and (not improved or temperature > min_temperature):
+                    for length in [1, 2]:
+                        if length >= n - 1 or iters >= max_iters:
+                            continue
+                        for i in range(1, n - length):
+                            if iters >= max_iters:
+                                break
+                            segment = core[i:i+length]
+                            # Try only nearby positions for efficiency
+                            positions = list(range(max(1, i - 4), min(n - length + 1, i + 5)))
+                            for j in positions:
+                                if j == i or (j > i and j < i + length):
+                                    continue
+                                
+                                # Remove segment and insert at position j
+                                new_core = core[:i] + core[i+length:]
+                                insert_pos = j if j < i else j - length
+                                new_core = new_core[:insert_pos] + segment + new_core[insert_pos:]
+                                
+                                if not is_valid_tour(new_core):
+                                    continue
+                                
+                                new_seq = new_core + ([new_core[0]] if closed else [])
+                                new_cost = tour_cost(new_seq)
+                                delta = new_cost - total
+                                
+                                accept = delta < -1e-9
+                                if not accept and temperature > min_temperature:
+                                    accept = random.random() < math.exp(-delta / temperature)
+                                
+                                if accept:
+                                    core = new_core
+                                    total = new_cost
+                                    improved = True
+                                    
+                                    if delta < -1e-9:
+                                        break
+                            
+                            if improved and temperature <= min_temperature:
+                                break
+                        
+                        if improved and temperature <= min_temperature:
+                            break
+                
+                # Cool down temperature
+                if use_simulated_annealing:
+                    temperature *= cooling_rate
+            
+            # Update best if improved
+            if total < best_cost - 1e-9:
+                best_cost = total
+                best_core = list(core)
+        
+        # Use best found tour
+        core = best_core
+        total = best_cost
+        
+        # Re-close tour
         if closed and core:
             core.append(core[0])
-
+        
         return core, total
 
     # Note: multi-courier solver was intentionally removed. For multi-agent
