@@ -4,7 +4,15 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.api.api_v1.api import api_router
-# from app.utils.TSP.Astar import Astar  # Module not found - commented out
+from app.utils.TSP.Astar import Astar
+from app.core import error_handlers
+import logging
+from fastapi import HTTPException
+from fastapi.exceptions import RequestValidationError
+
+
+# Basic logging configuration
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s: %(message)s')
 
 
 @asynccontextmanager
@@ -38,6 +46,12 @@ app = FastAPI(
     contact={"name": "WiredMind2", "email": "support@example.com"},
     license_info={"name": "MIT"},
 )
+
+
+# Register exception handlers for consistent error responses
+app.add_exception_handler(Exception, error_handlers.generic_exception_handler)
+app.add_exception_handler(HTTPException, error_handlers.http_exception_handler)
+app.add_exception_handler(RequestValidationError, error_handlers.validation_exception_handler)
 
 # Set up CORS
 app.add_middleware(

@@ -2,6 +2,7 @@ from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException
 
 from app.core import state
+from app.core.config import settings
 
 router = APIRouter(prefix="/state")
 
@@ -35,6 +36,7 @@ def save_state(payload: Optional[Dict[str, Any]] = None):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
 @router.post("/load", tags=["State"], summary="Load saved state")
 def load_state(payload: Optional[Dict[str, Any]] = None):
     """Load a named snapshot into memory."""
@@ -58,3 +60,8 @@ def load_state(payload: Optional[Dict[str, Any]] = None):
         raise HTTPException(status_code=404, detail="Snapshot not found")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.get('/get_travel_speed', tags=["State"], summary="Get travel speed", description="Return the current travel speed setting.")
+def get_travel_speed():
+    speed = settings.TRAVEL_SPEED
+    return {"travel_speed": speed}

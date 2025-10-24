@@ -35,26 +35,24 @@ def add_request(request: Delivery):
     """Create a single delivery by supplying pickup/delivery node ids and service durations in JSON."""
     mp = state.get_map()
     if mp is None:
-        raise HTTPException(status_code=400, detail="No map loaded")
+        raise HTTPException(status_code=400, detail='No map loaded')
+    
+    # Validate that pickup and delivery node ids exist on the loaded map
+    inter_ids = {str(i.id) for i in mp.intersections}
+    if str(request.pickup_addr) not in inter_ids:
+        raise HTTPException(status_code=400, detail=f'Pickup node id {request.pickup_addr} not found on map')
+    if str(request.delivery_addr) not in inter_ids:
+        raise HTTPException(status_code=400, detail=f'Delivery node id {request.delivery_addr} not found on map')
 
-    # Allow pickup_addr and delivery_addr to be either string ids or Intersection objects
-    def as_id(value):
-        try:
-            return getattr(value, "id", value)
-        except Exception:
-            return value
-
-    pickup_id = as_id(request.pickup_addr)
-    delivery_id = as_id(request.delivery_addr)
-
-    delivery = Delivery(
-        id=XMLParser.generate_id(),  # Generate a unique ID for the delivery
-        pickup_addr=pickup_id,
-        delivery_addr=delivery_id,
-        pickup_service_s=request.pickup_service_s,
-        delivery_service_s=request.delivery_service_s,
-    )
-
+    # create delivery id via XMLParser helper (reuse existing parser to build a Delivery instance)
+    try:
+        deliveries = XMLParser.parse_deliveries(f'<root><livraison adresseEnlevement="{request.pickup_addr}" adresseLivraison="{request.delivery_addr}" dureeEnlevement="{request.pickup_service_s}" dureeLivraison="{request.delivery_service_s}"/></root>')
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f'Failed to parse delivery: {e}')
+    if not deliveries:
+        raise HTTPException(status_code=400, detail='Could not parse delivery')
+    delivery = deliveries[0]
+    
     # Use the central state helper so the global map state is updated in one place
     state.add_delivery(delivery)
 
@@ -89,10 +87,17 @@ async def upload_requests_file(file: UploadFile):
         text = data.decode("utf-8")
         deliveries = XMLParser.parse_deliveries(text)
         if not deliveries:
-            raise HTTPException(
-                status_code=400, detail="No deliveries parsed from file"
-            )
+            raise HTTPException(status_code=400, detail='No deliveries parsed from file')
+        
+        # validate that each delivery references existing nodes
+        mp = state.get_map()
+        inter_ids = {str(i.id) for i in mp.intersections} if mp else set()
+        
         for d in deliveries:
+            pid = getattr(d.pickup_addr, 'id', d.pickup_addr)
+            did = getattr(d.delivery_addr, 'id', d.delivery_addr)
+            if inter_ids and (str(pid) not in inter_ids or str(did) not in inter_ids):
+                raise HTTPException(status_code=400, detail=f'Delivery references unknown node id (pickup={pid}, delivery={did})')
             state.add_delivery(d)
         try:
             print(

@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # Database (for future use)
     DATABASE_URL: str = "sqlite:///./app.db"
     
+    # Travel speed
+    TRAVEL_SPEED: float = 15.0  # Default travel speed in km/h
+    
     model_config = {
         "env_file": ".env",
         "case_sensitive": True,
