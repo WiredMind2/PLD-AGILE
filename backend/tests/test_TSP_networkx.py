@@ -20,7 +20,7 @@ class TestTSPInit:
 
 
 class TestBuildNetworkxMapGraph:
-    @patch('utils.TSP.TSP_networkx.XMLParser')
+    @patch('app.services.XMLParser.XMLParser')
     @patch('builtins.open')
     def test_build_graph_with_valid_xml(self, mock_open, mock_parser):
         # Mock XML content
@@ -44,7 +44,7 @@ class TestBuildNetworkxMapGraph:
         assert '1' in nodes
         assert '2' in nodes
 
-    @patch('utils.TSP.TSP_networkx.XMLParser')
+    @patch('app.services.XMLParser.XMLParser')
     @patch('builtins.open')
     def test_build_graph_filters_duplicate_edges(self, mock_open, mock_parser):
         mock_open.return_value.__enter__.return_value.read.return_value = '<map></map>'
@@ -116,7 +116,7 @@ class TestBuildMetricCompleteGraph:
 class TestSolve:
     @patch.object(TSP, '_build_networkx_map_graph')
     def test_solve_returns_tour_and_cost(self, mock_build_graph):
-        # Create simple graph: 3 nodes in triangle
+        # Create simple graph: 3 nodes in triangle with all connections
         G = nx.DiGraph()
         G.add_edge('A', 'B', weight=10.0)
         G.add_edge('B', 'C', weight=10.0)
@@ -124,6 +124,11 @@ class TestSolve:
         G.add_edge('A', 'C', weight=10.0)
         G.add_edge('C', 'B', weight=10.0)
         G.add_edge('B', 'A', weight=10.0)
+        
+        # Add nodes explicitly to ensure they exist
+        G.add_node('A')
+        G.add_node('B')
+        G.add_node('C')
         
         mock_build_graph.return_value = (G, ['A', 'B', 'C'])
 
@@ -142,7 +147,11 @@ class TestSolve:
         G.add_edge('A', 'B', weight=10.0)
         G.add_edge('B', 'A', weight=10.0)
         
-        mock_build_graph.return_value = (G, ['A', 'B', 'C'])
+        # Add nodes explicitly
+        G.add_node('A')
+        G.add_node('B')
+        
+        mock_build_graph.return_value = (G, ['A', 'B'])
 
         tsp = TSP()
         sample = cast(Tour, SimpleNamespace(courier=None, deliveries=[('A', 'B')]))
