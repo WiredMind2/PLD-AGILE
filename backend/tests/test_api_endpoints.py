@@ -65,11 +65,3 @@ def test_state_and_persist_load():
     assert r.status_code == 200
     st = r.json()
     assert "map" in st and "deliveries" in st
-
-    # save
-    r2 = client.post("/api/v1/state/save")
-    assert r2.status_code == 200
-
-    # load
-    r3 = client.post("/api/v1/state/load")
-    assert r3.status_code == 200

@@ -109,10 +109,6 @@ class ApiClient {
     return this.request<any>(`/tours/compute`, { method: 'POST' })
   }
 
-  async saveState(): Promise<any> {
-    return this.request<any>('/state/save', { method: 'POST' })
-  }
-
   async deleteRequest(deliveryId: string): Promise<{ detail: string }> {
     return this.request<{ detail: string }>(`/requests/${deliveryId}`, {
       method: 'DELETE',
@@ -125,6 +121,25 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify({ courier_id: courierId }),
     })
+  }
+
+  // Saved tours endpoints
+  async listSavedTours(): Promise<Array<{ name: string; saved_at?: string; size_bytes?: number }>> {
+    return this.request('/saved_tours/', { method: 'GET' });
+  }
+
+  async saveNamedTour(name: string): Promise<any> {
+    return this.request('/saved_tours/save', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+  }
+
+  async loadNamedTour(name: string): Promise<any> {
+    return this.request('/saved_tours/load', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
   }
 }
 
