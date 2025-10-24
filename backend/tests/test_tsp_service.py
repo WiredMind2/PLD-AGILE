@@ -182,6 +182,8 @@ class TestTSPService:
         delivery.pickup_addr = Mock(id="1")
         delivery.delivery_addr = Mock(id="2")
         delivery.warehouse = Mock(id="1")
+        delivery.pickup_service_s = 60
+        delivery.delivery_service_s = 60
         
         # Create road segment
         seg = Mock(start=Mock(id="1"), end=Mock(id="2"), length_m=100.0, street_name="Main")
@@ -243,8 +245,10 @@ class TestTSPService:
         inter3 = Mock(id="3")
         
         # Deliveries for different couriers
-        del1 = Mock(courier=courier1, pickup_addr=Mock(id="1"), delivery_addr=Mock(id="2"))
-        del2 = Mock(courier=courier2, pickup_addr=Mock(id="2"), delivery_addr=Mock(id="3"))
+        del1 = Mock(courier=courier1, pickup_addr=Mock(id="1"), delivery_addr=Mock(id="2"),
+                    pickup_service_s=60, delivery_service_s=60)
+        del2 = Mock(courier=courier2, pickup_addr=Mock(id="2"), delivery_addr=Mock(id="3"),
+                    pickup_service_s=60, delivery_service_s=60)
         
         seg1 = Mock(start=Mock(id="1"), end=Mock(id="2"), length_m=100.0, street_name="St1")
         seg2 = Mock(start=Mock(id="2"), end=Mock(id="3"), length_m=150.0, street_name="St2")
@@ -280,6 +284,8 @@ class TestTSPService:
         delivery.pickup_addr = Mock(id="pickup")
         delivery.delivery_addr = Mock(id="delivery")
         delivery.warehouse = Mock(id="warehouse")
+        delivery.pickup_service_s = 60
+        delivery.delivery_service_s = 60
         
         # Create connections
         seg1 = Mock(start=Mock(id="warehouse"), end=Mock(id="pickup"), length_m=100.0, street_name="St1")
@@ -314,6 +320,8 @@ class TestTSPService:
         delivery.courier = courier
         delivery.pickup_addr = Mock(id="1")
         delivery.delivery_addr = Mock(id="2")
+        delivery.pickup_service_s = 60
+        delivery.delivery_service_s = 60
         
         mock_map = Mock()
         mock_map.deliveries = [delivery]
