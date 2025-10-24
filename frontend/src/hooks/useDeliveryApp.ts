@@ -315,8 +315,7 @@ export function useDeliveryApp() {
     try {
       setLoading(true);
       setError(null);
-      const res = await apiClient.saveNamedTour(name);
-      return res;
+      return await apiClient.saveNamedTour(name);
     } catch (err) {
       handleError(err);
       throw err;

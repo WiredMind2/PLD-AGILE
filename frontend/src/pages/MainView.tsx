@@ -441,7 +441,7 @@ export default function MainView(): JSX.Element {
                     const deliveryIdCounter = { count: 0 }; // Counter for generating unique delivery IDs
                     
                     res.forEach((t: any) => {
-                      const courier = t.courier;
+                      const { courier } = t;
                       // Find courier start position from the deliveries' warehouse field
                       // Many map uploads register the warehouse on each delivery (map.deliveries[].warehouse)
                       // We search the loaded map deliveries for a matching warehouse id === courier.id
