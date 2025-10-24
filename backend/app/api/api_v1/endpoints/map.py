@@ -23,6 +23,8 @@ async def upload_map(file: UploadFile):
         # build adjacency if the Map has the method
         try:
             mp.build_adjacency()
+            if len(mp.intersections) == 0 and len(mp.road_segments) == 0:
+                raise ValueError("Parsed map is empty")
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e))
         finally:

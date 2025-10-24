@@ -53,22 +53,22 @@ deliverables/
 ## Sprint Diagrams
 
 ### Sprint 1
-[![Sprint 1 Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/addd-sprint-kanban/deliverables/generated_svgs/Sprint1.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/addd-sprint-kanban/deliverables/generated_svgs/Sprint1.svg)
+[![Sprint 1 Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/Sprint1.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/Sprint1.svg)
 
 [📄 View Sprint 1 PDF](sprint_diagrams/Sprint1.pdf)
 
 ### Sprint 1 Code
-[![Sprint 1 Code Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/addd-sprint-kanban/deliverables/generated_svgs/Sprint1Code.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/addd-sprint-kanban/deliverables/generated_svgs/Sprint1Code.svg)
+[![Sprint 1 Code Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/Sprint1Code.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/Sprint1Code.svg)
 
 [📄 View Sprint 1 Code PDF](sprint_diagrams/Sprint1Code.pdf)
 
 ### Sprint 2
-[![Sprint 2 Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/addd-sprint-kanban/deliverables/generated_svgs/Sprint2.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/addd-sprint-kanban/deliverables/generated_svgs/Sprint2.svg)
+[![Sprint 2 Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/Sprint2.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/Sprint2.svg)
 
 [📄 View Sprint 2 PDF](sprint_diagrams/Sprint2.pdf)
 
 ### Sprint 3
-[![Sprint 3 Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/addd-sprint-kanban/deliverables/generated_svgs/Sprint3.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/addd-sprint-kanban/deliverables/generated_svgs/Sprint3.svg)
+[![Sprint 3 Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/Sprint3.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/Sprint3.svg)
 
 [📄 View Sprint 3 PDF](sprint_diagrams/Sprint3.pdf)
 
@@ -76,7 +76,7 @@ deliverables/
 
 ## Use Case Diagram
 
-[![Use Case Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/addd-sprint-kanban/deliverables/generated_svgs/UC_Diagram.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/addd-sprint-kanban/deliverables/generated_svgs/UC_Diagram.svg)
+[![Use Case Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/UC_Diagram.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/UC_Diagram.svg)
 
 [📝 View UC_Diagram.puml source](plantuml_sources/UC_Diagram.puml)
 
@@ -86,7 +86,7 @@ deliverables/
 
 ### Data Model Class Diagram
 
-[![Data Model Class Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/addd-sprint-kanban/deliverables/generated_svgs/data_model_class_diagram.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/addd-sprint-kanban/deliverables/generated_svgs/data_model_class_diagram.svg)
+[![Data Model Class Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/data_model_class_diagram.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/data_model_class_diagram.svg)
 
 [📝 View data_model_class_diagram.puml source](plantuml_sources/data_model_class_diagram.puml)
 
@@ -96,13 +96,13 @@ deliverables/
 
 ### Parse Map Sequence
 
-[![Parse Map Sequence Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/addd-sprint-kanban/deliverables/generated_svgs/parse_map_sequence.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/addd-sprint-kanban/deliverables/generated_svgs/parse_map_sequence.svg)
+[![Parse Map Sequence Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/parse_map_sequence.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/parse_map_sequence.svg)
 
 [📝 View parse_map_sequence.puml source](plantuml_sources/parse_map_sequence.puml)
 
 ### Parse Deliveries Sequence
 
-[![Parse Deliveries Sequence Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/addd-sprint-kanban/deliverables/generated_svgs/parse_deliveries_sequence.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/addd-sprint-kanban/deliverables/generated_svgs/parse_deliveries_sequence.svg)
+[![Parse Deliveries Sequence Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/parse_deliveries_sequence.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/parse_deliveries_sequence.svg)
 
 [📝 View parse_deliveries_sequence.puml source](plantuml_sources/parse_deliveries_sequence.puml)
 
@@ -110,7 +110,7 @@ deliverables/
 
 ## Package Diagram
 
-[![Package Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/addd-sprint-kanban/deliverables/generated_svgs/P_Diagram.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/addd-sprint-kanban/deliverables/generated_svgs/P_Diagram.svg)
+[![Package Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/P_Diagram.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/P_Diagram.svg)
 
 [📝 View P_Diagram.puml source](plantuml_sources/P_Diagram.puml)
 
