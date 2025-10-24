@@ -8,9 +8,9 @@ from app.core import state
 router = APIRouter(prefix="/tours")
 
 
-@router.post("/compute/{courier_id}", tags=["Tours"], summary="Compute tour for courier", description="Compute the best tour for a specific courier (returns tours computed -- currently the service computes for all couriers).")
+@router.post("/compute/{courier_id}", tags=["Tours"], summary="Compute tour for courier")
 def compute_tour(courier_id: str):
-    """Compute the best tour for the given courier id."""
+    """Compute the best tour for a specific courier (returns tours computed -- currently the service computes for all couriers)."""
     mp = state.get_map()
     if mp is None:
         raise HTTPException(status_code=400, detail='No map loaded')
@@ -24,9 +24,9 @@ def compute_tour(courier_id: str):
     return tours
 
 
-@router.post("/compute", tags=["Tours"], summary="Compute tours for all couriers", description="Trigger the TSP service to compute tours for all registered couriers.")
+@router.post("/compute", tags=["Tours"], summary="Compute tours for all couriers")
 def compute_all_tours():
-    """Compute tours for all couriers."""
+    """Trigger the TSP service to compute tours for all registered couriers."""
     mp = state.get_map()
     if mp is None:
         raise HTTPException(status_code=400, detail='No map loaded')
@@ -40,13 +40,15 @@ def compute_all_tours():
     return tours
 
 
-@router.get("/", response_model=List[Tour], tags=["Tours"], summary="List computed tours", description="Return the list of computed tours saved in server state.")
+@router.get("/", response_model=List[Tour], tags=["Tours"], summary="List computed tours")
 def list_tours():
+    """Return the list of computed tours saved in server state."""
     return state.list_tours()
 
 
-@router.get("/{courier_id}", response_model=List[Tour], tags=["Tours"], summary="Get tours for courier", description="Return computed tours for a single courier id.")
+@router.get("/{courier_id}", response_model=List[Tour], tags=["Tours"], summary="Get tours for courier")
 def get_tour(courier_id: str):
+    """Return computed tours for a single courier id."""
     tours = state.list_tours()
     filtered = [t for t in tours if getattr(t.courier, 'id', None) == courier_id]
     if not filtered:
@@ -55,7 +57,8 @@ def get_tour(courier_id: str):
     return filtered
 
 
-@router.post("/save", tags=["Tours"], summary="Save tours", description="Persist tours to disk (acknowledgement).")
+@router.post("/save", tags=["Tours"], summary="Save tours")
 def save_tours():
+    """Persist tours to disk (acknowledgement)."""
     # For now persist tours is just an acknowledgment
     return {"detail": "tours saved"}
