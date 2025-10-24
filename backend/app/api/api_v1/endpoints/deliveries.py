@@ -8,15 +8,15 @@ from app.services import XMLParser
 router = APIRouter(prefix="/deliveries")
 
 
-@router.get("/", response_model=List[Delivery], tags=["Deliveries"], summary="List deliveries", description="Return the list of deliveries (alias of /requests/).")
+@router.get("/", response_model=List[Delivery], tags=["Deliveries"], summary="List deliveries")
 def list_deliveries():
-    """Alias to list delivery requests."""
+    """Return the list of deliveries (alias of /requests/)."""
     return state.list_deliveries()
 
 
-@router.post("/", response_model=List[Delivery], tags=["Deliveries"], summary="Upload deliveries (XML)", description="Upload an XML file containing deliveries. Parsed deliveries are added to server state.")
+@router.post("/", response_model=List[Delivery], tags=["Deliveries"], summary="Upload deliveries (XML)")
 async def upload_deliveries_file(file: UploadFile):
-    """Upload an XML file containing deliveries (alias for /requests/upload)."""
+    """Upload an XML file containing deliveries. Parsed deliveries are added to server state."""
     try:
         data = await file.read()
         text = data.decode('utf-8')

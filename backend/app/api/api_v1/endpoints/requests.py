@@ -19,10 +19,9 @@ router = APIRouter(prefix="/requests")
     response_model=List[Delivery],
     tags=["Requests"],
     summary="List delivery requests",
-    description="Return the list of active delivery requests stored in the server state.",
 )
 def list_requests():
-    """Return the list of delivery requests."""
+    """Return the list of active delivery requests stored in the server state."""
     return state.list_deliveries()
 
 
@@ -30,11 +29,10 @@ def list_requests():
     "/",
     response_model=Delivery,
     tags=["Requests"],
-    summary="Create a delivery (JSON)",
-    description="Create a single delivery by supplying pickup/delivery node ids and service durations in JSON.",
+    summary="Create a delivery (JSON)"
 )
 def add_request(request: Delivery):
-    """Add a new delivery request."""
+    """Create a single delivery by supplying pickup/delivery node ids and service durations in JSON."""
     mp = state.get_map()
     if mp is None:
         raise HTTPException(status_code=400, detail="No map loaded")
@@ -68,10 +66,10 @@ def add_request(request: Delivery):
 @router.delete(
     "/{delivery_id}",
     tags=["Requests"],
-    summary="Delete delivery request",
-    description="Delete a delivery request by its id.",
+    summary="Delete delivery request"
 )
 def delete_request(delivery_id: str):
+    """Delete a delivery request by its id."""
     ok = state.remove_delivery(delivery_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Delivery not found")
@@ -82,11 +80,10 @@ def delete_request(delivery_id: str):
     "/upload",
     response_model=List[Delivery],
     tags=["Requests"],
-    summary="Upload delivery requests (XML)",
-    description="Upload an XML file containing <livraison> elements. Each parsed delivery is added to the server state.",
+    summary="Upload delivery requests (XML)"
 )
 async def upload_requests_file(file: UploadFile):
-    """Upload an XML file containing one or more <livraison> entries and add them to state."""
+    """Upload an XML file containing one or more <livraison> elements. Each parsed delivery is added to the server state."""
     try:
         data = await file.read()
         text = data.decode("utf-8")
@@ -113,11 +110,10 @@ async def upload_requests_file(file: UploadFile):
 @router.patch(
     "/{delivery_id}/assign",
     tags=["Requests"],
-    summary="Assign courier to delivery",
-    description="Assign or unassign a courier to a delivery request.",
+    summary="Assign courier to delivery"
 )
 def assign_courier(delivery_id: str, payload: AssignCourierPayload):
-    """Assign a courier to an existing delivery. Use courier_id = null to unassign."""
+    """Assign or unassign a courier to a delivery request."""
     mp = state.get_map()
     if mp is None:
         raise HTTPException(status_code=400, detail="No map loaded")
