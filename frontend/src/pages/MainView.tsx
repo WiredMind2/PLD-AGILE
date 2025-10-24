@@ -50,6 +50,7 @@ export default function MainView(): JSX.Element {
 
   const [deliveryPoints, setDeliveryPoints] = useState<DeliveryPoint[]>();
   const [successAlert, setSuccessAlert] = useState<string | null>(null);
+  const [overworkAlert, setOverworkAlert] = useState<string | null>(null);
   const [routes, setRoutes] = useState<{ id: string; courierId?: string; color?: string; positions: [number, number][] }[]>([]);
   const [showSegmentLabels, setShowSegmentLabels] = useState<boolean>(false);
   // per-courier route visibility (true = hidden)
@@ -435,6 +436,41 @@ export default function MainView(): JSX.Element {
                 try {
                   const res = await computeTours?.();
                   console.log('Compute tours response:', res);
+                                        // clear any previous overwork notice
+                      setOverworkAlert(null);
+                      const formatSec = (s: number) => {
+                        const h = Math.floor(s / 3600);
+                        const m = Math.round((s % 3600) / 60);
+                        return `${h}h ${m}m`;
+                      };
+                      // if API returns per-tour total_travel_time_s and total_service_time_s,
+                      // warn when their sum > 7 hours (25200s)
+                      try {
+                        if (res && Array.isArray(res)) {
+                          const overworked = (res as any[]).filter((t) => {
+                            const travel = Number(t?.total_travel_time_s ?? 0);
+                            const service = Number(t?.total_service_time_s ?? 0);
+                            return (travel + service) > 25200;
+                          });
+                          if (overworked && overworked.length > 0) {
+                            const parts = overworked.map((t: any, idx: number) => {
+                              const id = t?.courier?.id ?? t?.courier ?? `#${idx + 1}`;
+                              const travel = Number(t?.total_travel_time_s ?? 0);
+                              const service = Number(t?.total_service_time_s ?? 0);
+                              const total = travel + service;
+                              const totalFmt = formatSec(total);
+                              const travelFmt = formatSec(travel);
+                              const serviceFmt = formatSec(service);
+                              return `Courier ${String(id)} scheduled ${totalFmt} (${travelFmt} travel + ${serviceFmt} service)`;
+                            });
+                            setOverworkAlert(`Overwork warning: ${parts.join('; ')}. Please remove or reassign some delivery requests.`);
+                          } else {
+                            setOverworkAlert(null);
+                          }
+                        }
+                      } catch (e) {
+                        // ignore formatting errors
+                      }
                   // clear any previous notices (deprecated)
                   if (res && Array.isArray(res)) {
                     const points: DeliveryPoint[] = [];
@@ -1099,6 +1135,19 @@ export default function MainView(): JSX.Element {
             <div>
               <AlertTitle>Success</AlertTitle>
               <AlertDescription>{successAlert}</AlertDescription>
+            </div>
+          </Alert>
+        </div>
+      )}
+      {overworkAlert && (
+        <div className="fixed right-6 bottom-24 z-50 w-96">
+          <Alert variant="destructive" className="border-red-600 bg-red-100 dark:bg-red-900/70">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 text-red-700" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12A9 9 0 113 12a9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <AlertTitle className="text-red-700 dark:text-red-200">Overwork alert</AlertTitle>
+              <AlertDescription className="text-sm text-red-700 dark:text-red-200">{overworkAlert}</AlertDescription>
             </div>
           </Alert>
         </div>
