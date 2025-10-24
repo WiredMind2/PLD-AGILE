@@ -4,7 +4,6 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.api.api_v1.api import api_router
-from app.utils.TSP.Astar import Astar
 from app.core import error_handlers
 import logging
 from fastapi import HTTPException
