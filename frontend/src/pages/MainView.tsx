@@ -17,6 +17,7 @@ export default function MainView(): JSX.Element {
   const requestsInputRef = useRef<HTMLInputElement>(null);
   const [mapCenter, setMapCenter] = useState<[number, number]>([45.764043, 4.835659]); // Default Lyon center
   const [roadSegments, setRoadSegments] = useState<any[]>([]);
+  const [mapZoom, setMapZoom] = useState(13);
   
   const { 
     loading, 
@@ -243,10 +244,38 @@ export default function MainView(): JSX.Element {
               }
             }
           });
+          if (base.length > 0) {
+            const { latSum, lngSum } = base.reduce((acc, point) => {
+              acc.latSum += point.position[0];
+              acc.lngSum += point.position[1];
+              return acc;
+            }, { latSum: 0, lngSum: 0 });
+            const avgLat = latSum / base.length;
+            const avgLng = lngSum / base.length;
+            setMapCenter([avgLat, avgLng]);
+            
+            // Calculate zoom based on point spread
+            const latitudes = base.map(p => p.position[0]);
+            const longitudes = base.map(p => p.position[1]);
+            const latRange = Math.max(...latitudes) - Math.min(...latitudes);
+            const lngRange = Math.max(...longitudes) - Math.min(...longitudes);
+            const maxRange = Math.max(latRange, lngRange);
+            
+            //FIND A BETTER SCALE
+            let zoom = 14;
+            if (maxRange < 0.01) zoom = 14;
+            else if (maxRange < 0.05) zoom = 13;
+            else if (maxRange < 0.1) zoom = 12;
+            else if (maxRange < 0.2) zoom = 11;
+            else zoom = 10;
+            
+            setMapZoom(zoom);
+          }
           return base;
         });
         setSuccessAlert('Delivery requests imported successfully');
         setTimeout(() => setSuccessAlert(null), 5000);
+        setOpenNewReq(false);
       }
     } catch (err) {
       console.error('Failed to upload requests:', err);
@@ -752,7 +781,7 @@ export default function MainView(): JSX.Element {
                   points={deliveryPoints}
                   roadSegments={roadSegments}
                   center={mapCenter}
-                  zoom={14}
+                  zoom={mapZoom}
                   height="500px"
                   showRoadNetwork={false}
                   showSegmentLabels={showSegmentLabels}

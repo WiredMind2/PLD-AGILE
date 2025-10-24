@@ -1,7 +1,8 @@
 // DeliveryMap.tsx
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents } from 'react-leaflet';
+import { useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -128,6 +129,33 @@ function MapRightClickHandler({ onContextMenu }: { onContextMenu: (e: L.LeafletM
   return null;
 }
 
+// Map updater components - must be outside to avoid recreation on each render
+const MapCenterUpdater = ({ target }: { target: [number, number] }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (Array.isArray(target) && target.length === 2) {
+      console.log('MapCenterUpdater: panning to', target);
+      map.panTo(target, { animate: false }); // Use panTo to only change center, not zoom
+    }
+  }, [map, target?.[0], target?.[1]]);
+  return null;
+};
+
+const MapZoomUpdater = ({ level }: { level: number }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (typeof level === 'number' && !Number.isNaN(level)) {
+      console.log('MapZoomUpdater: setting zoom to', level);
+      // Use setView with the current center to force Leaflet to apply the new zoom reliably
+      const center = map.getCenter();
+      if (center) {
+        map.setView([center.lat, center.lng], level, { animate: false });
+      }
+    }
+  }, [map, level]);
+  return null;
+};
+
 interface DeliveryMapProps {
   points?: DeliveryPoint[];
   roadSegments?: RoadSegment[];
@@ -152,7 +180,7 @@ interface DeliveryMapProps {
 export default function DeliveryMap({
   points = [],
   roadSegments = [],
-  center = [48.8566, 2.3522],
+  center = [45.764043, 4.835659],
   zoom = 13,
   height = 500,
   showRoadNetwork = false, // Show road network by default
@@ -348,8 +376,10 @@ export default function DeliveryMap({
     <>
       <MapContainer center={center} zoom={zoom} style={style}>
         <MapClickHandler />
-      {/* Right-click listener */}
+        {/* Right-click listener */}
         <MapRightClickHandler onContextMenu={handleMapContextMenu} />
+        <MapCenterUpdater target={center ?? [48.8566, 2.3522]} />
+        <MapZoomUpdater level={zoom ?? 13} />
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
