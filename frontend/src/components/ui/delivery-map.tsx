@@ -387,7 +387,7 @@ export default function DeliveryMap({
         />
 
       {/* Markers */}
-        {points.map((p) => {
+      {points.map((p) => {
         const isHighlighted = highlightedPoints.has(p.id);
         return (
           <Marker
@@ -416,10 +416,10 @@ export default function DeliveryMap({
             </Popup>
           </Marker>
         );
-        })}
+      })}
 
       {/* Connecting lines between highlighted pickup-delivery pairs */}
-        {Array.from(highlightedPoints).map(pointId => {
+      {Array.from(highlightedPoints).map(pointId => {
         const deliveryId = getDeliveryId(pointId);
         if (!deliveryId || !pointId.startsWith('pickup-')) return null;
         
@@ -439,7 +439,7 @@ export default function DeliveryMap({
           );
         }
         return null;
-        })}
+      })}
 
       {/* Road network from XML map */}
         {showRoadNetwork && roadSegments.map((segment, index) => (
