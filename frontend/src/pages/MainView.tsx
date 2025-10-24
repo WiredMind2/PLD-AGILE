@@ -813,7 +813,7 @@ export default function MainView(): JSX.Element {
           {/* Right Column */}
           <div className="space-y-6">
             {/* Couriers Management */}
-            <Card className="border-purple-200 dark:border-purple-800 shadow-lg">
+            <Card className="border-purple-200 dark:border-purple-800 shadow-lg h-[100%]">
               <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950 mb-6">
                 <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-300">
                   <Truck className="h-5 w-5 text-purple-600" />
