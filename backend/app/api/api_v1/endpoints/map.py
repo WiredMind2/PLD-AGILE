@@ -46,7 +46,7 @@ def get_map():
 
 @router.get("/ack_pair", tags=["Map"], summary="Nearest nodes for pickup and delivery")
 def ack_pair(pickup_lat: float, pickup_lng: float, delivery_lat: float, delivery_lng: float):
-    """Return the nearest intersections (from loaded map) for given pickup and delivery coordinates."""
+    """Return the nearest intersections (from loaded map) for given pickup and given delivery coordinates."""
     p_node, d_node = MapService().ack_pair((pickup_lat, pickup_lng), (delivery_lat, delivery_lng))
     return {
         "pickup": p_node,
