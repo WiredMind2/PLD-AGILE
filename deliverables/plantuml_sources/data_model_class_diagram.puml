@@ -12,21 +12,14 @@ package "app.models.schemas" {
         +longitude: float
     }
 
-    DATACLASS DeliveryRequest {
-        +pickup_addr: str
-        +delivery_addr: str
-        +pickup_service_s: int
-        +delivery_service_s: int
-    }
-
     DATACLASS Courrier {
         +id: str
         +name: str
     }
 
     DATACLASS RoadSegment {
-        +start: Intersection
-        +end: Intersection
+        +start: Intersection | str
+        +end: Intersection | str
         +length_m: float
         +travel_time_s: int
         +street_name: str
@@ -35,25 +28,26 @@ package "app.models.schemas" {
     }
 
     DATACLASS Delivery {
-        +id: str
-        +pickup_addr: Intersection
-        +delivery_addr: Intersection
+        +pickup_addr: str | Intersection
+        +delivery_addr: str | Intersection
         +pickup_service_s: int
         +delivery_service_s: int
+        +warehouse: Optional[Intersection]
         +courier: Optional[Courrier]
-        +hour_departure: Optional[time]
+        +hour_departure: Optional[str]
+        +id: Optional[str]
     }
 
     DATACLASS Tour {
         +courier: Courrier
-        +deliveries: List[Delivery]
+        +deliveries: List[Tuple[str, str]]
         +total_travel_time_s: int
         +total_service_time_s: int
         +total_distance_m: float
-        +start_time: Optional[time]
-        +end_time: Optional[time]
+        +route_intersections: List[str]
         --
-        +add_delivery(delivery: Delivery): void
+        +add_delivery(pickup_addr: str, delivery_addr: string): void
+        +add_deliveries(deliveries: List[Tuple[str,str]]): void
     }
 
     DATACLASS Map {
@@ -132,6 +126,63 @@ package "app.core" {
 
 ' ========== RELATIONSHIPS ==========
 
+' ========== API ENDPOINTS (app.api.endpoints) ==========
+package "app.api.endpoints" {
+
+    class MapAPI {
+        +POST /map/ : upload_map(file)
+        +GET  /map/ : get_map()
+        +GET  /map/ack_pair : ack_pair(pickup_lat,pickup_lng,delivery_lat,delivery_lng)
+    }
+
+    class RequestsAPI {
+        +GET  /requests/ : list_requests()
+        +POST /requests/ : add_request(json)
+        +DELETE /requests/{id} : delete_request(id)
+        +POST /requests/upload : upload_requests_file(file)
+        +PATCH /requests/{id}/assign : assign_courier(id, payload)
+    }
+
+    class CouriersAPI {
+        +GET  /couriers/ : list_couriers()
+        +POST /couriers/ : add_courier(json)
+        +DELETE /couriers/{id} : delete_courier(id)
+    }
+
+    class ToursAPI {
+        +POST /tours/compute : compute_all_tours()
+        +POST /tours/compute/{courier_id} : compute_tour(courier_id)
+        +GET  /tours/ : list_tours()
+        +GET  /tours/{courier_id} : get_tour(courier_id)
+        +POST /tours/save : save_tours()
+    }
+
+    class DeliveriesAPI {
+        +GET  /deliveries/ : list_deliveries()
+        +POST /deliveries/ : upload_deliveries_file(file)
+    }
+
+    class SavedToursAPI {
+        +GET  /saved_tours/ : list_saved_tours()
+        +POST /saved_tours/save : save_current_as_named(payload)
+        +POST /saved_tours/load : load_named_snapshot(payload)
+    }
+
+    class StateAPI {
+        +GET    /state/ : get_state()
+        +DELETE /state/clear_state : clear_state()
+    }
+
+    ' Link API classes to model packages for clarity
+    MapAPI ..> "app.models.schemas.Map"
+    RequestsAPI ..> "app.models.schemas.Delivery"
+    CouriersAPI ..> "app.models.schemas.Courrier"
+    ToursAPI ..> "app.models.schemas.Tour"
+    SavedToursAPI ..> "app.core.state"
+    StateAPI ..> "app.core.state"
+
+}
+
 ' Core relationships
 RoadSegment <-- Intersection : end/start
 Delivery -- Intersection : pickup_addr
@@ -140,7 +191,7 @@ Delivery -- Courrier : courier
 
 ' Tour relationships
 Tour ..> Courrier : affected to
-Tour --> Delivery : contains one or many
+Tour --> Delivery : contains deliveries (as pickup/delivery id pairs)
 
 ' Map relationships (composition)
 Map -- Intersection : intersections
