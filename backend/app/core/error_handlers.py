@@ -10,7 +10,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     # Preserve status code and return a JSON payload with structured fields
     content = {
         "error": "http_exception",
-        "message": exc.detail,
+        "detail": exc.detail,
         "status_code": exc.status_code,
     }
     return JSONResponse(status_code=exc.status_code, content=content)
