@@ -212,6 +212,13 @@ class TSPService:
             else:
                 tour.total_travel_time_s = 0
 
+            # Calculate total service time (pickup + delivery) for all deliveries assigned to this courier
+            total_service_time = 0
+            for d in deliveries:
+                if d.courier and str(d.courier.id) == courier_id:
+                    total_service_time += d.pickup_service_s + d.delivery_service_s
+            tour.total_service_time_s = total_service_time
+
             state.save_tour(tour)
             results_list.append(tour)
 
