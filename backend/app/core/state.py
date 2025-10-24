@@ -17,8 +17,6 @@ _tours: List[Tour] = []
 
 _data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data'))
 os.makedirs(_data_dir, exist_ok=True)
-_map_file = os.path.join(_data_dir, 'map.pkl')
-_tours_file = os.path.join(_data_dir, 'tours.pkl')
 _saved_dir = os.path.join(_data_dir, 'saved_tours')
 os.makedirs(_saved_dir, exist_ok=True)
 
@@ -123,41 +121,12 @@ def clear_tours() -> None:
         _tours = []
 
 
-def persist_state() -> None:
-    """Persist current map and tours to disk."""
-    with _lock:
-        with open(_map_file, 'wb') as f:
-            pickle.dump(_current_map, f)
-
-        with open(_tours_file, 'wb') as f:
-            pickle.dump(_tours, f)
-
 def clear_state() -> None:
     """Clear current map and tours from memory."""
     global _current_map, _tours
     with _lock:
         _current_map = None
         _tours = []
-
-def load_state() -> None:
-    """Load map and tours from disk if present."""
-    global _current_map, _tours
-    with _lock:
-        try:
-            if os.path.isfile(_map_file):
-                with open(_map_file, 'rb') as f:
-                    _current_map = pickle.load(f)
-
-        except Exception:
-            _current_map = None
-
-        try:
-            if os.path.isfile(_tours_file):
-                with open(_tours_file, 'rb') as f:
-                    _tours = pickle.load(f) or []
-
-        except Exception:
-            _tours = []
 
 
 # ---------------------- Named snapshots (Saved Tours) ----------------------

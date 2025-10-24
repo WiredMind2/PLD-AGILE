@@ -231,69 +231,6 @@ class TestState:
         tours = state.list_tours()
         assert tours == []
 
-    def test_persist_and_load_state(self):
-        """Test persisting and loading state"""
-        # Create test data
-        mock_map = Map(intersections=[], road_segments=[])
-        tour = Tour(courier=Courrier(id="c1", name="C1"))
-        
-        state.set_map(mock_map)
-        state.save_tour(tour)
-        
-        # Persist to disk
-        state.persist_state()
-        
-        # Clear memory state
-        state.clear_state()
-        assert state.get_map() is None
-        assert state.list_tours() == []
-        
-        # Load from disk
-        state.load_state()
-        
-        # Verify data was loaded
-        loaded_map = state.get_map()
-        loaded_tours = state.list_tours()
-        
-        assert loaded_map is not None
-        assert len(loaded_tours) == 1
-
-    def test_load_state_no_files(self):
-        """Test load_state handles missing files gracefully"""
-        # Ensure files don't exist
-        state.clear_state()
-        
-        # Mock the file checks to return False
-        with patch('os.path.isfile', return_value=False):
-            state.load_state()
-            
-            # Should not raise, should just have empty state
-            assert state.get_map() is None
-            assert state.list_tours() == []
-
-    def test_load_state_corrupted_files(self):
-        """Test load_state handles corrupted pickle files"""
-        # Create corrupted pickle files
-        with tempfile.TemporaryDirectory() as tmpdir:
-            map_file = os.path.join(tmpdir, 'map.pkl')
-            tours_file = os.path.join(tmpdir, 'tours.pkl')
-            
-            # Write invalid pickle data
-            with open(map_file, 'wb') as f:
-                f.write(b'corrupted data')
-            with open(tours_file, 'wb') as f:
-                f.write(b'corrupted data')
-            
-            # Patch the file paths
-            with patch('app.core.state._map_file', map_file):
-                with patch('app.core.state._tours_file', tours_file):
-                    # Should handle the exception gracefully
-                    state.load_state()
-                    
-                    # State should be empty/None
-                    assert state.get_map() is None
-                    assert state.list_tours() == []
-
     def test_clear_state(self):
         """Test clear_state clears both map and tours"""
         mock_map = Map(intersections=[], road_segments=[])
