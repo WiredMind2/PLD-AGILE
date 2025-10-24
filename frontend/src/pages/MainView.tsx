@@ -522,6 +522,7 @@ export default function MainView(): JSX.Element {
                 routes={routes}
                 onPointClick={handlePointClick}
               />
+              )}
             </CardContent>
           </Card>
 
