@@ -15,7 +15,7 @@ def list_couriers():
 
 @router.post("/", response_model=Courrier, tags=["Couriers"], summary="Add courier")
 def add_courier(courier: Courrier):
-    """Register a new courier (id, name)."""
+    """Register a new courier (id, name) if a map is loaded. Raises 400 if no map is loaded."""
     mp = state.get_map()
     if mp is None:
         raise HTTPException(status_code=400, detail='No map loaded')
@@ -23,9 +23,9 @@ def add_courier(courier: Courrier):
     return courier
 
 
-@router.delete("/{courier_id}", tags=["Couriers"], summary="Delete courier", description="Remove a courier by id.")
+@router.delete("/{courier_id}", tags=["Couriers"], summary="Delete courier")
 def delete_courier(courier_id: str):
-    """Remove a courier by id."""
+    """Remove a courier with his id. Raises 404 if courier not found."""
     ok = state.remove_courier(courier_id)
     if not ok:
         raise HTTPException(status_code=404, detail='Courier not found')

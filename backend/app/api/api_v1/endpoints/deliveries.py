@@ -10,7 +10,7 @@ router = APIRouter(prefix="/deliveries")
 
 @router.get("/", response_model=List[Delivery], tags=["Deliveries"], summary="List deliveries")
 def list_deliveries():
-    """Return the list of deliveries (alias of /requests/)."""
+    """Return the list of deliveries currently on the map."""
     return state.list_deliveries()
 
 
