@@ -341,16 +341,14 @@ class TSP:
                 if start_node is not None and start_node in G.nodes():
                     current = start_node
                     route = [start_node]
-                else:
-                    current = start_pickup
-                    route = []
-                    
-                # Always start with a pickup
-                if current != start_pickup:
+                    # Need to add the first pickup and remove from unvisited
                     route.append(start_pickup)
                     unvisited.discard(start_pickup)
                     current = start_pickup
                 else:
+                    # No start_node, so start directly from the pickup
+                    current = start_pickup
+                    route = [start_pickup]
                     unvisited.discard(start_pickup)
                 
                 while unvisited:
