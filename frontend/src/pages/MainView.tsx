@@ -493,41 +493,41 @@ export default function MainView(): JSX.Element {
                 try {
                   const res = await computeTours?.();
                   console.log('Compute tours response:', res);
-                                        // clear any previous overwork notice
-                      setOverworkAlert(null);
-                      const formatSec = (s: number) => {
-                        const h = Math.floor(s / 3600);
-                        const m = Math.round((s % 3600) / 60);
-                        return `${h}h ${m}m`;
-                      };
-                      // if API returns per-tour total_travel_time_s and total_service_time_s,
-                      // warn when their sum > 7 hours (25200s)
-                      try {
-                        if (res && Array.isArray(res)) {
-                          const overworked = (res as any[]).filter((t) => {
-                            const travel = Number(t?.total_travel_time_s ?? 0);
-                            const service = Number(t?.total_service_time_s ?? 0);
-                            return (travel + service) > 25200;
-                          });
-                          if (overworked && overworked.length > 0) {
-                            const parts = overworked.map((t: any, idx: number) => {
-                              const id = t?.courier?.id ?? t?.courier ?? `#${idx + 1}`;
-                              const travel = Number(t?.total_travel_time_s ?? 0);
-                              const service = Number(t?.total_service_time_s ?? 0);
-                              const total = travel + service;
-                              const totalFmt = formatSec(total);
-                              const travelFmt = formatSec(travel);
-                              const serviceFmt = formatSec(service);
-                              return `Courier ${String(id)} scheduled ${totalFmt} (${travelFmt} travel + ${serviceFmt} service)`;
-                            });
-                            setOverworkAlert(`Overwork warning: ${parts.join('; ')}. Please remove or reassign some delivery requests.`);
-                          } else {
-                            setOverworkAlert(null);
-                          }
-                        }
-                      } catch (e) {
-                        // ignore formatting errors
+                  // clear any previous overwork notice
+                  setOverworkAlert(null);
+                  const formatSec = (s: number) => {
+                    const h = Math.floor(s / 3600);
+                    const m = Math.round((s % 3600) / 60);
+                    return `${h}h ${m}m`;
+                  };
+                  // if API returns per-tour total_travel_time_s and total_service_time_s,
+                  // warn when their sum > 7 hours (25200s)
+                  try {
+                    if (res && Array.isArray(res)) {
+                      const overworked = (res as any[]).filter((t) => {
+                        const travel = Number(t?.total_travel_time_s ?? 0);
+                        const service = Number(t?.total_service_time_s ?? 0);
+                        return (travel + service) > 25200;
+                      });
+                      if (overworked && overworked.length > 0) {
+                        const parts = overworked.map((t: any, idx: number) => {
+                          const id = t?.courier?.id ?? t?.courier ?? `#${idx + 1}`;
+                          const travel = Number(t?.total_travel_time_s ?? 0);
+                          const service = Number(t?.total_service_time_s ?? 0);
+                          const total = travel + service;
+                          const totalFmt = formatSec(total);
+                          const travelFmt = formatSec(travel);
+                          const serviceFmt = formatSec(service);
+                          return `Courier ${String(id)} scheduled ${totalFmt} (${travelFmt} travel + ${serviceFmt} service)`;
+                        });
+                        setOverworkAlert(`Overwork warning: ${parts.join('; ')}. Please remove or reassign some delivery requests.`);
+                      } else {
+                        setOverworkAlert(null);
                       }
+                    }
+                  } catch (e) {
+                    // ignore formatting errors
+                  }
                   // clear any previous notices (deprecated)
                   if (res && Array.isArray(res)) {
                     const points: DeliveryPoint[] = [];

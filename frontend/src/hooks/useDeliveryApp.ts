@@ -317,6 +317,7 @@ export function useDeliveryApp() {
       throw new Error('Erreur inattendue lors du géocodage');
     }
   }, []);
+
   // Saved tours (named snapshots)
   const listSavedTours = useCallback(async () => {
     try {

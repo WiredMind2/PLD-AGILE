@@ -6,15 +6,13 @@ from app.core import state
 router = APIRouter(prefix="/saved_tours", tags=["Saved Tours"])
 
 
-@router.get("/", summary="List saved tours")
+@router.get("/", summary="List saved tours", description="List named saved snapshots (map + tours).")
 def list_saved_tours() -> List[Dict[str, Any]]:
-    """Return the list of saved tours (map + pickup point)"""
     return state.list_snapshots()
 
 
 @router.post("/save", summary="Save current state as named snapshot")
 def save_current_as_named(payload: Dict[str, Any]):
-    """Save the current map and tours as a named snapshot."""
     name = (payload or {}).get("name")
     if not name:
         raise HTTPException(status_code=400, detail="Missing 'name'")
@@ -27,7 +25,6 @@ def save_current_as_named(payload: Dict[str, Any]):
 
 @router.post("/load", summary="Load a named snapshot into memory")
 def load_named_snapshot(payload: Dict[str, Any]):
-    """Load a named snapshot from disk into server memory."""
     name = (payload or {}).get("name")
     if not name:
         raise HTTPException(status_code=400, detail="Missing 'name'")

@@ -72,6 +72,7 @@ def test_save_and_load_snapshot(setup_state):
     assert 'tours' in st and isinstance(st['tours'], list)
 
 
+
 def test_list_snapshots_empty():
     """Test listing snapshots when none exist (or only system ones)."""
     resp = client.get('/api/v1/saved_tours/')
@@ -355,3 +356,4 @@ def test_load_corrupted_snapshot(setup_state, tmp_path):
         os.remove(corrupt_file)
     except:
         pass
+
