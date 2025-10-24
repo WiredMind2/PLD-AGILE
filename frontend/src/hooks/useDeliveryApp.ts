@@ -115,7 +115,7 @@ export function useDeliveryApp() {
     }
   }, [handleError, couriersState]);
 
-  // From map clicks: resolve nearest nodes then create request
+  // Resolve nearest nodes then create request
   const createRequestFromCoords = useCallback(
     async (
       pickup: [number, number],
@@ -297,6 +297,26 @@ export function useDeliveryApp() {
     }
   }, [handleError]);
 
+  const geocodeAddress = useCallback(async (address: string): Promise<{ lat: number, lon: number } | null> => {
+    // Utilise Nominatim (OpenStreetMap) pour géocoder
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
+      console.log('Geocoding address with URL:', url);
+      const res = await fetch(url);
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+      }
+      throw new Error(`Aucun résultat pour l'adresse: ${address}`);
+    } catch (e) {
+      if (e instanceof Error) {
+        setError(`${e.message}`);
+        throw new Error(`${e.message}`);
+      }
+      setError(`Erreur inattendue lors du géocodage`);
+      throw new Error('Erreur inattendue lors du géocodage');
+    }
+  }, []);
   // Saved tours (named snapshots)
   const listSavedTours = useCallback(async () => {
     try {
@@ -315,8 +335,7 @@ export function useDeliveryApp() {
     try {
       setLoading(true);
       setError(null);
-      const res = await apiClient.saveNamedTour(name);
-      return res;
+      return await apiClient.saveNamedTour(name);
     } catch (err) {
       handleError(err);
       throw err;
@@ -375,7 +394,8 @@ export function useDeliveryApp() {
     deleteCourier,
     computeTours,
     assignDeliveryToCourier,
-  createRequestFromCoords,
+    geocodeAddress,
+    createRequestFromCoords,
 
     clearServerState,
     listSavedTours,

@@ -23,7 +23,6 @@ export default function MainView(): JSX.Element {
     error, 
     uploadMap,
     clearError,
-  addRequest,
   uploadRequestsFile,
     deleteRequest,
     stats,
@@ -36,6 +35,7 @@ export default function MainView(): JSX.Element {
   couriers,
   clearServerState,
   assignDeliveryToCourier,
+  geocodeAddress,
   createRequestFromCoords,
   listSavedTours,
   saveNamedTour,
@@ -68,12 +68,44 @@ export default function MainView(): JSX.Element {
     console.log('Clicked delivery point:', point);
   };
 
+  // Helper to add pickup/delivery markers for a manually created delivery id
+  const addPickupDeliveryMarkers = (
+    createdId: string,
+    pickupPos: [number, number] | null,
+    deliveryPos: [number, number] | null,
+  ) => {
+    if (!pickupPos && !deliveryPos) return;
+    setDeliveryPoints((prev) => {
+      const base = prev ? [...prev] : [];
+      if (pickupPos) {
+        base.push({
+          id: `pickup-${createdId}`,
+          position: pickupPos,
+          address: 'Pickup Location',
+          type: 'pickup',
+          status: 'pending',
+        });
+      }
+      if (deliveryPos) {
+        base.push({
+          id: `delivery-${createdId}`,
+          position: deliveryPos,
+          address: 'Delivery Location',
+          type: 'delivery',
+          status: 'pending',
+        });
+      }
+      return base;
+    });
+  };
+
   const handleMapUpload = () => {
     fileInputRef.current?.click();
   };
 
   const handleRequestUpload = () => {
     requestsInputRef.current?.click();
+    setOpenNewReq(false);
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -231,56 +263,81 @@ export default function MainView(): JSX.Element {
   const [openNewReq, setOpenNewReq] = useState(false);
   const [pickupAddr, setPickupAddr] = useState('');
   const [deliveryAddr, setDeliveryAddr] = useState('');
+  const [pickupAddressText, setPickupAddressText] = useState('');
+  const [deliveryAddressText, setDeliveryAddressText] = useState('');
+  const [pickupGeocodeLoading, setPickupGeocodeLoading] = useState(false);
+  const [deliveryGeocodeLoading, setDeliveryGeocodeLoading] = useState(false);
   const [pickupService, setPickupService] = useState(300); // default 5 min
   const [deliveryService, setDeliveryService] = useState(300); // default 5 min
 
+
   const submitNewRequest = async (e: React.FormEvent) => {
     e.preventDefault();
+    let pickupCoord: [number, number] = [0, 0];
+    let deliveryCoord: [number, number] = [0, 0];
     try {
-      const created = await addRequest({
-        pickup_addr: pickupAddr,
-        delivery_addr: deliveryAddr,
-        pickup_service_s: Number(pickupService),
-        delivery_service_s: Number(deliveryService)
-      } as any);
-      // If we have a map, add points on the fly for visualization
-      if (map) {
-        const findInter = (id: string) => map.intersections.find((i) => String(i.id) === String(id));
-        const pickupInter = findInter(pickupAddr);
-        const deliveryInter = findInter(deliveryAddr);
-        setDeliveryPoints((prev) => {
-          const base = prev ? [...prev] : [];
-          if (pickupInter) {
-            base.push({
-              id: `pickup-${created?.id ?? pickupAddr}`,
-              position: [pickupInter.latitude, pickupInter.longitude],
-              address: 'Pickup Location',
-              type: 'pickup',
-              status: 'pending'
-            });
+      // Handle pickup address
+      if (pickupAddressText) {
+        setPickupGeocodeLoading(true);
+        try {
+          const geo = await geocodeAddress(pickupAddressText);
+          if (!geo) {
+            throw new Error('Pickup address not found: ' + pickupAddressText);
           }
-          if (deliveryInter) {
-            base.push({
-              id: `delivery-${created?.id ?? deliveryAddr}`,
-              position: [deliveryInter.latitude, deliveryInter.longitude],
-              address: 'Delivery Location',
-              type: 'delivery',
-              status: 'pending'
-            });
-          }
-          return base;
-        });
+          pickupCoord = [geo.lat, geo.lon];
+        } catch (e) {
+          console.error(e);
+          throw e;
+        } finally {
+          setPickupGeocodeLoading(false);
+        }
       }
+
+      // Handle delivery address
+      if (deliveryAddressText) {
+        setDeliveryGeocodeLoading(true);
+        try {
+          const geo = await geocodeAddress(deliveryAddressText);
+          if (!geo) {
+            throw new Error('Delivery address not found: ' + deliveryAddressText);
+          }
+          deliveryCoord = [geo.lat, geo.lon];
+        } catch (e) {
+            console.error(e);
+            throw e;
+        } finally {
+          setDeliveryGeocodeLoading(false);
+        }
+      }
+
+      // Create the request using the API in the hook: options keys expected are pickup_service_s/delivery_service_s
+      const res = await createRequestFromCoords(pickupCoord, deliveryCoord, { pickup_service_s: pickupService, delivery_service_s: deliveryService });
+      // update map points
+      if (res && res.pickupNode && res.deliveryNode) {
+        const createdId = String((res.created as any)?.id ?? Date.now());
+        const pickupPos = [res.pickupNode.latitude, res.pickupNode.longitude] as [number, number];
+        const deliveryPos = [res.deliveryNode.latitude, res.deliveryNode.longitude] as [number, number];
+        addPickupDeliveryMarkers(createdId, pickupPos, deliveryPos);
+        setSuccessAlert('New delivery request created from form');
+        setTimeout(() => setSuccessAlert(null), 4000);
+      }
+
       // reset and close
       setPickupAddr('');
       setDeliveryAddr('');
+      setPickupAddressText('');
+      setDeliveryAddressText('');
       setPickupService(300);
       setDeliveryService(300);
       setOpenNewReq(false);
       setSuccessAlert('New delivery request created');
       setTimeout(() => setSuccessAlert(null), 5000);
     } catch (err) {
+      setPickupGeocodeLoading(false);
+      setDeliveryGeocodeLoading(false);
       // error is handled globally via hook
+    } finally {
+      setOpenNewReq(false);
     }
   };
 
@@ -477,7 +534,7 @@ export default function MainView(): JSX.Element {
                     const deliveryIdCounter = { count: 0 }; // Counter for generating unique delivery IDs
                     
                     res.forEach((t: any) => {
-                      const courier = t.courier;
+                      const { courier } = t;
                       // Find courier start position from the deliveries' warehouse field
                       // Many map uploads register the warehouse on each delivery (map.deliveries[].warehouse)
                       // We search the loaded map deliveries for a matching warehouse id === courier.id
@@ -708,25 +765,10 @@ export default function MainView(): JSX.Element {
                       const res = await createRequestFromCoords?.(pickup, delivery, options);
                       // Update markers immediately using returned nearest nodes
                       if (res && res.pickupNode && res.deliveryNode) {
-                        setDeliveryPoints((prev) => {
-                          const base = prev ? [...prev] : [];
-                          const createdId = String((res.created as any)?.id ?? Date.now());
-                          base.push({
-                            id: `pickup-${createdId}`,
-                            position: [res.pickupNode.latitude, res.pickupNode.longitude],
-                            address: 'Pickup Location',
-                            type: 'pickup',
-                            status: 'pending',
-                          });
-                          base.push({
-                            id: `delivery-${createdId}`,
-                            position: [res.deliveryNode.latitude, res.deliveryNode.longitude],
-                            address: 'Delivery Location',
-                            type: 'delivery',
-                            status: 'pending',
-                          });
-                          return base;
-                        });
+                        const createdId = String((res.created as any)?.id ?? Date.now());
+                        const pickupPos = [res.pickupNode.latitude, res.pickupNode.longitude] as [number, number];
+                        const deliveryPos = [res.deliveryNode.latitude, res.deliveryNode.longitude] as [number, number];
+                        addPickupDeliveryMarkers(createdId, pickupPos, deliveryPos);
                         setSuccessAlert('New delivery request created from map');
                         setTimeout(() => setSuccessAlert(null), 4000);
                       }
@@ -904,7 +946,7 @@ export default function MainView(): JSX.Element {
                         <div className="min-w-0">
                           <div className="text-sm font-medium text-emerald-800 dark:text-emerald-200 truncate">Delivery {d.id}</div>
                           <div className="text-xs text-emerald-600 dark:text-emerald-400 truncate">
-                            Pickup: {pickupId} • Drop: {deliveryId} • svc: {d.pickup_service_s + d.delivery_service_s}s
+                            Pickup: {pickupId} • Drop: {deliveryId} • Service duration: {d.pickup_service_s + d.delivery_service_s}s
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -962,26 +1004,31 @@ export default function MainView(): JSX.Element {
           <SheetContent side="right" className="sm:max-w-md">
             <SheetHeader>
               <SheetTitle>New Delivery Request</SheetTitle>
-              <SheetDescription>Provide node IDs and service durations in seconds.</SheetDescription>
+              <SheetDescription>Provide pickup and delivery addresses, and service durations.
+                The nearest delivery points will be suggested based on the provided addresses.</SheetDescription>
             </SheetHeader>
             <form onSubmit={submitNewRequest} className="mt-6 space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Pickup node id</label>
+                <label className="text-sm font-medium">Pickup address</label>
                 <Input
-                  placeholder="e.g. 25175791"
-                  value={pickupAddr}
-                  onChange={(e) => setPickupAddr(e.target.value)}
+                  placeholder="e.g. 10 rue de la République, 69001 Lyon"
+                  value={pickupAddressText}
+                  onChange={(e) => setPickupAddressText(e.target.value)}
+                  disabled={!!pickupAddr}
                   required
                 />
+                {pickupGeocodeLoading && <span className="text-xs text-blue-500">Recherche de l'adresse...</span>}
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Delivery node id</label>
+                <label className="text-sm font-medium">Delivery address</label>
                 <Input
-                  placeholder="e.g. 25175792"
-                  value={deliveryAddr}
-                  onChange={(e) => setDeliveryAddr(e.target.value)}
+                  placeholder="e.g. 20 avenue Jean Jaurès, 69007 Lyon"
+                  value={deliveryAddressText}
+                  onChange={(e) => setDeliveryAddressText(e.target.value)}
+                  disabled={!!deliveryAddr}
                   required
                 />
+                {deliveryGeocodeLoading && <span className="text-xs text-blue-500">Recherche de l'adresse...</span>}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">

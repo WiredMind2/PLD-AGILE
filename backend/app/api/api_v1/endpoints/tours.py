@@ -50,11 +50,9 @@ def list_tours():
 def get_tour(courier_id: str):
     """Return computed tours for a single courier id."""
     tours = state.list_tours()
-    filtered = [t for t in tours if getattr(t.courier, 'id', None) == courier_id]
-    if not filtered:
-        raise HTTPException(status_code=404, detail='No tour found for courier')
-
-    return filtered
+    if filtered := [t for t in tours if getattr(t.courier, 'id', None) == courier_id]:
+        return filtered
+    raise HTTPException(status_code=404, detail='No tour found for courier')
 
 
 @router.post("/save", tags=["Tours"], summary="Save tours")
