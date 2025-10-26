@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
-import { apiClient } from '@/lib/api';
-import type { Map, Delivery, Tour } from '@/types/api';
+import { useState, useCallback } from "react";
+import { apiClient } from "@/lib/api";
+import type { Map, Delivery, Tour } from "@/types/api";
 
 export function useDeliveryApp() {
   const [map, setMap] = useState<Map | null>(null);
@@ -12,9 +12,10 @@ export function useDeliveryApp() {
   const [error, setError] = useState<string | null>(null);
 
   const handleError = useCallback((err: unknown) => {
-    const message = err instanceof Error ? err.message : 'An unexpected error occurred';
+    const message =
+      err instanceof Error ? err.message : "An unexpected error occurred";
     setError(message);
-    console.error('API Error:', err);
+    console.error("API Error:", err);
   }, []);
 
   const clearServerState = useCallback(async () => {
@@ -69,52 +70,81 @@ export function useDeliveryApp() {
   }, [handleError]);
 
   // Delivery operations
-  const uploadDeliveryRequests = useCallback(async (file: File) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const newDeliveries = await apiClient.uploadDeliveryRequests(file);
-      const defaultCourierId = couriersState?.[0] ?? null;
-      if (defaultCourierId) {
-        await Promise.all(
-          newDeliveries.map((d: any) =>
-            apiClient.assignDelivery(String(d.id), String(defaultCourierId)).catch(() => undefined)
-          )
-        );
+  const uploadDeliveryRequests = useCallback(
+    async (file: File) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const newDeliveries = await apiClient.uploadDeliveryRequests(file);
+        const defaultCourierId = couriersState?.[0] ?? null;
+        if (defaultCourierId) {
+          await Promise.all(
+            newDeliveries.map((d: any) =>
+              apiClient
+                .assignDelivery(String(d.id), String(defaultCourierId))
+                .catch(() => undefined)
+            )
+          );
+        }
+        setDeliveries((prev) => [
+          ...prev,
+          ...(defaultCourierId
+            ? newDeliveries.map((d: any) => ({
+                ...(d as any),
+                courier: String(defaultCourierId),
+              }))
+            : newDeliveries),
+        ]);
+        return newDeliveries;
+      } catch (err) {
+        handleError(err);
+        throw err;
+      } finally {
+        setLoading(false);
       }
-      setDeliveries((prev) => [
-        ...prev,
-        ...(defaultCourierId ? newDeliveries.map((d: any) => ({ ...(d as any), courier: String(defaultCourierId) })) : newDeliveries),
-      ]);
-      return newDeliveries;
-    } catch (err) {
-      handleError(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [handleError, couriersState]);
+    },
+    [handleError, couriersState]
+  );
 
-  const addRequest = useCallback(async (request: Pick<Delivery, 'pickup_addr' | 'delivery_addr' | 'pickup_service_s' | 'delivery_service_s'>) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const created = await apiClient.addRequest(request);
-      const defaultCourierId = couriersState?.[0] ?? null;
-      if (defaultCourierId) {
-        await apiClient.assignDelivery(String(created.id), String(defaultCourierId)).catch(() => undefined);
-        setDeliveries((prev) => [...prev, { ...(created as any), courier: String(defaultCourierId) } as unknown as Delivery]);
-      } else {
-        setDeliveries((prev) => [...prev, created as unknown as Delivery]);
+  const addRequest = useCallback(
+    async (
+      request: Pick<
+        Delivery,
+        | "pickup_addr"
+        | "delivery_addr"
+        | "pickup_service_s"
+        | "delivery_service_s"
+      >
+    ) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const created = await apiClient.addRequest(request);
+        const defaultCourierId = couriersState?.[0] ?? null;
+        if (defaultCourierId) {
+          await apiClient
+            .assignDelivery(String(created.id), String(defaultCourierId))
+            .catch(() => undefined);
+          setDeliveries((prev) => [
+            ...prev,
+            {
+              ...(created as any),
+              courier: String(defaultCourierId),
+            } as unknown as Delivery,
+          ]);
+        } else {
+          setDeliveries((prev) => [...prev, created as unknown as Delivery]);
+        }
+        return created;
+      } catch (err) {
+        handleError(err);
+        throw err;
+      } finally {
+        setLoading(false);
       }
-      return created;
-    } catch (err) {
-      handleError(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [handleError, couriersState]);
+    },
+    [handleError, couriersState]
+  );
 
   // Resolve nearest nodes then create request
   const createRequestFromCoords = useCallback(
@@ -132,7 +162,7 @@ export function useDeliveryApp() {
         const pickupNode = ack?.pickup.id;
         const deliveryNode = ack?.delivery.id;
         if (!pickupNode || !deliveryNode) {
-          throw new Error('Nearest nodes not found for provided coordinates');
+          throw new Error("Nearest nodes not found for provided coordinates");
         }
         const created = await apiClient.addRequest({
           pickup_addr: pickupNode as any,
@@ -168,20 +198,23 @@ export function useDeliveryApp() {
     }
   }, [handleError]);
 
-  const addCourier = useCallback(async (courier: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const created = await apiClient.addCourier(courier as any);
-      setCouriersState((prev) => [...prev, created as string]);
-      return created;
-    } catch (err) {
-      handleError(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [handleError]);
+  const addCourier = useCallback(
+    async (courier: string) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const created = await apiClient.addCourier(courier as any);
+        setCouriersState((prev) => [...prev, created as string]);
+        return created;
+      } catch (err) {
+        handleError(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [handleError]
+  );
 
   const deleteCourier = useCallback(async (courierId: string) => {
     try {
@@ -223,60 +256,86 @@ export function useDeliveryApp() {
     }
   }, [handleError, deliveries]);
 
-  const uploadRequestsFile = useCallback(async (file: File) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const newDeliveries = await apiClient.uploadRequestsFile(file);
-      // Assign to default courier if present
-      const defaultCourierId = couriersState?.[0] ?? null;
-      if (defaultCourierId) {
-        await Promise.all(
-          newDeliveries.map((d: any) => apiClient.assignDelivery(String(d.id), String(defaultCourierId)).catch(() => undefined))
-        );
+  const uploadRequestsFile = useCallback(
+    async (file: File) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const newDeliveries = await apiClient.uploadRequestsFile(file);
+        // Assign to default courier if present
+        const defaultCourierId = couriersState?.[0] ?? null;
+        if (defaultCourierId) {
+          await Promise.all(
+            newDeliveries.map((d: any) =>
+              apiClient
+                .assignDelivery(String(d.id), String(defaultCourierId))
+                .catch(() => undefined)
+            )
+          );
+        }
+
+        setDeliveries((prev) => [
+          ...prev,
+          ...(defaultCourierId
+            ? newDeliveries.map((d: any) => ({
+                ...(d as any),
+                courier: String(defaultCourierId),
+              }))
+            : newDeliveries),
+        ]);
+        return newDeliveries;
+      } catch (err) {
+        handleError(err);
+        throw err;
+      } finally {
+        setLoading(false);
       }
+    },
+    [handleError, couriersState]
+  );
 
-      setDeliveries((prev) => [
-        ...prev,
-        ...(defaultCourierId ? newDeliveries.map((d: any) => ({ ...(d as any), courier: String(defaultCourierId) })) : newDeliveries),
-      ]);
-      return newDeliveries;
-    } catch (err) {
-      handleError(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [handleError, couriersState]);
+  const deleteRequest = useCallback(
+    async (deliveryId: string) => {
+      try {
+        setLoading(true);
+        setError(null);
+        await apiClient.deleteRequest(deliveryId);
+        setDeliveries((prev) =>
+          prev.filter((d) => String(d.id) !== String(deliveryId))
+        );
+      } catch (err) {
+        handleError(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [handleError]
+  );
 
-  const deleteRequest = useCallback(async (deliveryId: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      await apiClient.deleteRequest(deliveryId);
-      setDeliveries((prev) => prev.filter((d) => String(d.id) !== String(deliveryId)));
-    } catch (err) {
-      handleError(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [handleError]);
-
-  const assignDeliveryToCourier = useCallback(async (deliveryId: string, courierId: string | null) => {
-    try {
-      setLoading(true);
-      setError(null);
-      await apiClient.assignDelivery(deliveryId, courierId);
-      // update local state to reflect assignment
-      setDeliveries((prev) => prev.map((d) => (String(d.id) === String(deliveryId) ? ({ ...d, courier: (courierId as unknown) as any } as Delivery) : d)));
-    } catch (err) {
-      handleError(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [handleError]);
+  const assignDeliveryToCourier = useCallback(
+    async (deliveryId: string, courierId: string | null) => {
+      try {
+        setLoading(true);
+        setError(null);
+        await apiClient.assignDelivery(deliveryId, courierId);
+        // update local state to reflect assignment
+        setDeliveries((prev) =>
+          prev.map((d) =>
+            String(d.id) === String(deliveryId)
+              ? ({ ...d, courier: courierId as unknown as any } as Delivery)
+              : d
+          )
+        );
+      } catch (err) {
+        handleError(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [handleError]
+  );
 
   const computeTours = useCallback(async () => {
     try {
@@ -294,26 +353,31 @@ export function useDeliveryApp() {
     }
   }, [handleError]);
 
-  const geocodeAddress = useCallback(async (address: string): Promise<{ lat: number, lon: number } | null> => {
-    // Utilise Nominatim (OpenStreetMap) pour géocoder
-    try {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
-      console.log('Geocoding address with URL:', url);
-      const res = await fetch(url);
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+  const geocodeAddress = useCallback(
+    async (address: string): Promise<{ lat: number; lon: number } | null> => {
+      // Utilise Nominatim (OpenStreetMap) pour géocoder
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          address
+        )}`;
+        console.log("Geocoding address with URL:", url);
+        const res = await fetch(url);
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+        }
+        throw new Error(`Aucun résultat pour l'adresse: ${address}`);
+      } catch (e) {
+        if (e instanceof Error) {
+          setError(`${e.message}`);
+          throw new Error(`${e.message}`);
+        }
+        setError(`Erreur inattendue lors du géocodage`);
+        throw new Error("Erreur inattendue lors du géocodage");
       }
-      throw new Error(`Aucun résultat pour l'adresse: ${address}`);
-    } catch (e) {
-      if (e instanceof Error) {
-        setError(`${e.message}`);
-        throw new Error(`${e.message}`);
-      }
-      setError(`Erreur inattendue lors du géocodage`);
-      throw new Error('Erreur inattendue lors du géocodage');
-    }
-  }, []);
+    },
+    []
+  );
 
   // Saved tours (named snapshots)
   const listSavedTours = useCallback(async () => {
@@ -329,38 +393,60 @@ export function useDeliveryApp() {
     }
   }, [handleError]);
 
-  const saveNamedTour = useCallback(async (name: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      return await apiClient.saveNamedTour(name);
-    } catch (err) {
-      handleError(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [handleError]);
+  const saveNamedTour = useCallback(
+    async (name: string) => {
+      try {
+        setLoading(true);
+        setError(null);
+        return await apiClient.saveNamedTour(name);
+      } catch (err) {
+        handleError(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [handleError]
+  );
 
-  const loadNamedTour = useCallback(async (name: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await apiClient.loadNamedTour(name);
-      const st = (res && (res as any).state) || (await apiClient.getState());
-      const mp = st?.map ?? null;
-      setMap(mp as Map | null);
-      setCouriersState((st?.couriers ?? []) as string[]);
-      setDeliveries((st?.deliveries ?? []) as Delivery[]);
-      setToursState((st?.tours ?? []) as Tour[]);
-      return st;
-    } catch (err) {
-      handleError(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [handleError]);
+  const deleteNamedTour = useCallback(
+    async (name: string) => {
+      try {
+        setLoading(true);
+        setError(null);
+        return await apiClient.deleteNamedTour(name);
+      } catch (err) {
+        handleError(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [handleError]
+  );
+
+  const loadNamedTour = useCallback(
+    async (name: string) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await apiClient.loadNamedTour(name);
+        const st = (res && (res as any).state) || (await apiClient.getState());
+        const mp = st?.map ?? null;
+        setMap(mp as Map | null);
+        setCouriersState((st?.couriers ?? []) as string[]);
+        setDeliveries((st?.deliveries ?? []) as Delivery[]);
+        setToursState((st?.tours ?? []) as Tour[]);
+        return st;
+      } catch (err) {
+        handleError(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [handleError]
+  );
 
   // Computed values
   const stats = {
@@ -399,6 +485,7 @@ export function useDeliveryApp() {
     listSavedTours,
     saveNamedTour,
     loadNamedTour,
+    deleteNamedTour,
 
     // Utils
     clearError: () => setError(null),

@@ -201,3 +201,11 @@ def load_snapshot(name: str) -> None:
             payload = pickle.load(f)
         _current_map = payload.get('map')
         _tours = payload.get('tours') or []
+
+def delete_snapshot(name: str) -> None:
+    """Delete a named snapshot from disk."""
+    safe = _sanitize_name(name)
+    path = os.path.join(_saved_dir, f"{safe}.pkl")
+    if not os.path.isfile(path):
+        raise FileNotFoundError("Snapshot not found")
+    os.remove(path)
