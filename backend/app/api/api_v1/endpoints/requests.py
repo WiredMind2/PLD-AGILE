@@ -14,6 +14,7 @@ class AssignCourierPayload(BaseModel):
 router = APIRouter(prefix="/requests")
 
 
+import contextlib
 @router.get(
     "/",
     response_model=List[Delivery],
@@ -38,20 +39,24 @@ def add_request(request: Delivery):
         raise HTTPException(status_code=400, detail='No map loaded')
     
     # Validate that pickup and delivery node ids exist on the loaded map
-    inter_ids = {str(i.id) for i in mp.intersections}
-    if str(request.pickup_addr) not in inter_ids:
+    inter_ids = {i.id for i in mp.intersections}
+    if request.pickup_addr not in inter_ids:
         raise HTTPException(status_code=400, detail=f'Pickup node id {request.pickup_addr} not found on map')
-    if str(request.delivery_addr) not in inter_ids:
+    if request.delivery_addr not in inter_ids:
         raise HTTPException(status_code=400, detail=f'Delivery node id {request.delivery_addr} not found on map')
 
     # create delivery id via XMLParser helper (reuse existing parser to build a Delivery instance)
     try:
-        deliveries = XMLParser.parse_deliveries(f'<root><livraison adresseEnlevement="{request.pickup_addr}" adresseLivraison="{request.delivery_addr}" dureeEnlevement="{request.pickup_service_s}" dureeLivraison="{request.delivery_service_s}"/></root>')
+        delivery = Delivery(
+            pickup_addr=request.pickup_addr,
+            delivery_addr=request.delivery_addr,
+            pickup_service_s=request.pickup_service_s,
+            delivery_service_s=request.delivery_service_s
+        )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f'Failed to parse delivery: {e}')
-    if not deliveries:
+        raise HTTPException(status_code=400, detail=f'Failed to parse delivery: {e}') from e
+    if not delivery:
         raise HTTPException(status_code=400, detail='Could not parse delivery')
-    delivery = deliveries[0]
     
     # Use the central state helper so the global map state is updated in one place
     state.add_delivery(delivery)
@@ -68,10 +73,10 @@ def add_request(request: Delivery):
 )
 def delete_request(delivery_id: str):
     """Delete a delivery request by its id."""
-    ok = state.remove_delivery(delivery_id)
-    if not ok:
+    if ok := state.remove_delivery(delivery_id):
+        return {"detail": "deleted"}
+    else:
         raise HTTPException(status_code=404, detail="Delivery not found")
-    return {"detail": "deleted"}
 
 
 @router.post(
@@ -88,28 +93,24 @@ async def upload_requests_file(file: UploadFile):
         deliveries = XMLParser.parse_deliveries(text)
         if not deliveries:
             raise HTTPException(status_code=400, detail='No deliveries parsed from file')
-        
+
         # validate that each delivery references existing nodes
         mp = state.get_map()
-        inter_ids = {str(i.id) for i in mp.intersections} if mp else set()
-        
+        inter_ids = {i.id for i in mp.intersections} if mp else set()
+
         for d in deliveries:
-            pid = getattr(d.pickup_addr, 'id', d.pickup_addr)
-            did = getattr(d.delivery_addr, 'id', d.delivery_addr)
-            if inter_ids and (str(pid) not in inter_ids or str(did) not in inter_ids):
-                raise HTTPException(status_code=400, detail=f'Delivery references unknown node id (pickup={pid}, delivery={did})')
+            if inter_ids and (d.pickup_addr not in inter_ids or  d.delivery_addr not in inter_ids):
+                raise HTTPException(status_code=400, detail=f'Delivery references unknown node id (pickup={d.pickup_addr}, delivery={d.delivery_addr})')
             state.add_delivery(d)
-        try:
+        with contextlib.suppress(Exception):
             print(
                 f"[requests.upload_requests_file] added {len(deliveries)} deliveries from {file.filename}"
             )
-        except Exception:
-            pass
         return deliveries
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.patch(
@@ -123,19 +124,7 @@ def assign_courier(delivery_id: str, payload: AssignCourierPayload):
     if mp is None:
         raise HTTPException(status_code=400, detail="No map loaded")
 
-    # If courier_id is provided, ensure courier exists
-    courier_obj = None
-    if payload.courier_id is not None:
-        # resolve the courier id to the actual Courrier object stored in the map
-        courier_obj = next(
-            (c for c in mp.couriers if getattr(c, "id", None) == payload.courier_id),
-            None,
-        )
-        if courier_obj is None:
-            raise HTTPException(status_code=404, detail="Courier not found")
-
-    # Store the courier object (or None) on the delivery so frontend sees a consistent object shape
-    ok = state.update_delivery(delivery_id, courier=courier_obj)
-    if not ok:
+    if state.update_delivery(delivery_id, courier=payload.courier_id):
+        return {"detail": "assigned"}
+    else:
         raise HTTPException(status_code=404, detail="Delivery not found")
-    return {"detail": "assigned"}

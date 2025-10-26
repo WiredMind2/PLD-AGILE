@@ -329,8 +329,13 @@ def input_manual_path(valid_nodes: set) -> List[str]:
         return path
 
 
-def display_path_info(label: str, compact_path: Optional[List[str]], compact_cost: Optional[float],
-                      expanded_path: Optional[List[str]] = None, expanded_cost: Optional[float] = None):
+def display_path_info(
+    label: str,
+    compact_path: Optional[List[str]],
+    compact_cost: Optional[float],
+    expanded_path: Optional[List[str]] = None,
+    expanded_cost: Optional[float] = None,
+):
     """Helper to display path information consistently."""
     if compact_path and compact_cost is not None:
         print(f"\n{label} (compact: {len(compact_path)} waypoints):")
@@ -367,13 +372,23 @@ def compare_paths(
     print("=" * 70)
 
     # Display TSP paths
-    display_path_info("TSP Heuristic", tsp_compact, tsp_compact_cost, tsp_path, tsp_cost)
+    display_path_info(
+        "TSP Heuristic", tsp_compact, tsp_compact_cost, tsp_path, tsp_cost
+    )
 
     # Display optimal solution if available
-    display_path_info("Brute-Force Optimal", optimal_compact, optimal_compact_cost, optimal_path, optimal_cost)
+    display_path_info(
+        "Brute-Force Optimal",
+        optimal_compact,
+        optimal_compact_cost,
+        optimal_path,
+        optimal_cost,
+    )
 
     # Display manual paths
-    display_path_info("Manual Path", manual_compact, manual_compact_cost, manual_path, manual_cost)
+    display_path_info(
+        "Manual Path", manual_compact, manual_compact_cost, manual_path, manual_cost
+    )
 
     print("\n" + "-" * 70)
 
@@ -411,18 +426,26 @@ def compare_paths(
         print("\n✓ Expanded paths are identical to heuristic!")
     else:
         # Find common segments
-        common_count = len([
-            i
-            for i in range(min(len(tsp_path), len(manual_path)))
-            if tsp_path[i] == manual_path[i]
-        ])
+        common_count = len(
+            [
+                i
+                for i in range(min(len(tsp_path), len(manual_path)))
+                if tsp_path[i] == manual_path[i]
+            ]
+        )
         print(f"\n  First {common_count} nodes match with heuristic in expanded paths")
 
     print("=" * 70)
 
 
-def display_heuristic_vs_optimal_comparison(tour, compact_cost, optimal_tour, optimal_compact_cost, 
-                                             tsp_time=None, optimal_time=None):
+def display_heuristic_vs_optimal_comparison(
+    tour,
+    compact_cost,
+    optimal_tour,
+    optimal_compact_cost,
+    tsp_time=None,
+    optimal_time=None,
+):
     """Display comparison between heuristic and optimal solutions."""
     separator = "=" * 70
     print(f"\n{separator}")
@@ -449,7 +472,7 @@ def display_heuristic_vs_optimal_comparison(tour, compact_cost, optimal_tour, op
 
     # Display timing comparison if both times are available
     if tsp_time is not None and optimal_time is not None:
-        speedup = optimal_time / tsp_time if tsp_time > 0 else float('inf')
+        speedup = optimal_time / tsp_time if tsp_time > 0 else float("inf")
         print(f"\nTiming Comparison:")
         print(f"  Heuristic is {speedup:.1f}× faster than brute-force")
         print(f"  Time saved: {optimal_time - tsp_time:.3f}s")
@@ -509,7 +532,7 @@ def main():
         )
     else:
         print("\nUsing embedded default map")
-    
+
     G_map, all_nodes = tsp._build_networkx_map_graph(None)
     print(f"Map loaded: {len(all_nodes)} nodes")
 
@@ -530,8 +553,8 @@ def main():
             # Show first few deliveries
             print("\nDelivery details:")
             for i, d in enumerate(deliveries[:5], 1):
-                pickup = str(getattr(d.pickup_addr, "id", d.pickup_addr))
-                delivery = str(getattr(d.delivery_addr, "id", d.delivery_addr))
+                pickup = d.pickup_addr
+                delivery = d.delivery_addr
                 print(
                     f"  {i}. Pickup: {pickup} -> Delivery: {delivery} "
                     f"(service: {d.pickup_service_s}s + {d.delivery_service_s}s)"
@@ -542,10 +565,7 @@ def main():
             # Extract nodes from deliveries
             nodes_from_reqs = []
             for d in deliveries:
-                nodes_from_reqs.extend([
-                    str(getattr(addr, "id", addr))
-                    for addr in (d.pickup_addr, d.delivery_addr)
-                ])
+                nodes_from_reqs.extend([d.pickup_addr, d.delivery_addr])
 
             # Keep order and uniqueness
             seen = set()
@@ -583,8 +603,8 @@ def main():
     if deliveries:
         tour_pairs = [
             (
-                str(getattr(d.pickup_addr, "id", d.pickup_addr)),
-                str(getattr(d.delivery_addr, "id", d.delivery_addr)),
+                d.pickup_addr,
+                d.delivery_addr,
             )
             for d in deliveries
         ]
@@ -601,6 +621,7 @@ def main():
     # Compute TSP solution
     print("\nComputing TSP optimal tour...")
     import time
+
     tsp_start_time = time.time()
     tour, compact_cost = tsp.solve(sample_tour)
     tsp_solve_time = time.time() - tsp_start_time
@@ -653,8 +674,8 @@ def main():
             cached_optimal = load_cached_optimal_tour(args.map, args.req)
         elif args.force:
             print(
-                    "\n⚠️  --force flag set: Ignoring cache, will recompute optimal solution"
-                )
+                "\n⚠️  --force flag set: Ignoring cache, will recompute optimal solution"
+            )
 
         if cached_optimal:
             separator = "=" * 70
@@ -682,8 +703,8 @@ def main():
             # Expand the cached tour
             print("  Expanding cached tour to full path...")
             try:
-                optimal_full_route, optimal_expanded_cost = (
-                    tsp.expand_tour_with_paths(optimal_tour, sp_graph)
+                optimal_full_route, optimal_expanded_cost = tsp.expand_tour_with_paths(
+                    optimal_tour, sp_graph
                 )
                 print(
                     f"  Expanded path: {len(optimal_full_route)} nodes, cost: {optimal_expanded_cost:.2f}"
@@ -700,98 +721,96 @@ def main():
             except Exception as e:
                 print(f"  Error expanding cached tour: {e}")
         else:
-                # No cache found, compute optimal solution
-                print(f"\n{'='*70}")
-                print("COMPUTING OPTIMAL SOLUTION (Brute-Force)")
-                print(f"{'='*70}")
-                print(
-                    f"This will check all valid permutations for {len(nodes_list)} nodes..."
-                )
+            # No cache found, compute optimal solution
+            print(f"\n{'='*70}")
+            print("COMPUTING OPTIMAL SOLUTION (Brute-Force)")
+            print(f"{'='*70}")
+            print(
+                f"This will check all valid permutations for {len(nodes_list)} nodes..."
+            )
 
-                import time
+            import time
 
-                start_time = time.time()
+            start_time = time.time()
 
-                best_tour = None
-                best_cost = float("inf")
-                count = 0
+            best_tour = None
+            best_cost = float("inf")
+            count = 0
 
-                try:
-                    # Use brute-force generator
-                    if generate_all_valid_tours is None or brute_force_tour_cost is None:
-                        raise RuntimeError("Brute-force functions not available")
-                    
-                    for candidate_tour in generate_all_valid_tours(
-                        tour_pairs, start_node=None
-                    ):
-                        count += 1
+            try:
+                # Use brute-force generator
+                if generate_all_valid_tours is None or brute_force_tour_cost is None:
+                    raise RuntimeError("Brute-force functions not available")
 
-                        if count % 10000 == 0:
-                            elapsed = time.time() - start_time
-                            print(
-                                f"  Checked {count:,} permutations in {elapsed:.1f}s..."
-                            )
+                for candidate_tour in generate_all_valid_tours(
+                    tour_pairs, start_node=None
+                ):
+                    count += 1
 
-                        # Calculate cost
-                        cost = brute_force_tour_cost(candidate_tour, sp_graph)
+                    if count % 10000 == 0:
+                        elapsed = time.time() - start_time
+                        print(f"  Checked {count:,} permutations in {elapsed:.1f}s...")
 
-                        if cost < best_cost:
-                            best_tour = candidate_tour
-                            best_cost = cost
-                            if count < 1000:  # Only print early finds
-                                print(f"  New best: cost={best_cost:.2f}")
+                    # Calculate cost
+                    cost = brute_force_tour_cost(candidate_tour, sp_graph)
 
-                    elapsed = time.time() - start_time
+                    if cost < best_cost:
+                        best_tour = candidate_tour
+                        best_cost = cost
+                        if count < 1000:  # Only print early finds
+                            print(f"  New best: cost={best_cost:.2f}")
 
-                    if best_tour:
-                        optimal_tour = best_tour
-                        optimal_compact_cost = best_cost
-                        optimal_computation_time = elapsed
+                elapsed = time.time() - start_time
 
-                        print(f"\n✓ Optimal solution found!")
-                        print(f"  Checked {count:,} permutations in {elapsed:.1f}s")
-                        print(
-                            f"  Compact tour: {len(optimal_tour)} nodes, cost: {optimal_compact_cost:.2f}"
+                if best_tour:
+                    optimal_tour = best_tour
+                    optimal_compact_cost = best_cost
+                    optimal_computation_time = elapsed
+
+                    print(f"\n✓ Optimal solution found!")
+                    print(f"  Checked {count:,} permutations in {elapsed:.1f}s")
+                    print(
+                        f"  Compact tour: {len(optimal_tour)} nodes, cost: {optimal_compact_cost:.2f}"
+                    )
+                    print(f"  Tour order: {' -> '.join(optimal_tour)}")
+
+                    # Save to cache
+                    if args.map and args.req:
+                        save_cached_optimal_tour(
+                            args.map,
+                            args.req,
+                            optimal_tour,
+                            optimal_compact_cost,
+                            count,
+                            elapsed,
                         )
-                        print(f"  Tour order: {' -> '.join(optimal_tour)}")
 
-                        # Save to cache
-                        if args.map and args.req:
-                            save_cached_optimal_tour(
-                                args.map,
-                                args.req,
-                                optimal_tour,
-                                optimal_compact_cost,
-                                count,
-                                elapsed,
-                            )
+                    # Expand the optimal tour
+                    print("  Expanding optimal tour to full path...")
+                    try:
+                        optimal_full_route, optimal_expanded_cost = (
+                            tsp.expand_tour_with_paths(optimal_tour, sp_graph)
+                        )
+                        print(
+                            f"  Expanded path: {len(optimal_full_route)} nodes, cost: {optimal_expanded_cost:.2f}"
+                        )
 
-                        # Expand the optimal tour
-                        print("  Expanding optimal tour to full path...")
-                        try:
-                            optimal_full_route, optimal_expanded_cost = (
-                                tsp.expand_tour_with_paths(optimal_tour, sp_graph)
-                            )
+                        # Compare with heuristic
+                        improvement = compact_cost - optimal_compact_cost
+                        if improvement > 0.01:
                             print(
-                                f"  Expanded path: {len(optimal_full_route)} nodes, cost: {optimal_expanded_cost:.2f}"
+                                f"  ⚠️  Heuristic was {improvement:.2f} units longer ({improvement/optimal_compact_cost*100:.1f}% suboptimal)"
                             )
+                        else:
+                            print("  ✓ Heuristic found the optimal solution!")
+                    except Exception as e:
+                        print(f"  Error expanding optimal tour: {e}")
+                else:
+                    print("  No valid tour found")
 
-                            # Compare with heuristic
-                            improvement = compact_cost - optimal_compact_cost
-                            if improvement > 0.01:
-                                print(
-                                    f"  ⚠️  Heuristic was {improvement:.2f} units longer ({improvement/optimal_compact_cost*100:.1f}% suboptimal)"
-                                )
-                            else:
-                                print("  ✓ Heuristic found the optimal solution!")
-                        except Exception as e:
-                            print(f"  Error expanding optimal tour: {e}")
-                    else:
-                        print("  No valid tour found")
-
-                except Exception as e:
-                    print(f"\n⚠️  Error running brute-force solver: {e}")
-                    print("Continuing with heuristic solution...")
+            except Exception as e:
+                print(f"\n⚠️  Error running brute-force solver: {e}")
+                print("Continuing with heuristic solution...")
 
     # Get manual path from user only if --manual flag is set
     if not args.manual:
@@ -802,8 +821,12 @@ def main():
         # If optimal was computed, show comparison between heuristic and optimal
         if optimal_tour and optimal_compact_cost is not None:
             display_heuristic_vs_optimal_comparison(
-                tour, compact_cost, optimal_tour, optimal_compact_cost,
-                tsp_solve_time, optimal_computation_time
+                tour,
+                compact_cost,
+                optimal_tour,
+                optimal_compact_cost,
+                tsp_solve_time,
+                optimal_computation_time,
             )
 
         print("\nThank you for using the TSP comparison tool!")
@@ -819,8 +842,12 @@ def main():
         # If optimal was computed, show comparison between heuristic and optimal
         if optimal_tour and optimal_compact_cost is not None:
             display_heuristic_vs_optimal_comparison(
-                tour, compact_cost, optimal_tour, optimal_compact_cost,
-                tsp_solve_time, optimal_computation_time
+                tour,
+                compact_cost,
+                optimal_tour,
+                optimal_compact_cost,
+                tsp_solve_time,
+                optimal_computation_time,
             )
 
         print("\nThank you for using the TSP comparison tool!")

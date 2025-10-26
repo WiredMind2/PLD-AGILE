@@ -18,29 +18,29 @@ export default function MainView(): JSX.Element {
   const [mapCenter, setMapCenter] = useState<[number, number]>([45.764043, 4.835659]); // Default Lyon center
   const [roadSegments, setRoadSegments] = useState<any[]>([]);
   const [mapZoom, setMapZoom] = useState(13);
-  
-  const { 
-    loading, 
-    error, 
+
+  const {
+    loading,
+    error,
     uploadMap,
     clearError,
-  uploadRequestsFile,
+    uploadRequestsFile,
     deleteRequest,
     stats,
-  map,
-  deliveries,
-  computeTours,
-  fetchCouriers,
-  addCourier,
-  deleteCourier,
-  couriers,
-  clearServerState,
-  assignDeliveryToCourier,
-  geocodeAddress,
-  createRequestFromCoords,
-  listSavedTours,
-  saveNamedTour,
-  loadNamedTour,
+    map,
+    deliveries,
+    computeTours,
+    fetchCouriers,
+    addCourier,
+    deleteCourier,
+    couriers,
+    clearServerState,
+    assignDeliveryToCourier,
+    geocodeAddress,
+    createRequestFromCoords,
+    listSavedTours,
+    saveNamedTour,
+    loadNamedTour,
   } = useDeliveryApp();
 
   useEffect(() => {
@@ -49,7 +49,8 @@ export default function MainView(): JSX.Element {
     refreshSavedTours();
   }, []);
 
-  const [deliveryPoints, setDeliveryPoints] = useState<DeliveryPoint[]>();
+  // initialize as empty array so map components never receive `undefined`
+  const [deliveryPoints, setDeliveryPoints] = useState<DeliveryPoint[]>([]);
   const [successAlert, setSuccessAlert] = useState<string | null>(null);
   const [overworkAlert, setOverworkAlert] = useState<string | null>(null);
   const [routes, setRoutes] = useState<{ id: string; courierId?: string; color?: string; positions: [number, number][] }[]>([]);
@@ -64,7 +65,7 @@ export default function MainView(): JSX.Element {
   const toggleRouteVisibility = (courierId: string) => {
     setHiddenRoutes((prev) => ({ ...prev, [String(courierId)]: !prev[String(courierId)] }));
   };
-  
+
   const handlePointClick = (point: any) => {
     console.log('Clicked delivery point:', point);
   };
@@ -116,7 +117,7 @@ export default function MainView(): JSX.Element {
       try {
         const mapData = await uploadMap(file);
         console.log('Map uploaded successfully:', mapData);
-        
+
         // Only show existing delivery request points (no raw map nodes or couriers)
         const getCoords = (addr: any): [number, number] | null => {
           if (!addr) return null;
@@ -154,12 +155,13 @@ export default function MainView(): JSX.Element {
           }
           // Add courier marker at warehouse if present on the delivery
           const wh = delivery.warehouse;
-          if (wh && typeof wh.latitude === 'number' && typeof wh.longitude === 'number') {
+          const pwh = getCoords(wh);
+          if (pwh) {
             const courierId = `courier-${String(wh.id)}`;
             if (!points.some((p) => p.id === courierId)) {
               points.push({
                 id: courierId,
-                position: [wh.latitude, wh.longitude],
+                position: pwh,
                 address: 'Courier start (warehouse)',
                 type: 'courier',
                 status: 'active',
@@ -167,13 +169,13 @@ export default function MainView(): JSX.Element {
             }
           }
         });
-        
+
         console.log('Generated delivery points:', points);
         setDeliveryPoints(points);
-  // show success alert
-  setSuccessAlert('Map loaded successfully');
-  setTimeout(() => setSuccessAlert(null), 5000);
-        
+        // show success alert
+        setSuccessAlert('Map loaded successfully');
+        setTimeout(() => setSuccessAlert(null), 5000);
+
         // Convert road segments for rendering
         const segments = (mapData.road_segments || []).map(segment => ({
           start: [segment.start.latitude, segment.start.longitude] as [number, number],
@@ -182,14 +184,14 @@ export default function MainView(): JSX.Element {
         }));
         setRoadSegments(segments);
         console.log('Generated road segments:', segments.length);
-        
+
         // Set map center to the first intersection if available
         if (mapData.intersections && mapData.intersections.length > 0) {
           const firstIntersection = mapData.intersections[0];
           setMapCenter([firstIntersection.latitude, firstIntersection.longitude]);
           console.log('Map center updated to:', [firstIntersection.latitude, firstIntersection.longitude]);
         }
-        
+
       } catch (error) {
         console.error('Failed to upload map:', error);
       }
@@ -206,7 +208,7 @@ export default function MainView(): JSX.Element {
     try {
       const lst = await listSavedTours?.();
       if (Array.isArray(lst)) setSavedTours(lst as any);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const handleRequestsFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -221,8 +223,8 @@ export default function MainView(): JSX.Element {
         setDeliveryPoints((prev) => {
           const base = prev ? [...prev] : [];
           deliveries.forEach((d: any) => {
-            const pickup = map.intersections.find((i) => String(i.id) === String(d.pickup_addr?.id ?? d.pickup_addr));
-            const drop = map.intersections.find((i) => String(i.id) === String(d.delivery_addr?.id ?? d.delivery_addr));
+            const pickup = map.intersections.find((i) => String(i.id) === String(d.pickup_addr.id));
+            const drop = map.intersections.find((i) => String(i.id) === String(d.delivery_addr.id));
             if (pickup) {
               base.push({ id: `pickup-${d.id}`, position: [pickup.latitude, pickup.longitude], address: 'Pickup Location', type: 'pickup', status: 'pending' });
             }
@@ -231,12 +233,13 @@ export default function MainView(): JSX.Element {
             }
             // Add courier marker at warehouse (entrepot) if available
             const wh = d.warehouse;
-            if (wh && typeof wh.latitude === 'number' && typeof wh.longitude === 'number') {
+            const pwh = map.intersections.find((i) => String(i.id) === String(wh.id));
+            if (pwh) {
               const courierId = `courier-${String(wh.id)}`;
               if (!base.some((p) => p.id === courierId)) {
                 base.push({
                   id: courierId,
-                  position: [wh.latitude, wh.longitude],
+                  position: [pwh.latitude, pwh.longitude],
                   address: 'Courier start (warehouse)',
                   type: 'courier',
                   status: 'active',
@@ -253,14 +256,14 @@ export default function MainView(): JSX.Element {
             const avgLat = latSum / base.length;
             const avgLng = lngSum / base.length;
             setMapCenter([avgLat, avgLng]);
-            
+
             // Calculate zoom based on point spread
             const latitudes = base.map(p => p.position[0]);
             const longitudes = base.map(p => p.position[1]);
             const latRange = Math.max(...latitudes) - Math.min(...latitudes);
             const lngRange = Math.max(...longitudes) - Math.min(...longitudes);
             const maxRange = Math.max(latRange, lngRange);
-            
+
             //FIND A BETTER SCALE
             let zoom = 14;
             if (maxRange < 0.01) zoom = 14;
@@ -268,7 +271,7 @@ export default function MainView(): JSX.Element {
             else if (maxRange < 0.1) zoom = 12;
             else if (maxRange < 0.2) zoom = 11;
             else zoom = 10;
-            
+
             setMapZoom(zoom);
           }
           return base;
@@ -332,8 +335,8 @@ export default function MainView(): JSX.Element {
           }
           deliveryCoord = [geo.lat, geo.lon];
         } catch (e) {
-            console.error(e);
-            throw e;
+          console.error(e);
+          throw e;
         } finally {
           setDeliveryGeocodeLoading(false);
         }
@@ -392,10 +395,11 @@ export default function MainView(): JSX.Element {
         if (p1) points.push({ id: `pickup-${d.id}`, position: p1, address: 'Pickup Location', type: 'pickup', status: 'pending' });
         if (p2) points.push({ id: `delivery-${d.id}`, position: p2, address: 'Delivery Location', type: 'delivery', status: 'pending' });
         const wh = d.warehouse;
-        if (wh && typeof wh.latitude === 'number' && typeof wh.longitude === 'number') {
+        const pwh = getCoords(wh);
+        if (pwh) {
           const cid = `courier-${String(wh.id)}`;
           if (!points.some((p) => p.id === cid)) {
-            points.push({ id: cid, position: [wh.latitude, wh.longitude], address: 'Courier start (warehouse)', type: 'courier', status: 'active' });
+            points.push({ id: cid, position: pwh, address: 'Courier start (warehouse)', type: 'courier', status: 'active' });
           }
         }
       });
@@ -456,7 +460,7 @@ export default function MainView(): JSX.Element {
         style={{ display: 'none' }}
         onChange={handleRequestsFileChange}
       />
-      
+
       {/* Header */}
       <div className="sticky top-0 z-50 w-full border-b border-blue-200/50 dark:border-gray-800/50 bg-white/80 dark:bg-gray-950/80 backdrop-blur-lg supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-gray-950/60">
         {/* Error display */}
@@ -475,7 +479,7 @@ export default function MainView(): JSX.Element {
             </div>
           </div>
         )}
-        
+
         <div className="container flex h-16 items-center justify-between px-6">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
@@ -492,9 +496,9 @@ export default function MainView(): JSX.Element {
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <Button 
-              size="sm" 
-              variant="outline" 
+            <Button
+              size="sm"
+              variant="outline"
               className="gap-2 border-blue-200 text-blue-600 dark:border-blue-800 dark:text-blue-400"
               onClick={handleMapUpload}
               disabled={loading || map !== null}
@@ -502,9 +506,9 @@ export default function MainView(): JSX.Element {
               <Upload className="h-4 w-4" />
               {loading ? 'Loading...' : 'Load Map (XML)'}
             </Button>
-            <Button 
-              size="sm" 
-              variant="outline" 
+            <Button
+              size="sm"
+              variant="outline"
               className="gap-2 border-cyan-200 text-cyan-600  dark:border-cyan-800 dark:text-cyan-400"
               onClick={() => setOpenSaveSheet(true)}
               disabled={loading || !map}
@@ -561,7 +565,7 @@ export default function MainView(): JSX.Element {
                   if (res && Array.isArray(res)) {
                     const points: DeliveryPoint[] = [];
                     const deliveryIdCounter = { count: 0 }; // Counter for generating unique delivery IDs
-                    
+
                     res.forEach((t: any) => {
                       const { courier } = t;
                       // Find courier start position from the deliveries' warehouse field
@@ -572,11 +576,14 @@ export default function MainView(): JSX.Element {
                         try {
                           if (map && Array.isArray(map.deliveries)) {
                             const match = map.deliveries.find((d: any) => {
-                              const whId = d?.warehouse?.id ?? d?.warehouse;
+                              const whId = d?.warehouse;
                               return whId && String(whId) === String(c.id);
                             });
-                            if (match && match.warehouse && typeof match.warehouse.latitude === 'number' && typeof match.warehouse.longitude === 'number') {
-                              return [match.warehouse.latitude, match.warehouse.longitude] as [number, number];
+                            if (match && match.warehouse) {
+                              const pwh = map?.intersections?.find((i: any) => String(i.id) === String(match.warehouse));
+                              if (pwh) {
+                                return [pwh.latitude, pwh.longitude] as [number, number];
+                              }
                             }
                           }
                         } catch (e) {
@@ -590,35 +597,35 @@ export default function MainView(): JSX.Element {
                         const cid = `courier-${courier.id}`;
                         points.push({ id: cid, position: startPos, address: 'Courier start (warehouse)', type: 'courier', status: 'active' });
                       }
-                      
+
                       // t.deliveries is an array of tuples: [[pickup_id, delivery_id], ...]
                       (t.deliveries || []).forEach((tuple: [string, string]) => {
                         deliveryIdCounter.count++;
                         const deliveryId = `D${deliveryIdCounter.count}`;
-                        
+
                         // tuple[0] is pickup intersection ID, tuple[1] is delivery intersection ID
                         const pickupId = tuple[0];
                         const deliveryAddrId = tuple[1];
-                        
+
                         const pickupInter = map?.intersections?.find((i: any) => String(i.id) === String(pickupId));
                         const deliveryInter = map?.intersections?.find((i: any) => String(i.id) === String(deliveryAddrId));
-                        
+
                         if (pickupInter) {
-                          points.push({ 
-                            id: `pickup-${deliveryId}`, 
-                            position: [pickupInter.latitude, pickupInter.longitude], 
-                            address: 'Pickup Location', 
-                            type: 'pickup', 
-                            status: 'pending' 
+                          points.push({
+                            id: `pickup-${deliveryId}`,
+                            position: [pickupInter.latitude, pickupInter.longitude],
+                            address: 'Pickup Location',
+                            type: 'pickup',
+                            status: 'pending'
                           });
                         }
                         if (deliveryInter) {
-                          points.push({ 
-                            id: `delivery-${deliveryId}`, 
-                            position: [deliveryInter.latitude, deliveryInter.longitude], 
-                            address: 'Delivery Location', 
-                            type: 'delivery', 
-                            status: 'pending' 
+                          points.push({
+                            id: `delivery-${deliveryId}`,
+                            position: [deliveryInter.latitude, deliveryInter.longitude],
+                            address: 'Delivery Location',
+                            type: 'delivery',
+                            status: 'pending'
                           });
                         }
                       });
@@ -635,14 +642,14 @@ export default function MainView(): JSX.Element {
                     try {
                       if (res && Array.isArray(res) && res.length > 0 && map) {
                         const colors = ['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6'];
-                          const builtRoutes = res.map((t: any, idx: number) => {
+                        const builtRoutes = res.map((t: any, idx: number) => {
                           const ids: string[] = Array.isArray(t.route_intersections) ? t.route_intersections : [];
                           const positions: [number, number][] = ids.map((nodeId: string) => {
                             const inter = map.intersections.find((i: any) => String(i.id) === String(nodeId));
                             return inter ? [inter.latitude, inter.longitude] as [number, number] : null;
                           }).filter(Boolean) as [number, number][];
-                            const courierId = String(t.courier?.id ?? `route`);
-                            return { id: `${courierId}-${idx}`, courierId, color: colors[idx % colors.length], positions };
+                          const courierId = String(t.courier?.id ?? `route`);
+                          return { id: `${courierId}-${idx}`, courierId, color: colors[idx % colors.length], positions };
                         }).filter((r: any) => r.positions && r.positions.length > 0);
                         setRoutes(builtRoutes);
 
@@ -708,7 +715,7 @@ export default function MainView(): JSX.Element {
               <p className="text-xs text-blue-200">Bicycle couriers</p>
             </CardContent>
           </Card>
-          
+
           <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white border-0 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-purple-100">Deliveries</CardTitle>
@@ -778,7 +785,8 @@ export default function MainView(): JSX.Element {
                 </div>
               ) : (
                 <DeliveryMap
-                  points={deliveryPoints}
+                  // filter out any points without valid numeric [lat, lng] positions
+                  points={deliveryPoints.filter(p => Array.isArray(p.position) && p.position.length === 2 && typeof p.position[0] === 'number' && typeof p.position[1] === 'number')}
                   roadSegments={roadSegments}
                   center={mapCenter}
                   zoom={mapZoom}
@@ -828,18 +836,18 @@ export default function MainView(): JSX.Element {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Number of Couriers:</span>
                     <div className="flex items-center gap-2">
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
+                      <Button
+                        size="sm"
+                        variant="outline"
                         className="h-8 w-8 p-0 border-purple-200 text-purple-600"
                         disabled={!map || loading}
-                        onClick={async () => {
+                          onClick={async () => {
                           try {
                             // remove last courier if any
                             if (stats.activeCouriers > 0) {
                               const cs = await fetchCouriers();
                               const last = cs && cs.length ? cs[cs.length - 1] : null;
-                              if (last) await deleteCourier(String(last.id));
+                              if (last) await deleteCourier(String(last));
                             }
                           } catch (e) {
                             // handled globally
@@ -854,19 +862,11 @@ export default function MainView(): JSX.Element {
                         variant="outline"
                         className="h-8 w-8 p-0 border-purple-200 text-purple-600"
                         disabled={!map || loading}
-                        onClick={async () => {
+                            onClick={async () => {
                           try {
-                            const existingNumbers = (couriers ?? [])
-                              .map((c: any) => Number(c.name?.match(/\d+$/)?.[0]))
-                              .filter(Boolean);
-
-                            const nextNum = existingNumbers.length ? Math.max(...existingNumbers) + 1 : 1;
-                            const name = `Courier ${nextNum}`;
-
-                            await addCourier({
-                              id: `C${Date.now()}`,
-                              name
-                            });
+                            // create a simple unique courier id and register it on the server
+                            const id = `C${Date.now()}`;
+                            await addCourier(id);
                           } catch (e) {
                             // handled globally
                           }
@@ -890,35 +890,35 @@ export default function MainView(): JSX.Element {
                   </div>
                   <div className="text-xs text-purple-600 dark:text-purple-400">
                     <div className="space-y-2 max-h-[22rem] overflow-auto rounded-md border border-purple-200 dark:border-purple-800 divide-y divide-purple-100 dark:divide-purple-900 p-2">
-                        {(couriers && couriers.length > 0) ? (
+                      {(couriers && couriers.length > 0) ? (
                           (() => {
-                            // compute assigned counts per courier
-                            const counts: Record<string, number> = {};
-                            (deliveries || []).forEach((d: any) => {
-                              const cid = d?.courier?.id ?? (typeof d?.courier === 'string' ? d.courier : null);
-                              if (cid) counts[String(cid)] = (counts[String(cid)] || 0) + 1;
-                            });
-                            return couriers.map((c: any) => (
-                              <div key={c.id} className="flex items-center justify-between px-2 py-2">
-                                <div className="min-w-0">
-                                  <div className="text-sm font-medium text-purple-800 dark:text-purple-200 truncate">{c.name || c.id}</div>
-                                  <div className="text-xs text-purple-600 dark:text-purple-400 truncate">Requests: {counts[String(c.id)] ?? 0}</div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {/* Toggle route visibility */}
-                                  <Button size="sm" variant="outline" onClick={() => toggleRouteVisibility(c.id)} title={hiddenRoutes[String(c.id)] ? 'Show route' : 'Hide route'}>
-                                    {hiddenRoutes[String(c.id)] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                                  </Button>
-                                  <Button size="sm" variant="outline" onClick={async () => { try { await deleteCourier(String(c.id)); setHiddenRoutes((h) => { const copy = { ...h }; delete copy[String(c.id)]; return copy; }); } catch (e) {} }}>
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </div>
+                          // compute assigned counts per courier (couriers are simple id strings)
+                          const counts: Record<string, number> = {};
+                          (deliveries || []).forEach((d: any) => {
+                            const cid = typeof d?.courier === 'string' ? d.courier : null;
+                            if (cid) counts[String(cid)] = (counts[String(cid)] || 0) + 1;
+                          });
+                          return couriers.map((c: any) => (
+                            <div key={String(c)} className="flex items-center justify-between px-2 py-2">
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium text-purple-800 dark:text-purple-200 truncate">{String(c)}</div>
+                                <div className="text-xs text-purple-600 dark:text-purple-400 truncate">Requests: {counts[String(c)] ?? 0}</div>
                               </div>
-                            ));
-                          })()
-                        ) : (
-                          <div className="text-center text-xs text-purple-600">No couriers registered</div>
-                        )}
+                              <div className="flex items-center gap-2">
+                                {/* Toggle route visibility */}
+                                <Button size="sm" variant="outline" onClick={() => toggleRouteVisibility(String(c))} title={hiddenRoutes[String(c)] ? 'Show route' : 'Hide route'}>
+                                  {hiddenRoutes[String(c)] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={async () => { try { await deleteCourier(String(c)); setHiddenRoutes((h) => { const copy = { ...h }; delete copy[String(c)]; return copy; }); } catch (e) { } }}>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                          ));
+                        })()
+                      ) : (
+                        <div className="text-center text-xs text-purple-600">No couriers registered</div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -967,11 +967,13 @@ export default function MainView(): JSX.Element {
               <div className="space-y-3">
                 <div className="text-xs text-emerald-700 dark:text-emerald-300">{stats.deliveryRequests} delivery(ies)</div>
                 <div className="max-h-56 overflow-auto rounded-md border border-emerald-200 dark:border-emerald-800 divide-y divide-emerald-100 dark:divide-emerald-900">
-                  {(deliveries || []).map((d: any) => {
+                  {(deliveries || []).map((d: any, idx: number) => {
                     const pickupId = typeof d.pickup_addr === 'string' ? d.pickup_addr : d.pickup_addr?.id;
                     const deliveryId = typeof d.delivery_addr === 'string' ? d.delivery_addr : d.delivery_addr?.id;
+                    // Ensure a stable, unique key even when backend hasn't assigned an id yet
+                    const itemKey = d.id ?? `pending-${idx}`;
                     return (
-                      <div key={d.id} className="flex items-center justify-between px-3 py-2">
+                      <div key={itemKey} className="flex items-center justify-between px-3 py-2">
                         <div className="min-w-0">
                           <div className="text-sm font-medium text-emerald-800 dark:text-emerald-200 truncate">Delivery {d.id}</div>
                           <div className="text-xs text-emerald-600 dark:text-emerald-400 truncate">
@@ -980,9 +982,17 @@ export default function MainView(): JSX.Element {
                         </div>
                         <div className="flex items-center gap-2">
                           <Select
-                            value={(d?.courier?.id ?? (typeof d?.courier === 'string' ? d.courier : '')) || 'none'}
+                            value={(d?.courier ?? 'none') || 'none'}
                             onValueChange={async (val: string) => {
                               const v = val === 'none' ? null : val;
+                              // guard: if delivery has no id yet, avoid calling backend
+                              if (d.id == null) {
+                                // update local state only
+                                // note: assignDeliveryToCourier expects an id; skip API call
+                                // but update deliveries array locally to reflect selection
+                                setDeliveryPoints((prev) => prev);
+                                return;
+                              }
                               try {
                                 await assignDeliveryToCourier(d.id, v);
                               } catch (err) {
@@ -996,7 +1006,7 @@ export default function MainView(): JSX.Element {
                             <SelectContent className='max-h-64 overflow-auto'>
                               <SelectItem value={"none"} key="none">Unassigned</SelectItem>
                               {(couriers || []).map((c: any) => (
-                                <SelectItem key={c.name} value={String(c.id)}>{c.name}</SelectItem>
+                                <SelectItem key={String(c)} value={String(c)}>{String(c)}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -1006,7 +1016,7 @@ export default function MainView(): JSX.Element {
                             className="h-8 gap-1 border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300"
                             onClick={async () => {
                               try {
-                                await deleteRequest(d.id);
+                                if (d.id != null) await deleteRequest(d.id);
                                 // remove markers if present
                                 setDeliveryPoints((prev) => prev?.filter((p) => p.id !== `pickup-${d.id}` && p.id !== `delivery-${d.id}`));
                               } catch (e) {
@@ -1024,11 +1034,11 @@ export default function MainView(): JSX.Element {
                 </div>
               </div>
             )}
-              
+
           </CardContent>
         </Card>
 
-  {/* New Delivery Request Sheet */}
+        {/* New Delivery Request Sheet */}
         <Sheet open={openNewReq} onOpenChange={setOpenNewReq}>
           <SheetContent side="right" className="sm:max-w-md">
             <SheetHeader>
@@ -1081,16 +1091,16 @@ export default function MainView(): JSX.Element {
                   />
                 </div>
               </div>
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 <Separator className="flex-1 bg-emerald-200 dark:bg-emerald-800" />
                 <span className="text-xs text-emerald-600 dark:text-emerald-400 px-2">Or</span>
                 <Separator className="flex-1 bg-emerald-200 dark:bg-emerald-800" />
-                </div>
-                {/* Import via XML */}
+              </div>
+              {/* Import via XML */}
               <div>
-                <Button 
+                <Button
                   type="button"
-                  variant="outline" 
+                  variant="outline"
                   className="w-full gap-2 border-emerald-200 text-emerald-600 dark:border-emerald-800 dark:text-emerald-400"
                   onClick={handleRequestUpload}
                   disabled={loading}
@@ -1154,7 +1164,7 @@ export default function MainView(): JSX.Element {
                             setSuccessAlert(`Loaded \"${s.name}\"`);
                             setTimeout(() => setSuccessAlert(null), 4000);
                           }
-                        } catch (e) {}
+                        } catch (e) { }
                       }}>
                         <Download className="h-3.5 w-3.5" /> Load
                       </Button>
@@ -1192,7 +1202,7 @@ export default function MainView(): JSX.Element {
                     await refreshSavedTours();
                     setSuccessAlert('Tours saved successfully');
                     setTimeout(() => setSuccessAlert(null), 3000);
-                  } catch (e) {}
+                  } catch (e) { }
                 }}
                 className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
               >

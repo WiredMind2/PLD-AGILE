@@ -19,7 +19,7 @@ def compute_tour(courier_id: str):
         svc = TSPService()
         tours = svc.compute_tours()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
     return tours
 
@@ -35,7 +35,7 @@ def compute_all_tours():
         svc = TSPService()
         tours = svc.compute_tours()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
     return tours
 
@@ -50,7 +50,7 @@ def list_tours():
 def get_tour(courier_id: str):
     """Return computed tours for a single courier id."""
     tours = state.list_tours()
-    if filtered := [t for t in tours if getattr(t.courier, 'id', None) == courier_id]:
+    if filtered := [t for t in tours if t.courier == courier_id]:
         return filtered
     raise HTTPException(status_code=404, detail='No tour found for courier')
 

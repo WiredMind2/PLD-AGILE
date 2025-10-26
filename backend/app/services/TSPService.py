@@ -9,7 +9,7 @@ from typing import List, Set, Dict, Any, Tuple, cast
 import networkx as nx
 
 from app.core import state
-from app.models.schemas import Tour, Delivery, Courrier, DEFAULT_SPEED_KMH
+from app.models.schemas import Map, Tour, Delivery, DEFAULT_SPEED_KMH
 from app.utils.TSP.TSP_networkx import TSP
 
 
@@ -17,19 +17,16 @@ class TSPService:
     def __init__(self) -> None:
         pass
 
-    def _get_node_id(self, addr) -> str:
-        """Extract node ID from an address object."""
-        return str(getattr(addr, "id", addr))
-
-    def _build_nx_graph_from_map(self, mp) -> nx.DiGraph:
+    def _build_nx_graph_from_map(self, mp: Map) -> nx.DiGraph:
         G = nx.DiGraph()
         # add nodes
         for inter in mp.intersections:
-            G.add_node(str(inter.id))
+            node_id = inter.id
+            G.add_node(str(node_id))
         # add edges
         for seg in mp.road_segments:
-            start_id = str(getattr(seg.start, "id", seg.start))
-            end_id = str(getattr(seg.end, "id", seg.end))
+            start_id = getattr(seg.start, "id", seg.start)
+            end_id = getattr(seg.end, "id", seg.end)
             try:
                 weight = float(seg.length_m)
             except Exception:
@@ -38,10 +35,9 @@ class TSPService:
                 prev = G.get_edge_data(start_id, end_id, default=None)
                 if prev is None or weight < prev.get("weight", float("inf")):
                     G.add_edge(
-                        start_id,
-                        end_id,
-                        weight=weight,
-                        street_name=getattr(seg, "street_name", ""),
+                        str(start_id),
+                        str(end_id),
+                        weight=weight
                     )
         return G
 
@@ -76,38 +72,33 @@ class TSPService:
                     sp_graph[src][tgt] = {"path": path_value, "cost": cost_value}
         return sp_graph
 
-    def _find_warehouse_for_courier(self, mp, courier_id: str, map_nodes: Set[str]) -> str | None:
+    def _find_warehouse_for_courier(self, mp: Map, courier_id: str, map_nodes: Set[str]) -> str | None:
+        # sourcery skip: use-next
         """Find the warehouse node for a given courier."""
         from contextlib import suppress
         
         # First try: find a delivery assigned to this courier that has a warehouse
         for dd in mp.deliveries:
             with suppress(Exception):
-                dd_cid = getattr(dd.courier, "id", dd.courier)
+                dd_cid = dd.courier
                 if dd_cid is None:
                     continue
                 if dd_cid == courier_id:
-                    wh = dd.warehouse
-                    if wh is not None:
-                        warehouse_node = str(getattr(wh, "id", wh))
-                        if warehouse_node in map_nodes:
-                            return warehouse_node
+                    warehouse_node = dd.warehouse
+                    if warehouse_node is not None and warehouse_node in map_nodes:
+                        return warehouse_node
 
         # Fallback to any warehouse present on the map deliveries
         for dd in mp.deliveries:
-            wh = getattr(dd, "warehouse", None)
-            if wh is not None:
-                warehouse_node = str(getattr(wh, "id", wh))
-                if warehouse_node in map_nodes:
-                    return warehouse_node
+            if dd.warehouse is not None and dd.warehouse in map_nodes:
+                return dd.warehouse
         
         return None
 
     def _extract_pickup_delivery_pair(self, delivery: Delivery, map_nodes: Set[str]) -> Tuple[str, str] | None:
         """Extract pickup and delivery node pair if both exist in the map."""
         pair = []
-        for addr in (delivery.pickup_addr, delivery.delivery_addr):
-            node_id = self._get_node_id(addr)
+        for node_id in (delivery.pickup_addr, delivery.delivery_addr):
             if node_id not in map_nodes:
                 return None
             pair.append(node_id)
@@ -126,9 +117,12 @@ class TSPService:
             if pair is None:
                 continue
 
-            courier_id = str(delivery.courier.id)
+            # normalize courier id whether courier is a string or a Courrier object
+            courier_id = delivery.courier
+
             if courier_id not in tours_by_courier:
-                tour = Tour(courier=delivery.courier)
+                # store the original courier object or id in the Tour (Tour accepts either)
+                tour = Tour(courier=courier_id)
                 tours_by_courier[courier_id] = tour
                 state.save_tour(tour)
 
@@ -164,11 +158,13 @@ class TSPService:
 
     def _calculate_total_service_time(self, deliveries: List[Delivery], courier_id: str) -> int:
         """Calculate total service time for all deliveries of a courier."""
-        return sum(
-            delivery.pickup_service_s + delivery.delivery_service_s
-            for delivery in deliveries
-            if delivery.courier and str(delivery.courier.id) == courier_id
-        )
+        total = 0
+        for delivery in deliveries:
+            c = delivery.courier
+            cid = c if isinstance(c, str) else getattr(c, "id", str(c))
+            if cid == courier_id:
+                total += (delivery.pickup_service_s or 0) + (delivery.delivery_service_s or 0)
+        return total
 
     def _set_tour_route(self, tour: Tour, full_route: List[str]) -> None:
         """Safely set the route intersections on a tour."""

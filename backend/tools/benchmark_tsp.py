@@ -112,8 +112,8 @@ class TSPBenchmark:
         delivery_pairs = []
         for delivery in deliveries:
             # Use string IDs to match TSP solver
-            pickup = str(delivery.pickup_addr) if isinstance(delivery.pickup_addr, (str, int)) else str(delivery.pickup_addr.id)
-            delivery_addr = str(delivery.delivery_addr) if isinstance(delivery.delivery_addr, (str, int)) else str(delivery.delivery_addr.id)
+            pickup = delivery.pickup_addr
+            delivery_addr = delivery.delivery_addr
             delivery_pairs.append((pickup, delivery_addr))
         
         print(f"    Map: {len(G.nodes)} nodes, {len(G.edges)} edges")

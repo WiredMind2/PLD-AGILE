@@ -42,18 +42,9 @@ class XMLParser:
         hour_departure: Optional[str] = (
             entrepot.get('heureDepart') if entrepot is not None else None
         )
-        entrepot_addr: Optional[str] = (
+        warehouse_intersection: Optional[str] = (
             entrepot.get('adresse') if entrepot is not None else None
         )
-
-        warehouse_intersection: Optional[Intersection] = None
-        if entrepot_addr:
-            mp = state.get_map()
-            if mp is not None:
-                for i in getattr(mp, 'intersections', []):
-                    if str(i.id) == str(entrepot_addr):
-                        warehouse_intersection = i
-                        break
 
         deliveries: List[Delivery] = []
         for delivery_elem in root.findall('livraison'):
@@ -127,8 +118,10 @@ class XMLParser:
             try:
                 start_inter = inter_by_id[str(origine)]
                 end_inter = inter_by_id[str(destination)]
-            except KeyError:
-                raise ValueError(f'troncon references unknown node: {origine} or {destination}')
+            except KeyError as e:
+                raise ValueError(
+                    f'troncon references unknown node: {origine} or {destination}'
+                ) from e
 
             road_seg = RoadSegment(
                 start=start_inter,

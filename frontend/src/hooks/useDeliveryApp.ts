@@ -1,13 +1,13 @@
 import { useState, useCallback } from 'react';
 import { apiClient } from '@/lib/api';
-import type { Map, Delivery, Tour, Courier } from '@/types/api';
+import type { Map, Delivery, Tour } from '@/types/api';
 
 export function useDeliveryApp() {
   const [map, setMap] = useState<Map | null>(null);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [tours] = useState<Tour[]>([]);
   const [toursState, setToursState] = useState<Tour[]>([]);
-  const [couriersState, setCouriersState] = useState<Courier[]>([]);
+  const [couriersState, setCouriersState] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,12 +43,13 @@ export function useDeliveryApp() {
       // populate couriersState from map if present
       try {
         if (mapData && Array.isArray(mapData.couriers)) {
-          setCouriersState(mapData.couriers as unknown as Courier[]);
+          setCouriersState(mapData.couriers as unknown as string[]);
           // if map has no couriers, create a default one on the server and update local state
           if ((mapData.couriers || []).length === 0) {
             try {
-              const created = await apiClient.addCourier({ name: 'Courier 1', id: `C${Date.now()}` });
-              setCouriersState((prev) => [...(prev || []), created as unknown as Courier]);
+              const newId = `C${Date.now()}`;
+              const created = await apiClient.addCourier(newId).catch(() => null);
+              if (created) setCouriersState((prev) => [...(prev || []), String(created)]);
             } catch (e) {
               // ignore creation errors
             }
@@ -73,7 +74,7 @@ export function useDeliveryApp() {
       setLoading(true);
       setError(null);
       const newDeliveries = await apiClient.uploadDeliveryRequests(file);
-      const defaultCourierId = couriersState?.[0]?.id ?? null;
+      const defaultCourierId = couriersState?.[0] ?? null;
       if (defaultCourierId) {
         await Promise.all(
           newDeliveries.map((d: any) =>
@@ -99,7 +100,7 @@ export function useDeliveryApp() {
       setLoading(true);
       setError(null);
       const created = await apiClient.addRequest(request);
-      const defaultCourierId = couriersState?.[0]?.id ?? null;
+      const defaultCourierId = couriersState?.[0] ?? null;
       if (defaultCourierId) {
         await apiClient.assignDelivery(String(created.id), String(defaultCourierId)).catch(() => undefined);
         setDeliveries((prev) => [...prev, { ...(created as any), courier: String(defaultCourierId) } as unknown as Delivery]);
@@ -128,8 +129,8 @@ export function useDeliveryApp() {
         setLoading(true);
         setError(null);
         const ack = await apiClient.mapAckPair(pickup, delivery);
-        const pickupNode = ack?.pickup;
-        const deliveryNode = ack?.delivery;
+        const pickupNode = ack?.pickup.id;
+        const deliveryNode = ack?.delivery.id;
         if (!pickupNode || !deliveryNode) {
           throw new Error('Nearest nodes not found for provided coordinates');
         }
@@ -157,7 +158,7 @@ export function useDeliveryApp() {
       setLoading(true);
       setError(null);
       const cs = await apiClient.getCouriers();
-      setCouriersState(cs as unknown as Courier[]);
+      setCouriersState(cs as string[]);
       return cs;
     } catch (err) {
       handleError(err);
@@ -167,12 +168,12 @@ export function useDeliveryApp() {
     }
   }, [handleError]);
 
-  const addCourier = useCallback(async (courier: Partial<Courier>) => {
+  const addCourier = useCallback(async (courier: string) => {
     try {
       setLoading(true);
       setError(null);
       const created = await apiClient.addCourier(courier as any);
-      setCouriersState((prev) => [...prev, created as unknown as Courier]);
+      setCouriersState((prev) => [...prev, created as string]);
       return created;
     } catch (err) {
       handleError(err);
@@ -187,16 +188,14 @@ export function useDeliveryApp() {
       setLoading(true);
       setError(null);
       await apiClient.deleteCourier(courierId);
-      setCouriersState((prev) => prev.filter((c) => String(c.id) !== String(courierId)));
+      setCouriersState((prev) => prev.filter((c) => c !== courierId));
       try {
         const toUnassign = deliveries.filter((d) => {
           try {
-        const assignedId = (d?.courier && typeof d.courier === 'string')
-          ? String(d.courier)
-          : (d?.courier?.id ? String(d.courier.id) : null);
-        return assignedId && String(assignedId) === String(courierId);
+            const assignedId = d?.courier;
+            return assignedId && assignedId === courierId;
           } catch {
-        return false;
+            return false;
           }
         });
         await Promise.all(
@@ -208,11 +207,9 @@ export function useDeliveryApp() {
       }
       setDeliveries((prev) => prev.map((d) => {
         try {
-          const assignedId = (d?.courier && typeof d.courier === 'string')
-        ? String(d.courier)
-        : (d?.courier?.id ? String(d.courier.id) : null);
-          if (assignedId && String(assignedId) === String(courierId)) {
-        return { ...d, courier: null } as any;
+          const assignedId = d?.courier;
+          if (assignedId && assignedId === courierId) {
+            return { ...d, courier: null } as any;
           }
         } catch (e) {
         }
@@ -232,7 +229,7 @@ export function useDeliveryApp() {
       setError(null);
       const newDeliveries = await apiClient.uploadRequestsFile(file);
       // Assign to default courier if present
-      const defaultCourierId = couriersState?.[0]?.id ?? null;
+      const defaultCourierId = couriersState?.[0] ?? null;
       if (defaultCourierId) {
         await Promise.all(
           newDeliveries.map((d: any) => apiClient.assignDelivery(String(d.id), String(defaultCourierId)).catch(() => undefined))
@@ -353,7 +350,7 @@ export function useDeliveryApp() {
       const st = (res && (res as any).state) || (await apiClient.getState());
       const mp = st?.map ?? null;
       setMap(mp as Map | null);
-      setCouriersState((st?.couriers ?? []) as Courier[]);
+      setCouriersState((st?.couriers ?? []) as string[]);
       setDeliveries((st?.deliveries ?? []) as Delivery[]);
       setToursState((st?.tours ?? []) as Tour[]);
       return st;
@@ -383,7 +380,7 @@ export function useDeliveryApp() {
     loading,
     error,
     stats,
-    
+
     // Actions
     uploadMap,
     uploadDeliveryRequests,
@@ -402,7 +399,7 @@ export function useDeliveryApp() {
     listSavedTours,
     saveNamedTour,
     loadNamedTour,
-    
+
     // Utils
     clearError: () => setError(null),
   };

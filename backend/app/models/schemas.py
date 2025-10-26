@@ -16,16 +16,11 @@ class Intersection:
     latitude: float
     longitude: float
 
-
-@dataclass
-class Courrier:
-    id: str                   # ex: "C1"
-    name : str
-
 @dataclass
 class RoadSegment:
-    start: Intersection
-    end: Intersection
+    # start/end may be either Intersection objects or raw node-id strings
+    start: Intersection | str
+    end: Intersection | str
     length_m: float           # longueur (metres)
     travel_time_s: int        # tempsTrajet (secondes)
     street_name: str
@@ -40,20 +35,21 @@ class Delivery:
     # addresses may be represented as node-id strings in some places or
     # full Intersection objects elsewhere. Allow both to make parsing
     # convenient for tests and incremental construction.
-    pickup_addr: str | Intersection
-    delivery_addr: str | Intersection
+    pickup_addr: str
+    delivery_addr: str
     pickup_service_s: int     # dureeEnlevement (secondes)
     delivery_service_s: int   # dureeLivraison (secondes)
-    warehouse: Optional[Intersection] = None
-    courier: Optional[Courrier] = None  # Courrier assigned to this delivery, if any
+    warehouse: Optional[str] = None
+    # courier can be stored as a Courrier object or as the courier id string
+    courier: Optional[str] = None  # Courrier assigned to this delivery, if any
     # tests expect the raw hour string like "08:30"; accept str here
     hour_departure : Optional[str] = None
     id: Optional[str] = None  # ex: "D1" (optional when creating a new delivery)
 
-
 @dataclass
 class Tour: 
-    courier: Courrier
+    # courier may be stored as a Courrier object or a courier id string
+    courier: str
     deliveries: List[Tuple[str, str]] = Field(default_factory=list)
     total_travel_time_s: int = 0
     total_service_time_s: int = 0
@@ -71,7 +67,7 @@ class Tour:
 class Map:
     intersections: List[Intersection] = Field(default_factory=list)
     road_segments: List[RoadSegment] = Field(default_factory=list)
-    couriers: List[Courrier] = Field(default_factory=list)
+    couriers: List[str] = Field(default_factory=list)
     deliveries: List[Delivery] = Field(default_factory=list)
     adjacency_list: Dict[str, List[Tuple[Intersection, RoadSegment]]] = Field(default_factory=dict)
 
@@ -86,7 +82,7 @@ class Map:
     def add_delivery(self, delivery: Delivery) -> None:
         self.deliveries.append(delivery)
 
-    def add_courier(self, courier: Courrier) -> None:
+    def add_courier(self, courier: str) -> None:
         self.couriers.append(courier)
 
     def build_adjacency(self) -> None:

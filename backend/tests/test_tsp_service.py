@@ -147,18 +147,15 @@ class TestTSPService:
     def test_compute_tours_unassigned_deliveries(self):
         """Test compute_tours ignores deliveries without courier"""
         service = TSPService()
-        
-        # Create delivery without courier
-        delivery = Mock()
-        delivery.courier = None
-        delivery.pickup_addr = Mock(id="1")
-        delivery.delivery_addr = Mock(id="2")
-        
-        mock_map = Mock()
-        mock_map.deliveries = [delivery]
-        mock_map.intersections = [Mock(id="1"), Mock(id="2")]
+
+        delivery = self._extracted_from_test_compute_tours_tsp_solver_exception_6(
+            None, "1", "2"
+        )
+        mock_map = self._extracted_from_test_compute_tours_tsp_solver_exception_11(
+            delivery, "1", "2"
+        )
         mock_map.road_segments = []
-        
+
         with patch('app.core.state.get_map', return_value=mock_map):
             with patch('app.core.state.clear_tours'):
                 with patch('app.core.state.save_tour'):
@@ -168,40 +165,38 @@ class TestTSPService:
     def test_compute_tours_with_assigned_delivery(self):
         """Test compute_tours processes assigned deliveries"""
         service = TSPService()
-        
+
         # Create courier
         courier = Courrier(id="courier1", name="Test Courier")
-        
+
         # Create intersections
         inter1 = Mock(id="1")
         inter2 = Mock(id="2")
-        
-        # Create delivery with courier
-        delivery = Mock()
-        delivery.courier = courier
-        delivery.pickup_addr = Mock(id="1")
-        delivery.delivery_addr = Mock(id="2")
-        delivery.warehouse = Mock(id="1")
+
+        delivery = self._extracted_from_test_compute_tours_tsp_solver_exception_6(
+            courier, "1", "2"
+        )
+        delivery.warehouse = "1"
         delivery.pickup_service_s = 60
         delivery.delivery_service_s = 60
-        
+
         # Create road segment
         seg = Mock(start=Mock(id="1"), end=Mock(id="2"), length_m=100.0, street_name="Main")
-        
-        mock_map = Mock()
-        mock_map.deliveries = [delivery]
-        mock_map.intersections = [inter1, inter2]
+
+        mock_map = self._extracted_from_test_compute_tours_tsp_solver_exception_11(
+            delivery, inter1, inter2
+        )
         mock_map.road_segments = [seg]
-        
+
         with patch('app.core.state.get_map', return_value=mock_map):
             with patch('app.core.state.clear_tours') as mock_clear:
                 with patch('app.core.state.save_tour') as mock_save:
                     tours = service.compute_tours()
-                    
+
                     # Should have called clear and save
                     mock_clear.assert_called_once()
                     assert mock_save.call_count >= 1
-                    
+
                     # Should return tours
                     assert len(tours) > 0
                     assert tours[0].courier == courier
@@ -209,27 +204,21 @@ class TestTSPService:
     def test_compute_tours_with_missing_nodes(self):
         """Test compute_tours handles deliveries with nodes not in map"""
         service = TSPService()
-        
+
         courier = Courrier(id="courier1", name="Test Courier")
-        
-        # Create delivery with non-existent node
-        delivery = Mock()
-        delivery.courier = courier
-        delivery.pickup_addr = Mock(id="99")  # Not in map
-        delivery.delivery_addr = Mock(id="2")
-        
-        mock_map = Mock()
-        mock_map.deliveries = [delivery]
-        mock_map.intersections = [Mock(id="1"), Mock(id="2")]
+
+        delivery = self._extracted_from_test_compute_tours_tsp_solver_exception_6(
+            courier, "99", "2"
+        )
+        mock_map = self._extracted_from_test_compute_tours_tsp_solver_exception_11(
+            delivery, "1", "2"
+        )
         mock_map.road_segments = []
-        
+
         with patch('app.core.state.get_map', return_value=mock_map):
             with patch('app.core.state.clear_tours'):
                 with patch('app.core.state.save_tour'):
-                    tours = service.compute_tours()
-                    
-                    # Should handle gracefully (no tours or empty tour)
-                    if tours:
+                    if tours := service.compute_tours():
                         # Tour should not include invalid delivery
                         assert len(tours[0].deliveries) == 0
 
@@ -239,20 +228,20 @@ class TestTSPService:
         
         courier1 = Courrier(id="c1", name="Courier 1")
         courier2 = Courrier(id="c2", name="Courier 2")
-        
-        inter1 = Mock(id="1")
-        inter2 = Mock(id="2")
-        inter3 = Mock(id="3")
-        
+
+        inter1 = "1"
+        inter2 = "2"
+        inter3 = "3"
+
         # Deliveries for different couriers
-        del1 = Mock(courier=courier1, pickup_addr=Mock(id="1"), delivery_addr=Mock(id="2"),
+        del1 = Mock(courier=courier1, pickup_addr="1", delivery_addr="2",
                     pickup_service_s=60, delivery_service_s=60)
-        del2 = Mock(courier=courier2, pickup_addr=Mock(id="2"), delivery_addr=Mock(id="3"),
+        del2 = Mock(courier=courier2, pickup_addr="2", delivery_addr="3",
                     pickup_service_s=60, delivery_service_s=60)
-        
-        seg1 = Mock(start=Mock(id="1"), end=Mock(id="2"), length_m=100.0, street_name="St1")
-        seg2 = Mock(start=Mock(id="2"), end=Mock(id="3"), length_m=150.0, street_name="St2")
-        
+
+        seg1 = Mock(start="1", end="2", length_m=100.0, street_name="St1")
+        seg2 = Mock(start="2", end="3", length_m=150.0, street_name="St2")
+
         mock_map = Mock()
         mock_map.deliveries = [del1, del2]
         mock_map.intersections = [inter1, inter2, inter3]
@@ -265,75 +254,92 @@ class TestTSPService:
                     
                     # Should have tours for both couriers
                     assert len(tours) == 2
-                    courier_ids = {t.courier.id for t in tours}
+                    courier_ids = {t.courier for t in tours}
                     assert "c1" in courier_ids
                     assert "c2" in courier_ids
 
     def test_compute_tours_with_warehouse(self):
         """Test compute_tours uses warehouse as depot node"""
         service = TSPService()
-        
+
         courier = Courrier(id="courier1", name="Test Courier")
-        
-        inter1 = Mock(id="warehouse")
-        inter2 = Mock(id="pickup")
-        inter3 = Mock(id="delivery")
-        
-        delivery = Mock()
-        delivery.courier = courier
-        delivery.pickup_addr = Mock(id="pickup")
-        delivery.delivery_addr = Mock(id="delivery")
-        delivery.warehouse = Mock(id="warehouse")
+
+        inter1 = "warehouse"
+        inter2 = "pickup"
+        inter3 = "delivery"
+
+        delivery = self._extracted_from_test_compute_tours_tsp_solver_exception_6(
+            courier, "pickup", "delivery"
+        )
+        delivery.warehouse = "warehouse"
         delivery.pickup_service_s = 60
         delivery.delivery_service_s = 60
-        
+
         # Create connections
-        seg1 = Mock(start=Mock(id="warehouse"), end=Mock(id="pickup"), length_m=100.0, street_name="St1")
-        seg2 = Mock(start=Mock(id="pickup"), end=Mock(id="delivery"), length_m=200.0, street_name="St2")
-        seg3 = Mock(start=Mock(id="delivery"), end=Mock(id="warehouse"), length_m=150.0, street_name="St3")
-        
+        seg1 = Mock(start="warehouse", end="pickup", length_m=100.0, street_name="St1")
+        seg2 = Mock(start="pickup", end="delivery", length_m=200.0, street_name="St2")
+        seg3 = Mock(start="delivery", end="warehouse", length_m=150.0, street_name="St3")
+
         mock_map = Mock()
         mock_map.deliveries = [delivery]
         mock_map.intersections = [inter1, inter2, inter3]
         mock_map.road_segments = [seg1, seg2, seg3]
-        
+
         with patch('app.core.state.get_map', return_value=mock_map):
             with patch('app.core.state.clear_tours'):
                 with patch('app.core.state.save_tour'):
-                    tours = service.compute_tours()
-                    
-                    assert len(tours) == 1
-                    tour = tours[0]
-                    
-                    # Tour should have route intersections
-                    assert hasattr(tour, 'route_intersections')
-                    assert hasattr(tour, 'total_distance_m')
-                    assert hasattr(tour, 'total_travel_time_s')
+                    self._extracted_from_test_compute_tours_with_warehouse_31(service)
+
+    # TODO Rename this here and in `test_compute_tours_with_warehouse`
+    def _extracted_from_test_compute_tours_with_warehouse_31(self, service):
+        tours = service.compute_tours()
+
+        assert len(tours) == 1
+        tour = tours[0]
+
+        # Tour should have route intersections
+        assert hasattr(tour, 'route_intersections')
+        assert hasattr(tour, 'total_distance_m')
+        assert hasattr(tour, 'total_travel_time_s')
 
     def test_compute_tours_tsp_solver_exception(self):
         """Test compute_tours handles TSP solver exceptions gracefully"""
         service = TSPService()
-        
+
         courier = Courrier(id="courier1", name="Test Courier")
-        
-        delivery = Mock()
-        delivery.courier = courier
-        delivery.pickup_addr = Mock(id="1")
-        delivery.delivery_addr = Mock(id="2")
+
+        delivery = self._extracted_from_test_compute_tours_tsp_solver_exception_6(
+            courier, "1", "2"
+        )
         delivery.pickup_service_s = 60
         delivery.delivery_service_s = 60
-        
-        mock_map = Mock()
-        mock_map.deliveries = [delivery]
-        mock_map.intersections = [Mock(id="1"), Mock(id="2")]
-        mock_map.road_segments = [Mock(start=Mock(id="1"), end=Mock(id="2"), length_m=100.0, street_name="St")]
-        
+
+        mock_map = self._extracted_from_test_compute_tours_tsp_solver_exception_11(
+            delivery, "1", "2"
+        )
+        mock_map.road_segments = [Mock(start="1", end="2", length_m=100.0, street_name="St")]
+
         with patch('app.core.state.get_map', return_value=mock_map):
             with patch('app.core.state.clear_tours'):
                 with patch('app.core.state.save_tour'):
                     # Mock TSP to raise exception
                     with patch('app.utils.TSP.TSP_networkx.TSP.solve', side_effect=Exception("TSP Error")):
                         tours = service.compute_tours()
-                        
+
                         # Should still return tours (with fallback)
                         assert len(tours) > 0
+
+    # TODO Rename this here and in `test_compute_tours_unassigned_deliveries`, `test_compute_tours_with_assigned_delivery`, `test_compute_tours_with_missing_nodes`, `test_compute_tours_with_warehouse` and `test_compute_tours_tsp_solver_exception`
+    def _extracted_from_test_compute_tours_tsp_solver_exception_11(self, delivery, arg1, arg2):
+        result = Mock()
+        result.deliveries = [delivery]
+        result.intersections = [arg1, arg2]
+        return result
+
+    # TODO Rename this here and in `test_compute_tours_unassigned_deliveries`, `test_compute_tours_with_assigned_delivery`, `test_compute_tours_with_missing_nodes`, `test_compute_tours_with_warehouse` and `test_compute_tours_tsp_solver_exception`
+    def _extracted_from_test_compute_tours_tsp_solver_exception_6(self, arg0, arg1, arg2):
+        result = Mock()
+        result.courier = arg0
+        result.pickup_addr = arg1
+        result.delivery_addr = arg2
+        return result

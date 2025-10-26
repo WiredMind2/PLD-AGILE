@@ -27,7 +27,7 @@ class MapService:
 		Returns None if map or intersections are unavailable.
 		"""
 		mp = state.get_map()
-		if mp is None or not getattr(mp, 'intersections', None):
+		if mp is None or not mp.intersections:
 			return None
 
 		best = None
@@ -35,7 +35,7 @@ class MapService:
 		# meters per degree approximations
 		for inter in mp.intersections:
 			try:
-				lat_avg = (lat + float(getattr(inter, 'latitude', 0.0))) / 2.0
+				lat_avg = (lat + float(inter.latitude)) / 2.0
 				dx = (lat - float(inter.latitude)) * 111_320.0
 				dy = (lng - float(inter.longitude)) * 111_320.0 * __import__('math').cos(__import__('math').radians(lat_avg))
 				dist = (dx*dx + dy*dy) ** 0.5

@@ -50,7 +50,7 @@ class ApiClient {
     const formData = new FormData();
     formData.append('file', file);
 
-    return this.request<Map>('/map', {
+    return this.request<Map>('/map/', {
       method: 'POST',
       headers: {},
       body: formData,
@@ -62,7 +62,7 @@ class ApiClient {
     const formData = new FormData();
     formData.append('file', file);
 
-    return this.request<Delivery[]>('/deliveries', {
+    return this.request<Delivery[]>('/deliveries/', {
       method: 'POST',
       headers: {},
       body: formData,
@@ -84,9 +84,12 @@ class ApiClient {
   }
 
   async addCourier(courier: any): Promise<any> {
+    // Backend expects a raw courier id string (e.g. "C123").
+    // Allow callers to pass either an object with an `id` or a plain string.
+    const payload = typeof courier === 'object' && courier !== null && 'id' in courier ? String(courier.id) : String(courier);
     return this.request<any>('/couriers/', {
       method: 'POST',
-      body: JSON.stringify(courier),
+      body: JSON.stringify(payload),
     })
   }
 

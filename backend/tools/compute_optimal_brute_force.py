@@ -85,9 +85,8 @@ def is_valid_tour(tour: List[str], pd_pairs: List[Tuple[str, str]], start_node: 
         start_node: Optional start node that should be first (and last for closed tours)
     """
     # If start_node is specified, check it's first in the tour
-    if start_node is not None:
-        if not tour or tour[0] != start_node:
-            return False
+    if start_node is not None and (not tour or tour[0] != start_node):
+        return False
     
     # Build position index
     pos = {node: idx for idx, node in enumerate(tour)}
@@ -113,23 +112,18 @@ def generate_all_valid_tours(pd_pairs: List[Tuple[str, str]], start_node: Option
     # Collect all nodes
     all_nodes = []
     for p, d in pd_pairs:
-        all_nodes.append(p)
-        all_nodes.append(d)
-    
+        all_nodes.extend((p, d))
     # Create precedence map: delivery -> pickup
     delivery_to_pickup = {d: p for p, d in pd_pairs}
-    
+
     # Generate all permutations of nodes
     for perm in permutations(all_nodes):
-        # Check if this permutation respects all precedences
-        valid = True
         node_positions = {node: idx for idx, node in enumerate(perm)}
-        
-        for delivery, pickup in delivery_to_pickup.items():
-            if node_positions[pickup] >= node_positions[delivery]:
-                valid = False
-                break
-        
+
+        valid = all(
+            node_positions[pickup] < node_positions[delivery]
+            for delivery, pickup in delivery_to_pickup.items()
+        )
         if valid:
             # Build tour with start/end nodes
             tour = list(perm)
@@ -138,8 +132,8 @@ def generate_all_valid_tours(pd_pairs: List[Tuple[str, str]], start_node: Option
                 tour = [start_node] + tour + [start_node]
             else:
                 # Close tour to first node
-                tour = tour + [tour[0]]
-            
+                tour += [tour[0]]
+
             yield tour
 
 
@@ -158,48 +152,35 @@ def compute_optimal_brute_force(map_path: str,
     Returns:
         Tuple of (optimal_tour, optimal_cost)
     """
-    print(f"\n{'='*70}")
-    print("BRUTE-FORCE OPTIMAL TSP SOLVER")
-    print(f"{'='*70}")
-    
+    _extracted_from_compute_optimal_brute_force_103(
+        "BRUTE-FORCE OPTIMAL TSP SOLVER"
+    )
     # Load map
     print(f"\nLoading map from: {map_path}")
     tsp = TSP()
     G_map, all_map_nodes = tsp._build_networkx_map_graph(map_path)
     print(f"Map loaded: {G_map.number_of_nodes()} nodes, {G_map.number_of_edges()} edges")
-    
+
     # Load delivery requests
     print(f"\nLoading delivery requests from: {req_path}")
     with open(req_path, 'r', encoding='utf-8') as f:
         req_text = f.read()
     deliveries = XMLParser.parse_deliveries(req_text)
     print(f"Loaded {len(deliveries)} delivery requests")
-    
+
     # Extract pickup-delivery pairs (use correct attribute names)
     pd_pairs = []
-    for d in deliveries:
-        # Handle both Intersection objects and string IDs
-        if hasattr(d.pickup_addr, 'id'):
-            pickup = str(d.pickup_addr.id)  # type: ignore
-        else:
-            pickup = str(d.pickup_addr)
-        
-        if hasattr(d.delivery_addr, 'id'):
-            delivery = str(d.delivery_addr.id)  # type: ignore
-        else:
-            delivery = str(d.delivery_addr)
-        
-        pd_pairs.append((pickup, delivery))
-    
+    pd_pairs.extend((d.pickup_addr, d.delivery_addr) for d in deliveries)
+
     # Limit number of deliveries if requested
     if max_nodes > 0:
         max_deliveries = max_nodes // 2
         if max_deliveries < len(pd_pairs):
             print(f"\nLimiting to first {max_deliveries} deliveries ({max_nodes} nodes)")
             pd_pairs = pd_pairs[:max_deliveries]
-    
+
     print(f"\nWorking with {len(pd_pairs)} delivery pairs ({len(pd_pairs)*2} nodes)")
-    
+
     if len(pd_pairs) > 8:
         print(f"\n⚠️  WARNING: {len(pd_pairs)} deliveries will take a VERY long time!")
         print(f"   Estimated permutations: ~{len(pd_pairs)}! = ~{factorial_approx(len(pd_pairs))}")
@@ -207,7 +188,7 @@ def compute_optimal_brute_force(map_path: str,
         if response not in ['yes', 'y']:
             print("Aborted.")
             return [], float('inf')
-    
+
     # Collect all nodes
     all_nodes = []
     for p, d in pd_pairs:
@@ -215,7 +196,7 @@ def compute_optimal_brute_force(map_path: str,
             all_nodes.append(p)
         if d not in all_nodes:
             all_nodes.append(d)
-    
+
     if start_node is not None:
         start_node = str(start_node)
         if start_node not in G_map.nodes():
@@ -223,53 +204,57 @@ def compute_optimal_brute_force(map_path: str,
             start_node = None
         elif start_node not in all_nodes:
             all_nodes.append(start_node)
-    
+
     # Compute shortest paths
     print("\nComputing pairwise shortest paths...")
     sp_graph = compute_pairwise_shortest_paths(G_map, all_nodes)
-    
+
     # Brute force: try all valid permutations
-    print(f"\nSearching for optimal tour...")
-    print(f"  Generating valid permutations (this may take a while)...")
-    
+    print("\nSearching for optimal tour...")
+    print("  Generating valid permutations (this may take a while)...")
+
     best_tour = None
     best_cost = float('inf')
     count = 0
     start_time = time.time()
-    
+
     # Use the simpler permutation generator
     for tour in generate_all_valid_tours(pd_pairs, start_node):
         count += 1
-        
+
         if count % 10000 == 0:
             elapsed = time.time() - start_time
             print(f"  Checked {count:,} permutations in {elapsed:.1f}s (rate: {count/elapsed:.0f}/s)...")
-        
+
         # Calculate cost
         cost = tour_cost(tour, sp_graph)
-        
+
         if cost < best_cost:
             best_cost = cost
             best_tour = tour
-            print(f"  New best: cost={cost:.2f}, tour={' -> '.join(tour[:5])}{'...' if len(tour) > 5 else ''}")
-    
+            print(
+                f"  New best: cost={best_cost:.2f}, tour={' -> '.join(best_tour[:5])}{'...' if len(best_tour) > 5 else ''}"
+            )
     elapsed = time.time() - start_time
-    
+
     if best_tour is None:
-        print(f"\n{'='*70}")
-        print("NO SOLUTION FOUND")
-        print(f"{'='*70}")
+        _extracted_from_compute_optimal_brute_force_103("NO SOLUTION FOUND")
         return [], float('inf')
-    
-    print(f"\n{'='*70}")
-    print("OPTIMAL SOLUTION FOUND")
-    print(f"{'='*70}")
+
+    _extracted_from_compute_optimal_brute_force_103("OPTIMAL SOLUTION FOUND")
     print(f"Checked {count:,} valid permutations in {elapsed:.1f}s")
     print(f"Optimal cost: {best_cost:.2f}")
     print(f"Optimal tour ({len(best_tour)} nodes):")
     print(f"  {' -> '.join(best_tour)}")
-    
+
     return best_tour, best_cost
+
+
+# TODO Rename this here and in `compute_optimal_brute_force`
+def _extracted_from_compute_optimal_brute_force_103(arg0):
+    print(f"\n{'='*70}")
+    print(arg0)
+    print(f"{'='*70}")
 
 
 def factorial_approx(n):

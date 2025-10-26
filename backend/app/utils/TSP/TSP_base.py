@@ -67,14 +67,17 @@ class TSPBase:
         map_data = XMLParser.parse_map(xml_text)
 
         G = nx.DiGraph()
-        # Add nodes (use intersection ids as strings)
+        # Add nodes (use intersection ids as strings). Accept either
+        # Intersection objects or raw id strings in the parsed data.
         for inter in map_data.intersections:
-            G.add_node(str(inter.id))
+            node_id = getattr(inter, "id", inter)
+            G.add_node(str(node_id))
 
-        # Add directed edges with weight = length_m
+        # Add directed edges with weight = length_m. Accept both
+        # RoadSegment.start/end as Intersection objects or plain ids.
         for seg in map_data.road_segments:
-            start_id = str(getattr(seg.start, "id", seg.start))
-            end_id = str(getattr(seg.end, "id", seg.end))
+            start_id = getattr(seg.start, "id", seg.start)
+            end_id = getattr(seg.end, "id", seg.end)
             try:
                 weight = float(seg.length_m)
             except Exception:
@@ -85,7 +88,7 @@ class TSPBase:
                 prev = G.get_edge_data(start_id, end_id, default=None)
                 if prev is None or weight < prev.get("weight", float("inf")):
                     G.add_edge(
-                        start_id, end_id, weight=weight, street_name=seg.street_name
+                        str(start_id), str(end_id), weight=weight, street_name=seg.street_name
                     )
 
         # Cache the built graph for subsequent calls when no explicit

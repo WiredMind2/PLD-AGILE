@@ -33,4 +33,4 @@ async def upload_deliveries_file(file: UploadFile):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e

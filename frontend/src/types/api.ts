@@ -4,11 +4,6 @@ export interface Intersection {
   longitude: number;
 }
 
-export interface Courier {
-  id: string;
-  name: string;
-}
-
 export interface RoadSegment {
   start: Intersection;
   end: Intersection;
@@ -20,17 +15,17 @@ export interface RoadSegment {
 export interface Delivery {
   id: string;
   // Backend may return either raw node id strings or Intersection objects
-  pickup_addr: string | Intersection;
-  delivery_addr: string | Intersection;
+  pickup_addr: string;
+  delivery_addr: string;
   pickup_service_s: number;
   delivery_service_s: number;
-  warehouse?: Intersection;
-  courier?: Courier;
+  warehouse?: string;
+  courier?: string;
   hour_departure?: string;
 }
 
 export interface Tour {
-  courier: Courier;
+  courier: string;
   deliveries: [string, string][]; // Array of tuples [pickup_node_id, delivery_node_id]
   total_travel_time_s: number;
   total_service_time_s: number;
@@ -43,7 +38,7 @@ export interface Tour {
 export interface Map {
   intersections: Intersection[];
   road_segments: RoadSegment[];
-  couriers: Courier[];
+  couriers: string[];
   deliveries: Delivery[];
 }
 

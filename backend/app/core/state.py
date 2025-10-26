@@ -1,14 +1,14 @@
+import contextlib
 from typing import Optional, List, Dict, Any
 from threading import Lock
 import os
 import pickle
 import re
-from datetime import datetime
-
+from datetime import datetime, timezone
 try:
-    from app.models.schemas import Map, Delivery, Courrier, Tour
+    from app.models.schemas import Map, Delivery, Tour
 except Exception:
-    from models.schemas import Map, Delivery, Courrier, Tour
+    from models.schemas import Map, Delivery, Tour
 
 
 _lock = Lock()
@@ -38,9 +38,7 @@ def clear_map() -> None:
 
 
 def list_deliveries() -> List[Delivery]:
-    if _current_map is None:
-        return []
-    return _current_map.deliveries
+    return [] if _current_map is None else _current_map.deliveries
 
 
 def add_delivery(delivery: Delivery) -> None:
@@ -55,7 +53,7 @@ def remove_delivery(delivery_id: str) -> bool:
         return False
 
     for i, delivery in enumerate(_current_map.deliveries):
-        if getattr(delivery, 'id', None) == delivery_id:
+        if delivery.id == delivery_id:
             del _current_map.deliveries[i]
             return True
 
@@ -65,29 +63,22 @@ def remove_delivery(delivery_id: str) -> bool:
 def update_delivery(delivery_id: str, **kwargs) -> bool:
     if _current_map is None:
         return False
-    
-    for delivery in _current_map.deliveries:
-        if getattr(delivery, 'id', None) == delivery_id:
-            for k, v in kwargs.items():
-                try:
-                    setattr(delivery, k, v)
-                except Exception:
-                    # ignore invalid attributes
-                    pass
 
+    for delivery in _current_map.deliveries:
+        if delivery.id == delivery_id:
+            for k, v in kwargs.items():
+                with contextlib.suppress(Exception):
+                    setattr(delivery, k, v)
             return True
 
     return False
 
 
-def list_couriers() -> List[Courrier]:
-    if _current_map is None:
-        return []
-
-    return _current_map.couriers
+def list_couriers() -> List[str]:
+    return [] if _current_map is None else _current_map.couriers
 
 
-def add_courier(c: Courrier) -> None:
+def add_courier(c: str) -> None:
     if _current_map is None:
         raise RuntimeError('No map loaded')
 
@@ -99,7 +90,7 @@ def remove_courier(courier_id: str) -> bool:
         return False
 
     for i, courier in enumerate(_current_map.couriers):
-        if getattr(courier, 'id', None) == courier_id:
+        if courier == courier_id:
             del _current_map.couriers[i]
             return True
 
@@ -152,7 +143,7 @@ def save_snapshot(name: str) -> Dict[str, Any]:
         safe = _sanitize_name(name)
         path = os.path.join(_saved_dir, f"{safe}.pkl")
         payload = {
-            "saved_at": datetime.utcnow(),
+            "saved_at": datetime.now(timezone.utc),
             "name": safe,
             "map": _current_map,
             "tours": list(_tours),
@@ -181,7 +172,7 @@ def list_snapshots() -> List[Dict[str, Any]]:
             name = payload.get('name') or os.path.splitext(fname)[0]
             saved_at = payload.get('saved_at')
             if isinstance(saved_at, datetime):
-                saved_str = saved_at.isoformat() + "Z"
+                saved_str = f"{saved_at.isoformat()}Z"
             else:
                 saved_str = str(saved_at)
             stat = os.stat(fpath)
