@@ -357,3 +357,38 @@ def test_load_corrupted_snapshot(setup_state, tmp_path):
     except:
         pass
 
+
+def test_delete_snapshot_success(setup_state):
+    """Test deleting an existing snapshot succeeds."""
+    name = 'to-delete-test'
+    # Save snapshot
+    resp = client.post('/api/v1/saved_tours/save', json={'name': name})
+    assert resp.status_code == 200
+
+    # Confirm it's listed
+    resp = client.get('/api/v1/saved_tours/')
+    assert resp.status_code == 200
+    assert any(s.get('name') == name for s in resp.json())
+
+    # Delete it
+    resp = client.request('DELETE', '/api/v1/saved_tours/delete', json={'name': name})
+    assert resp.status_code == 200
+    assert resp.json().get('detail') == 'deleted'
+
+    # Ensure it's no longer listed
+    resp = client.get('/api/v1/saved_tours/')
+    assert resp.status_code == 200
+    assert not any(s.get('name') == name for s in resp.json())
+
+
+def test_delete_snapshot_missing_name():
+    """Deleting without providing a name should return 400."""
+    resp = client.request('DELETE', '/api/v1/saved_tours/delete', json={})
+    assert resp.status_code == 400
+
+
+def test_delete_nonexistent_snapshot():
+    """Deleting a non-existent snapshot should return 404."""
+    resp = client.request('DELETE', '/api/v1/saved_tours/delete', json={'name': 'this-does-not-exist-xyz'})
+    assert resp.status_code == 404
+
