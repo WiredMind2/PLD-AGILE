@@ -1,19 +1,27 @@
 // DeliveryMap.tsx
-import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import { useState } from 'react';
+import { useEffect } from "react";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  Polyline,
+  useMapEvents,
+  useMap,
+} from "react-leaflet";
+import L from "leaflet";
+import { useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-} from './dropdown-menu';
-import { Package, Building2, Clipboard, X } from 'lucide-react';
-import 'leaflet/dist/leaflet.css';
-import 'leaflet.markercluster/dist/MarkerCluster.css';
-import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+} from "./dropdown-menu";
+import { Package, Building2, Clipboard, X } from "lucide-react";
+import "leaflet/dist/leaflet.css";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 
 const mapStyles = `
 :root {
@@ -30,11 +38,11 @@ const mapStyles = `
 `;
 
 // Inject styles
-if (typeof document !== 'undefined') {
-  const styleElement = document.createElement('style');
+if (typeof document !== "undefined") {
+  const styleElement = document.createElement("style");
   styleElement.textContent = mapStyles;
-  if (!document.head.querySelector('style[data-map-dark-mode]')) {
-    styleElement.setAttribute('data-map-dark-mode', 'true');
+  if (!document.head.querySelector("style[data-map-dark-mode]")) {
+    styleElement.setAttribute("data-map-dark-mode", "true");
     document.head.appendChild(styleElement);
   }
 }
@@ -43,8 +51,8 @@ export interface DeliveryPoint {
   id: string;
   position: [number, number]; // [lat, lng]
   address?: string;
-  type: 'pickup' | 'delivery' | 'courier' | 'default';
-  status?: 'pending' | 'in-progress' | 'completed' | 'active';
+  type: "pickup" | "delivery" | "courier" | "default";
+  status?: "pending" | "in-progress" | "completed" | "active";
   deliveryId?: string; // To link pickup and delivery points together
   isHighlighted?: boolean; // NEW: For highlighting functionality
 }
@@ -56,18 +64,20 @@ export interface RoadSegment {
 }
 
 const createCircularIcon = (
-  backgroundColor: string, 
-  icon: string, 
-  textColor: string = 'white',
+  backgroundColor: string,
+  icon: string,
+  textColor: string = "white",
   size: number = 40,
   isHighlighted: boolean = false
 ): L.DivIcon => {
   // Add highlight effects when highlighted
-  const highlightStyles = isHighlighted ? `
+  const highlightStyles = isHighlighted
+    ? `
     border: 4px solid #fbbf24 !important;
     box-shadow: 0 0 20px rgba(251, 191, 36, 0.8), 0 4px 8px rgba(0,0,0,0.3) !important;
     animation: pulse-highlight 2s infinite;
-  ` : '';
+  `
+    : "";
 
   return L.divIcon({
     html: `
@@ -88,7 +98,9 @@ const createCircularIcon = (
       ">
         ${icon}
       </div>
-      ${isHighlighted ? `
+      ${
+        isHighlighted
+          ? `
         <style>
           @keyframes pulse-highlight {
             0% { transform: scale(1); }
@@ -96,29 +108,44 @@ const createCircularIcon = (
             100% { transform: scale(1); }
           }
         </style>
-      ` : ''}
+      `
+          : ""
+      }
     `,
-    className: 'custom-circular-marker',
+    className: "custom-circular-marker",
     iconSize: [size, size],
-    iconAnchor: [size/2, size/2],
-    popupAnchor: [0, -size/2]
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
   });
 };
 
-const getIcon = (type: DeliveryPoint['type'], isHighlighted: boolean = false): L.DivIcon => {
+const getIcon = (
+  type: DeliveryPoint["type"],
+  isHighlighted: boolean = false
+): L.DivIcon => {
   const iconConfigs = {
-    pickup: { color: '#ef4444', icon: '📦', size: 40 },
-    delivery: { color: '#3b82f6', icon: '🏢', size: 40 }, 
-    courier: { color: '#22c55e', icon: '🚴', size: 40 },
-    default: { color: '#ff7b00ff', icon: '●', size: 15 },
+    pickup: { color: "#ef4444", icon: "📦", size: 40 },
+    delivery: { color: "#3b82f6", icon: "🏢", size: 40 },
+    courier: { color: "#22c55e", icon: "🚴", size: 40 },
+    default: { color: "#ff7b00ff", icon: "●", size: 15 },
   };
-  
+
   const config = iconConfigs[type];
-  return createCircularIcon(config.color, config.icon, 'white', config.size, isHighlighted);
+  return createCircularIcon(
+    config.color,
+    config.icon,
+    "white",
+    config.size,
+    isHighlighted
+  );
 };
 
 // Minimal helper to listen to Leaflet right-clicks
-function MapRightClickHandler({ onContextMenu }: { onContextMenu: (e: L.LeafletMouseEvent) => void }) {
+function MapRightClickHandler({
+  onContextMenu,
+}: {
+  onContextMenu: (e: L.LeafletMouseEvent) => void;
+}) {
   useMapEvents({
     contextmenu: (e) => {
       // Prevent the browser native context menu
@@ -134,7 +161,7 @@ const MapCenterUpdater = ({ target }: { target: [number, number] }) => {
   const map = useMap();
   useEffect(() => {
     if (Array.isArray(target) && target.length === 2) {
-      console.log('MapCenterUpdater: panning to', target);
+      console.log("MapCenterUpdater: panning to", target);
       map.panTo(target, { animate: false }); // Use panTo to only change center, not zoom
     }
   }, [map, target?.[0], target?.[1]]);
@@ -144,8 +171,8 @@ const MapCenterUpdater = ({ target }: { target: [number, number] }) => {
 const MapZoomUpdater = ({ level }: { level: number }) => {
   const map = useMap();
   useEffect(() => {
-    if (typeof level === 'number' && !Number.isNaN(level)) {
-      console.log('MapZoomUpdater: setting zoom to', level);
+    if (typeof level === "number" && !Number.isNaN(level)) {
+      console.log("MapZoomUpdater: setting zoom to", level);
       // Use setView with the current center to force Leaflet to apply the new zoom reliably
       const center = map.getCenter();
       if (center) {
@@ -172,8 +199,8 @@ interface DeliveryMapProps {
   }[];
   onCreateRequestFromCoords?: (
     pickup: [number, number],
-    delivery: [number, number]
-    , options?: { pickup_service_s?: number; delivery_service_s?: number }
+    delivery: [number, number],
+    options?: { pickup_service_s?: number; delivery_service_s?: number }
   ) => Promise<void> | void;
 }
 
@@ -190,9 +217,14 @@ export default function DeliveryMap({
   onCreateRequestFromCoords,
 }: DeliveryMapProps) {
   // State for managing highlighted points
-  const [highlightedPoints, setHighlightedPoints] = useState<Set<string>>(new Set());
+  const [highlightedPoints, setHighlightedPoints] = useState<Set<string>>(
+    new Set()
+  );
 
-  const style = { height: typeof height === 'number' ? `${height}px` : height, width: '100%' };
+  const style = {
+    height: typeof height === "number" ? `${height}px` : height,
+    width: "100%",
+  };
 
   // Context menu state (screen position + latlng)
   const [ctxMenu, setCtxMenu] = useState<{
@@ -203,7 +235,9 @@ export default function DeliveryMap({
   }>({ open: false, x: 0, y: 0 });
 
   // Two-click atomic creation: first set pickup, then set delivery and submit once
-  const [pendingPickup, setPendingPickup] = useState<[number, number] | null>(null);
+  const [pendingPickup, setPendingPickup] = useState<[number, number] | null>(
+    null
+  );
 
   // Service durations in seconds (editable in context menu per step)
   const [pickupDurationSec, setPickupDurationSec] = useState<number>(300); // default 5 min
@@ -224,7 +258,7 @@ export default function DeliveryMap({
       click: () => {
         // Clear all highlights when clicking on empty map space
         setHighlightedPoints(new Set());
-      }
+      },
     });
     return null;
   }
@@ -239,23 +273,25 @@ export default function DeliveryMap({
   // Handle point click with highlighting logic
   const handlePointClick = (point: DeliveryPoint) => {
     const deliveryId = getDeliveryId(point.id);
-    
+
     if (deliveryId) {
       const pickupId = `pickup-${deliveryId}`;
       const deliveryPointId = `delivery-${deliveryId}`;
-      
+
       // Check if this delivery pair is already highlighted
-      const isCurrentlyHighlighted = highlightedPoints.has(pickupId) || highlightedPoints.has(deliveryPointId);
-      
+      const isCurrentlyHighlighted =
+        highlightedPoints.has(pickupId) ||
+        highlightedPoints.has(deliveryPointId);
+
       console.log(`🖱️ Clicked on ${point.type} point:`, {
         pointId: point.id,
         deliveryId,
         pickupId,
         deliveryPointId,
         isCurrentlyHighlighted,
-        currentHighlights: Array.from(highlightedPoints)
+        currentHighlights: Array.from(highlightedPoints),
       });
-      
+
       if (isCurrentlyHighlighted) {
         // Remove highlight from this pair (clear all highlights)
         setHighlightedPoints(new Set());
@@ -269,18 +305,22 @@ export default function DeliveryMap({
         console.log(`✨ Set highlights for ${deliveryId} only`);
       }
     }
-    
+
     // Call the original click handler if provided
     onPointClick?.(point);
   };
 
   // Helper: midpoint between two lat/lngs
-  const midpoint = (a: [number, number], b: [number, number]): [number, number] => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  const midpoint = (
+    a: [number, number],
+    b: [number, number]
+  ): [number, number] => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 
   // create a circular number icon for segments
   const createNumberIcon = (text: string, size = 26): L.DivIcon => {
     return L.divIcon({
-      html: `
+      html:
+        `
         <div style="
           background: rgba(16,185,129,0.95);
           color: white;
@@ -294,9 +334,11 @@ export default function DeliveryMap({
           font-weight: 700;
           border: 2px solid white;
           box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-        ">` + text + `</div>
+        ">` +
+        text +
+        `</div>
       `,
-      className: 'segment-number-marker',
+      className: "segment-number-marker",
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2],
       popupAnchor: [0, -size / 2],
@@ -304,25 +346,40 @@ export default function DeliveryMap({
   };
 
   // Build labeled positions for all route segments
-  const labeledPositions: { pos: [number, number]; index: number; key: string }[] = [];
+  const labeledPositions: {
+    pos: [number, number];
+    index: number;
+    key: string;
+  }[] = [];
   if (routes && routes.length > 0) {
-    type Seg = { mid: [number, number]; dir: [number, number]; index: number; key: string };
+    type Seg = {
+      mid: [number, number];
+      dir: [number, number];
+      index: number;
+      key: string;
+    };
     const allSegments: Seg[] = [];
     for (const r of routes) {
       for (let idx = 0; idx < Math.max(0, r.positions.length - 1); idx++) {
         const start = r.positions[idx];
         const end = r.positions[idx + 1];
         const mid = midpoint(start, end);
-  const dx = end[0] - start[0];
-  const dy = end[1] - start[1];
+        const dx = end[0] - start[0];
+        const dy = end[1] - start[1];
         // canonicalize direction so same physical segment has the same canonical direction
         // compare tuples to pick a canonical ordering independent of traversal direction
-        const forward = (start[0] < end[0]) || (start[0] === end[0] && start[1] <= end[1]);
+        const forward =
+          start[0] < end[0] || (start[0] === end[0] && start[1] <= end[1]);
         const cdx = forward ? dx : -dx;
         const cdy = forward ? dy : -dy;
         const clen = Math.sqrt(cdx * cdx + cdy * cdy) || 1e-9;
         const canonDir: [number, number] = [cdx / clen, cdy / clen];
-        allSegments.push({ mid, dir: canonDir, index: idx + 1, key: `${r.id}-seg-${idx}` });
+        allSegments.push({
+          mid,
+          dir: canonDir,
+          index: idx + 1,
+          key: `${r.id}-seg-${idx}`,
+        });
       }
     }
 
@@ -351,7 +408,11 @@ export default function DeliveryMap({
     const spacingMeters = 10;
     for (const g of groups) {
       if (g.length === 1) {
-        labeledPositions.push({ pos: g[0].mid, index: g[0].index, key: g[0].key });
+        labeledPositions.push({
+          pos: g[0].mid,
+          index: g[0].index,
+          key: g[0].key,
+        });
         continue;
       }
       const m = g.length;
@@ -367,7 +428,11 @@ export default function DeliveryMap({
         const normal: [number, number] = [-s.dir[1], s.dir[0]];
         const deltaLat = normal[0] * offsetMeters * dLatPerMeter;
         const deltaLng = normal[1] * offsetMeters * dLngPerMeter;
-        labeledPositions.push({ pos: [s.mid[0] + deltaLat, s.mid[1] + deltaLng], index: s.index, key: s.key + `-o${i}` });
+        labeledPositions.push({
+          pos: [s.mid[0] + deltaLat, s.mid[1] + deltaLng],
+          index: s.index,
+          key: s.key + `-o${i}`,
+        });
       }
     }
   }
@@ -386,197 +451,250 @@ export default function DeliveryMap({
           className="map-tiles"
         />
 
-      {/* Markers */}
-      {points.map((p) => {
-        const isHighlighted = highlightedPoints.has(p.id);
-        return (
-          <Marker
-            key={p.id}
-            position={p.position}
-            icon={getIcon(p.type, isHighlighted)}
-            eventHandlers={{
-              click: () => handlePointClick(p)
-            }}
-          >
-            <Popup>
-              <div>
-                <strong>
-                  {p.type === 'pickup' ? '📦 Pickup' :
-                    p.type === 'delivery'  ? '🏢 Delivery' : 
-                    p.type === 'courier'   ? '🚴 Courier' :
-                    p.type === 'default'   ? '📍 Map Node' : 'Unknown'}
-                </strong>
-                {p.address && <div style={{ marginTop: 6 }}>{p.address}</div>}
-                {p.status && (
-                  <div style={{ marginTop: 6, fontSize: 12 }}>
-                    Status: {p.status}
-                  </div>
-                )}
-              </div>
-            </Popup>
-          </Marker>
-        );
-      })}
-
-      {/* Connecting lines between highlighted pickup-delivery pairs */}
-      {Array.from(highlightedPoints).map(pointId => {
-        const deliveryId = getDeliveryId(pointId);
-        if (!deliveryId || !pointId.startsWith('pickup-')) return null;
-        
-        const pickupPoint = points.find(p => p.id === `pickup-${deliveryId}`);
-        const deliveryPoint = points.find(p => p.id === `delivery-${deliveryId}`);
-        
-        if (pickupPoint && deliveryPoint) {
+        {/* Markers */}
+        {points.map((p) => {
+          const isHighlighted = highlightedPoints.has(p.id);
           return (
-            <Polyline
-              key={`connection-${deliveryId}`}
-              positions={[pickupPoint.position, deliveryPoint.position]}
-              color="#fbbf24"
-              weight={4}
-              opacity={0.8}
-              dashArray="10, 10"
-            />
+            <Marker
+              key={p.id}
+              position={p.position}
+              icon={getIcon(p.type, isHighlighted)}
+              eventHandlers={{
+                click: () => handlePointClick(p),
+              }}
+            >
+              <Popup>
+                <div>
+                  <strong>
+                    {p.type === "pickup"
+                      ? "📦 Pickup"
+                      : p.type === "delivery"
+                      ? "🏢 Delivery"
+                      : p.type === "courier"
+                      ? "🚴 Courier"
+                      : p.type === "default"
+                      ? "📍 Map Node"
+                      : "Unknown"}
+                  </strong>
+                  {p.address && <div style={{ marginTop: 6 }}>{p.address}</div>}
+                  {p.status && (
+                    <div style={{ marginTop: 6, fontSize: 12 }}>
+                      Status: {p.status}
+                    </div>
+                  )}
+                </div>
+              </Popup>
+            </Marker>
           );
-        }
-        return null;
-      })}
+        })}
 
-      {/* Road network from XML map */}
-        {showRoadNetwork && roadSegments.map((segment, index) => (
-        <Polyline
-          key={`road-${index}`}
-          positions={[segment.start, segment.end]}
-          color="#6b7280"
-          weight={5}
-          opacity={1}
-        />
-        ))}
+        {/* Connecting lines between highlighted pickup-delivery pairs */}
+        {Array.from(highlightedPoints).map((pointId) => {
+          const deliveryId = getDeliveryId(pointId);
+          if (!deliveryId || !pointId.startsWith("pickup-")) return null;
 
-      {/* Computed routes (tours) */}
+          const pickupPoint = points.find(
+            (p) => p.id === `pickup-${deliveryId}`
+          );
+          const deliveryPoint = points.find(
+            (p) => p.id === `delivery-${deliveryId}`
+          );
+
+          if (pickupPoint && deliveryPoint) {
+            return (
+              <Polyline
+                key={`connection-${deliveryId}`}
+                positions={[pickupPoint.position, deliveryPoint.position]}
+                color="#fbbf24"
+                weight={4}
+                opacity={0.8}
+                dashArray="10, 10"
+              />
+            );
+          }
+          return null;
+        })}
+
+        {/* Road network from XML map */}
+        {showRoadNetwork &&
+          roadSegments.map((segment, index) => (
+            <Polyline
+              key={`road-${index}`}
+              positions={[segment.start, segment.end]}
+              color="#6b7280"
+              weight={5}
+              opacity={1}
+            />
+          ))}
+
+        {/* Computed routes (tours) */}
         {routes.map((r) => (
-        <Polyline
-          key={`route-${r.id}`}
-          positions={r.positions}
-          color={r.color ?? '#10b981'}
-          weight={5}
-          opacity={0.85}
-        />
+          <Polyline
+            key={`route-${r.id}`}
+            positions={r.positions}
+            color={r.color ?? "#10b981"}
+            weight={5}
+            opacity={0.85}
+          />
         ))}
 
-      {/* Segment number labels (non-interactive) */}
-        {showSegmentLabels && labeledPositions.map((lp) => (
-        <Marker key={`seg-label-${lp.key}`} position={lp.pos} icon={createNumberIcon(String(lp.index))} interactive={false} />
-        ))}
+        {/* Segment number labels (non-interactive) */}
+        {showSegmentLabels &&
+          labeledPositions.map((lp) => (
+            <Marker
+              key={`seg-label-${lp.key}`}
+              position={lp.pos}
+              icon={createNumberIcon(String(lp.index))}
+              interactive={false}
+            />
+          ))}
       </MapContainer>
 
-    {/* Context dropdown menu at cursor position */}
-    <DropdownMenu open={ctxMenu.open} onOpenChange={(o) => setCtxMenu((s) => ({ ...s, open: o }))}>
-      <DropdownMenuContent
-        align="start"
-        sideOffset={4}
-        // Position absolutely at the cursor using a fixed portal
-        style={{ position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, zIndex: 1000 }}
-        className="min-w-[14rem] p-2 rounded-md border shadow-md bg-white text-neutral-900 border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-700"
-        onCloseAutoFocus={(e) => e.preventDefault()}
+      {/* Context dropdown menu at cursor position */}
+      <DropdownMenu
+        open={ctxMenu.open}
+        onOpenChange={(o) => setCtxMenu((s) => ({ ...s, open: o }))}
       >
-        <DropdownMenuLabel className="text-xs opacity-70">
-          {pendingPickup
-            ? `Pickup fixé: ${pendingPickup[0].toFixed(5)}, ${pendingPickup[1].toFixed(5)}`
-            : ctxMenu.latlng
-              ? `Lat: ${ctxMenu.latlng[0].toFixed(5)}  Lng: ${ctxMenu.latlng[1].toFixed(5)}`
-              : 'Position inconnue'}
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
+        <DropdownMenuContent
+          align="start"
+          sideOffset={4}
+          // Position absolutely at the cursor using a fixed portal
+          style={{
+            position: "fixed",
+            left: ctxMenu.x,
+            top: ctxMenu.y,
+            zIndex: 1000,
+          }}
+          className="min-w-[14rem] p-2 rounded-md border shadow-md bg-white text-neutral-900 border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-700"
+          onCloseAutoFocus={(e) => e.preventDefault()}
+        >
+          <DropdownMenuLabel className="text-xs opacity-70">
+            {pendingPickup
+              ? `Pickup fixé: ${pendingPickup[0].toFixed(
+                  5
+                )}, ${pendingPickup[1].toFixed(5)}`
+              : ctxMenu.latlng
+              ? `Lat: ${ctxMenu.latlng[0].toFixed(
+                  5
+                )}  Lng: ${ctxMenu.latlng[1].toFixed(5)}`
+              : "Position inconnue"}
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
 
-        {/* Step-specific duration editor (seconds) */}
-        {pendingPickup === null ? (
-          <div className="mb-2 text-sm">
-            <label className="flex items-center justify-between gap-3">
-              <span className="text-neutral-700 dark:text-neutral-200">Durée pickup (sec)</span>
-              <input
-                type="number"
-                min={0}
-                step={5}
-                value={pickupDurationSec}
-                onChange={(e) => setPickupDurationSec(Math.max(0, Number(e.target.value)))}
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => e.stopPropagation()}
-                className="w-24 rounded border px-2 py-1 text-right bg-white text-neutral-900 border-neutral-300 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-neutral-800 dark:text-neutral-100 dark:border-neutral-600 dark:placeholder:text-neutral-500 dark:focus:ring-blue-400"
-              />
-            </label>
-          </div>
-        ) : (
-          <div className="mb-2 text-sm">
-            <label className="flex items-center justify-between gap-3">
-              <span className="text-neutral-700 dark:text-neutral-200">Durée delivery (sec)</span>
-              <input
-                type="number"
-                min={0}
-                step={5}
-                value={deliveryDurationSec}
-                onChange={(e) => setDeliveryDurationSec(Math.max(0, Number(e.target.value)))}
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => e.stopPropagation()}
-                className="w-24 rounded border px-2 py-1 text-right bg-white text-neutral-900 border-neutral-300 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-neutral-800 dark:text-neutral-100 dark:border-neutral-600 dark:placeholder:text-neutral-500 dark:focus:ring-blue-400"
-              />
-            </label>
-          </div>
-        )}
+          {/* Step-specific duration editor (seconds) */}
+          {pendingPickup === null ? (
+            <div className="mb-2 text-sm">
+              <label className="flex items-center justify-between gap-3">
+                <span className="text-neutral-700 dark:text-neutral-200">
+                  Durée pickup (sec)
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  step={5}
+                  value={pickupDurationSec}
+                  onChange={(e) =>
+                    setPickupDurationSec(Math.max(0, Number(e.target.value)))
+                  }
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  className="w-24 rounded border px-2 py-1 text-right bg-white text-neutral-900 border-neutral-300 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-neutral-800 dark:text-neutral-100 dark:border-neutral-600 dark:placeholder:text-neutral-500 dark:focus:ring-blue-400"
+                />
+              </label>
+            </div>
+          ) : (
+            <div className="mb-2 text-sm">
+              <label className="flex items-center justify-between gap-3">
+                <span className="text-neutral-700 dark:text-neutral-200">
+                  Durée delivery (sec)
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  step={5}
+                  value={deliveryDurationSec}
+                  onChange={(e) =>
+                    setDeliveryDurationSec(Math.max(0, Number(e.target.value)))
+                  }
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  className="w-24 rounded border px-2 py-1 text-right bg-white text-neutral-900 border-neutral-300 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-neutral-800 dark:text-neutral-100 dark:border-neutral-600 dark:placeholder:text-neutral-500 dark:focus:ring-blue-400"
+                />
+              </label>
+            </div>
+          )}
 
-        <DropdownMenuSeparator />
-        {pendingPickup === null ? (
-          <DropdownMenuItem onClick={() => {
-            if (ctxMenu.latlng) {
-              setPendingPickup(ctxMenu.latlng);
-            }
-            setCtxMenu((s)=>({ ...s, open: false }));
-          }}>
-            <Package />
-            Commencer une demande: fixer le pickup ici
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem onClick={async () => {
-            if (ctxMenu.latlng && pendingPickup) {
-              try {
-                await onCreateRequestFromCoords?.(pendingPickup, ctxMenu.latlng, {
-                  pickup_service_s: pickupDurationSec,
-                  delivery_service_s: deliveryDurationSec,
-                });
-              } catch (err) {
-                console.error('Create request from coords failed', err);
-              } finally {
-                setPendingPickup(null);
+          <DropdownMenuSeparator />
+          {pendingPickup === null ? (
+            <DropdownMenuItem
+              onClick={() => {
+                if (ctxMenu.latlng) {
+                  setPendingPickup(ctxMenu.latlng);
+                }
+                setCtxMenu((s) => ({ ...s, open: false }));
+              }}
+            >
+              <Package />
+              Commencer une demande: fixer le pickup ici
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              onClick={async () => {
+                if (ctxMenu.latlng && pendingPickup) {
+                  try {
+                    await onCreateRequestFromCoords?.(
+                      pendingPickup,
+                      ctxMenu.latlng,
+                      {
+                        pickup_service_s: pickupDurationSec,
+                        delivery_service_s: deliveryDurationSec,
+                      }
+                    );
+                  } catch (err) {
+                    console.error("Create request from coords failed", err);
+                  } finally {
+                    setPendingPickup(null);
+                  }
+                }
+                setCtxMenu((s) => ({ ...s, open: false }));
+              }}
+            >
+              <Building2 />
+              Terminer la demande: fixer la livraison ici
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={async () => {
+              if (ctxMenu.latlng) {
+                try {
+                  await navigator.clipboard.writeText(
+                    `${ctxMenu.latlng[0]}, ${ctxMenu.latlng[1]}`
+                  );
+                } catch (err) {
+                  console.error("Clipboard error", err);
+                }
               }
-            }
-            setCtxMenu((s)=>({ ...s, open: false }));
-          }}>
-            <Building2 />
-            Terminer la demande: fixer la livraison ici
+              setCtxMenu((s) => ({ ...s, open: false }));
+            }}
+          >
+            <Clipboard />
+            Copier les coordonnées
           </DropdownMenuItem>
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={async () => {
-          if (ctxMenu.latlng) {
-            try {
-              await navigator.clipboard.writeText(`${ctxMenu.latlng[0]}, ${ctxMenu.latlng[1]}`);
-            } catch (err) {
-              console.error('Clipboard error', err);
-            }
-          }
-          setCtxMenu((s)=>({ ...s, open: false }));
-        }}>
-          <Clipboard />
-          Copier les coordonnées
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        {pendingPickup !== null && (
-          <DropdownMenuItem onClick={() => { setPendingPickup(null); setCtxMenu((s)=>({ ...s, open: false })); }}>
-            <X />
-            Annuler la demande en cours
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DropdownMenuSeparator />
+          {pendingPickup !== null && (
+            <DropdownMenuItem
+              onClick={() => {
+                setPendingPickup(null);
+                setCtxMenu((s) => ({ ...s, open: false }));
+              }}
+            >
+              <X />
+              Annuler la demande en cours
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </>
   );
 }

@@ -46,3 +46,16 @@ def load_named_snapshot(payload: Dict[str, Any]):
         raise HTTPException(status_code=404, detail="Snapshot not found")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    
+@router.delete("/delete", summary="Delete a named snapshot")
+def delete_named_snapshot(payload: Dict[str, Any]):
+    name = (payload or {}).get("name")
+    if not name:
+        raise HTTPException(status_code=400, detail="Missing 'name'")
+    try:
+        state.delete_snapshot(str(name))
+        return {"detail": "deleted"}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
