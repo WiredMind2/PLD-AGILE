@@ -48,6 +48,7 @@ def add_request(request: Delivery):
     # create delivery id via XMLParser helper (reuse existing parser to build a Delivery instance)
     try:
         delivery = Delivery(
+            id=XMLParser.generate_id(),
             pickup_addr=request.pickup_addr,
             delivery_addr=request.delivery_addr,
             pickup_service_s=request.pickup_service_s,

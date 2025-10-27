@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 import networkx as nx
 from app.services.TSPService import TSPService
-from app.models.schemas import Tour, Delivery, Courrier, Intersection, RoadSegment
+from app.models.schemas import Tour, Delivery, Intersection, RoadSegment
 from types import SimpleNamespace
 
 
@@ -167,7 +167,7 @@ class TestTSPService:
         service = TSPService()
 
         # Create courier
-        courier = Courrier(id="courier1", name="Test Courier")
+        courier = "courier1"
 
         # Create intersections
         inter1 = Mock(id="1")
@@ -205,7 +205,7 @@ class TestTSPService:
         """Test compute_tours handles deliveries with nodes not in map"""
         service = TSPService()
 
-        courier = Courrier(id="courier1", name="Test Courier")
+        courier = "courier1"
 
         delivery = self._extracted_from_test_compute_tours_tsp_solver_exception_6(
             courier, "99", "2"
@@ -226,8 +226,8 @@ class TestTSPService:
         """Test compute_tours with deliveries for multiple couriers"""
         service = TSPService()
         
-        courier1 = Courrier(id="c1", name="Courier 1")
-        courier2 = Courrier(id="c2", name="Courier 2")
+        courier1 = "c1"
+        courier2 = "c2"
 
         inter1 = "1"
         inter2 = "2"
@@ -262,7 +262,7 @@ class TestTSPService:
         """Test compute_tours uses warehouse as depot node"""
         service = TSPService()
 
-        courier = Courrier(id="courier1", name="Test Courier")
+        courier = "courier1"
 
         inter1 = "warehouse"
         inter2 = "pickup"
@@ -306,7 +306,7 @@ class TestTSPService:
         """Test compute_tours handles TSP solver exceptions gracefully"""
         service = TSPService()
 
-        courier = Courrier(id="courier1", name="Test Courier")
+        courier = "courier1"
 
         delivery = self._extracted_from_test_compute_tours_tsp_solver_exception_6(
             courier, "1", "2"

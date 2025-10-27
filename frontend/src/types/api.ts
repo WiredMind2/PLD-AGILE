@@ -12,15 +12,22 @@ export interface RoadSegment {
   street_name: string;
 }
 
+export interface DisplayRoadSegment {
+  start: [number, number];
+  end: [number, number];
+  length_m: number;
+  travel_time_s: number;
+  street_name: string;
+}
+
 export interface Delivery {
   id: string;
-  // Backend may return either raw node id strings or Intersection objects
   pickup_addr: string;
   delivery_addr: string;
   pickup_service_s: number;
   delivery_service_s: number;
   warehouse?: string;
-  courier?: string;
+  courier?: string | null;
   hour_departure?: string;
 }
 
@@ -40,6 +47,18 @@ export interface Map {
   road_segments: RoadSegment[];
   couriers: string[];
   deliveries: Delivery[];
+}
+
+// API responses
+export interface ApiResponse<T> {
+  data?: T;
+  error?: string;
+}
+
+export interface SavedTourInfo {
+  name: string;
+  saved_at: string;
+  size_bytes: number;
 }
 
 // API Error response

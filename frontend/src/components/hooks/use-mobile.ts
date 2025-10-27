@@ -12,3 +12,4 @@ export function useIsMobile(breakpoint: number = 768) {
 
   return isMobile
 }
+

@@ -1,4 +1,4 @@
-import type { Map, Delivery, ApiError } from "@/types/api";
+import type { Map, Delivery, Tour, Intersection, SavedTourInfo, ApiError } from "@/types/api";
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
@@ -29,14 +29,14 @@ class ApiClient {
   async mapAckPair(
     pickup: [number, number],
     delivery: [number, number]
-  ): Promise<{ pickup: any | null; delivery: any | null }> {
+  ): Promise<{ pickup: Intersection | null; delivery: Intersection | null }> {
     const params = new URLSearchParams({
       pickup_lat: String(pickup[0]),
       pickup_lng: String(pickup[1]),
       delivery_lat: String(delivery[0]),
       delivery_lng: String(delivery[1]),
     });
-    return this.request<{ pickup: any | null; delivery: any | null }>(
+    return this.request<{ pickup: Intersection | null; delivery: Intersection | null }>(
       `/map/ack_pair?${params.toString()}`,
       {
         method: "GET",
@@ -82,19 +82,19 @@ class ApiClient {
     });
   }
 
-  async getState(): Promise<any> {
-    return this.request<any>("/state/", { method: "GET" });
+  async getState(): Promise<{ map: Map | null; couriers: string[]; deliveries: Delivery[]; tours: Tour[] }> {
+    return this.request<{ map: Map | null; couriers: string[]; deliveries: Delivery[]; tours: Tour[] }>("/state/", { method: "GET" });
   }
 
-  async addCourier(courier: any): Promise<any> {
-    return this.request<any>("/couriers/", {
+  async addCourier(courier: string): Promise<string> {
+    return this.request<string>("/couriers/", {
       method: "POST",
       body: JSON.stringify(courier),
     });
   }
 
-  async getCouriers(): Promise<any[]> {
-    return this.request<any[]>("/couriers/", { method: "GET" });
+  async getCouriers(): Promise<string[]> {
+    return this.request<string[]>("/couriers/", { method: "GET" });
   }
 
   async deleteCourier(courierId: string): Promise<{ detail: string }> {
@@ -103,15 +103,15 @@ class ApiClient {
     });
   }
 
-  async addRequest(request: any): Promise<any> {
-    return this.request<any>("/requests/", {
+  async addRequest(request: Omit<Delivery, 'id'>): Promise<Delivery> {
+    return this.request<Delivery>("/requests/", {
       method: "POST",
       body: JSON.stringify(request),
     });
   }
 
-  async computeTours(): Promise<any> {
-    return this.request<any>(`/tours/compute`, { method: "POST" });
+  async computeTours(): Promise<Tour[]> {
+    return this.request<Tour[]>(`/tours/compute`, { method: "POST" });
   }
 
   async deleteRequest(deliveryId: string): Promise<{ detail: string }> {
@@ -124,29 +124,25 @@ class ApiClient {
     deliveryId: string,
     courierId: string | null
   ): Promise<{ detail: string }> {
-    console.log("API assignDelivery", deliveryId, courierId);
     return this.request<{ detail: string }>(`/requests/${deliveryId}/assign`, {
       method: "PATCH",
       body: JSON.stringify({ courier_id: courierId }),
     });
   }
 
-  // Saved tours endpoints
-  async listSavedTours(): Promise<
-    Array<{ name: string; saved_at?: string; size_bytes?: number }>
-  > {
-    return this.request("/saved_tours/", { method: "GET" });
+  async listSavedTours(): Promise<SavedTourInfo[]> {
+    return this.request<SavedTourInfo[]>("/saved_tours/", { method: "GET" });
   }
 
-  async saveNamedTour(name: string): Promise<any> {
-    return this.request("/saved_tours/save", {
+  async saveNamedTour(name: string): Promise<SavedTourInfo> {
+    return this.request<SavedTourInfo>("/saved_tours/save", {
       method: "POST",
       body: JSON.stringify({ name }),
     });
   }
 
-  async loadNamedTour(name: string): Promise<any> {
-    return this.request("/saved_tours/load", {
+  async loadNamedTour(name: string): Promise<{ detail: string; state: { map: Map | null; couriers: string[]; deliveries: Delivery[]; tours: Tour[] } }> {
+    return this.request<{ detail: string; state: { map: Map | null; couriers: string[]; deliveries: Delivery[]; tours: Tour[] } }>("/saved_tours/load", {
       method: "POST",
       body: JSON.stringify({ name }),
     });

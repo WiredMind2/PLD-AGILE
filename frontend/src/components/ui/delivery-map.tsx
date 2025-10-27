@@ -1,27 +1,32 @@
 // DeliveryMap.tsx
-import { useEffect } from "react";
 import {
   MapContainer,
   TileLayer,
   Marker,
   Popup,
   Polyline,
-  useMapEvents,
-  useMap,
 } from "react-leaflet";
-import L from "leaflet";
 import { useState } from "react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from "./dropdown-menu";
-import { Package, Building2, Clipboard, X } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
+import L from "leaflet";
+import {
+  DeliveryPoint,
+  DeliveryMapProps,
+} from "./delivery-map-types";
+import {
+  getIcon,
+  createNumberIcon,
+  calculateLabeledPositions,
+} from "./delivery-map-utils";
+import {
+  MapRightClickHandler,
+  MapCenterUpdater,
+  MapZoomUpdater,
+  MapClickHandler,
+} from "./delivery-map-components";
+import DeliveryMapContextMenu from "./delivery-map-context-menu";
 
 const mapStyles = `
 :root {
@@ -45,163 +50,6 @@ if (typeof document !== "undefined") {
     styleElement.setAttribute("data-map-dark-mode", "true");
     document.head.appendChild(styleElement);
   }
-}
-
-export interface DeliveryPoint {
-  id: string;
-  position: [number, number]; // [lat, lng]
-  address?: string;
-  type: "pickup" | "delivery" | "courier" | "default";
-  status?: "pending" | "in-progress" | "completed" | "active";
-  deliveryId?: string; // To link pickup and delivery points together
-  isHighlighted?: boolean; // NEW: For highlighting functionality
-}
-
-export interface RoadSegment {
-  start: [number, number]; // [lat, lng]
-  end: [number, number]; // [lat, lng]
-  street_name?: string;
-}
-
-const createCircularIcon = (
-  backgroundColor: string,
-  icon: string,
-  textColor: string = "white",
-  size: number = 40,
-  isHighlighted: boolean = false
-): L.DivIcon => {
-  // Add highlight effects when highlighted
-  const highlightStyles = isHighlighted
-    ? `
-    border: 4px solid #fbbf24 !important;
-    box-shadow: 0 0 20px rgba(251, 191, 36, 0.8), 0 4px 8px rgba(0,0,0,0.3) !important;
-    animation: pulse-highlight 2s infinite;
-  `
-    : "";
-
-  return L.divIcon({
-    html: `
-      <div style="
-        background-color: ${backgroundColor};
-        width: ${size}px;
-        height: ${size}px;
-        border-radius: 50%;
-        border: 3px solid white;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: ${Math.floor(size * 0.45)}px;
-        color: ${textColor};
-        font-weight: bold;
-        ${highlightStyles}
-      ">
-        ${icon}
-      </div>
-      ${
-        isHighlighted
-          ? `
-        <style>
-          @keyframes pulse-highlight {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-          }
-        </style>
-      `
-          : ""
-      }
-    `,
-    className: "custom-circular-marker",
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    popupAnchor: [0, -size / 2],
-  });
-};
-
-const getIcon = (
-  type: DeliveryPoint["type"],
-  isHighlighted: boolean = false
-): L.DivIcon => {
-  const iconConfigs = {
-    pickup: { color: "#ef4444", icon: "📦", size: 40 },
-    delivery: { color: "#3b82f6", icon: "🏢", size: 40 },
-    courier: { color: "#22c55e", icon: "🚴", size: 40 },
-    default: { color: "#ff7b00ff", icon: "●", size: 15 },
-  };
-
-  const config = iconConfigs[type];
-  return createCircularIcon(
-    config.color,
-    config.icon,
-    "white",
-    config.size,
-    isHighlighted
-  );
-};
-
-// Minimal helper to listen to Leaflet right-clicks
-function MapRightClickHandler({
-  onContextMenu,
-}: {
-  onContextMenu: (e: L.LeafletMouseEvent) => void;
-}) {
-  useMapEvents({
-    contextmenu: (e) => {
-      // Prevent the browser native context menu
-      e.originalEvent?.preventDefault?.();
-      onContextMenu(e);
-    },
-  });
-  return null;
-}
-
-// Map updater components - must be outside to avoid recreation on each render
-const MapCenterUpdater = ({ target }: { target: [number, number] }) => {
-  const map = useMap();
-  useEffect(() => {
-    if (Array.isArray(target) && target.length === 2) {
-      console.log("MapCenterUpdater: panning to", target);
-      map.panTo(target, { animate: false }); // Use panTo to only change center, not zoom
-    }
-  }, [map, target?.[0], target?.[1]]);
-  return null;
-};
-
-const MapZoomUpdater = ({ level }: { level: number }) => {
-  const map = useMap();
-  useEffect(() => {
-    if (typeof level === "number" && !Number.isNaN(level)) {
-      console.log("MapZoomUpdater: setting zoom to", level);
-      // Use setView with the current center to force Leaflet to apply the new zoom reliably
-      const center = map.getCenter();
-      if (center) {
-        map.setView([center.lat, center.lng], level, { animate: false });
-      }
-    }
-  }, [map, level]);
-  return null;
-};
-
-interface DeliveryMapProps {
-  points?: DeliveryPoint[];
-  roadSegments?: RoadSegment[];
-  center?: [number, number];
-  zoom?: number;
-  height?: number | string;
-  showRoadNetwork?: boolean; // Show the road network from XML
-  showSegmentLabels?: boolean; // show numbered labels on segments
-  onPointClick?: (p: DeliveryPoint) => void;
-  routes?: {
-    id: string;
-    color?: string;
-    positions: [number, number][];
-  }[];
-  onCreateRequestFromCoords?: (
-    pickup: [number, number],
-    delivery: [number, number],
-    options?: { pickup_service_s?: number; delivery_service_s?: number }
-  ) => Promise<void> | void;
 }
 
 export default function DeliveryMap({
@@ -252,17 +100,6 @@ export default function DeliveryMap({
     });
   };
 
-  // Component to handle map click events
-  function MapClickHandler() {
-    useMapEvents({
-      click: () => {
-        // Clear all highlights when clicking on empty map space
-        setHighlightedPoints(new Set());
-      },
-    });
-    return null;
-  }
-
   // Function to extract delivery ID from point ID
   const getDeliveryId = (pointId: string): string | null => {
     // Extract delivery ID from IDs like "pickup-D1" or "delivery-D1"
@@ -310,137 +147,13 @@ export default function DeliveryMap({
     onPointClick?.(point);
   };
 
-  // Helper: midpoint between two lat/lngs
-  const midpoint = (
-    a: [number, number],
-    b: [number, number]
-  ): [number, number] => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-
-  // create a circular number icon for segments
-  const createNumberIcon = (text: string, size = 26): L.DivIcon => {
-    return L.divIcon({
-      html:
-        `
-        <div style="
-          background: rgba(16,185,129,0.95);
-          color: white;
-          width: ${size}px;
-          height: ${size}px;
-          border-radius: 50%;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          font-size: ${Math.floor(size * 0.5)}px;
-          font-weight: 700;
-          border: 2px solid white;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-        ">` +
-        text +
-        `</div>
-      `,
-      className: "segment-number-marker",
-      iconSize: [size, size],
-      iconAnchor: [size / 2, size / 2],
-      popupAnchor: [0, -size / 2],
-    });
-  };
-
   // Build labeled positions for all route segments
-  const labeledPositions: {
-    pos: [number, number];
-    index: number;
-    key: string;
-  }[] = [];
-  if (routes && routes.length > 0) {
-    type Seg = {
-      mid: [number, number];
-      dir: [number, number];
-      index: number;
-      key: string;
-    };
-    const allSegments: Seg[] = [];
-    for (const r of routes) {
-      for (let idx = 0; idx < Math.max(0, r.positions.length - 1); idx++) {
-        const start = r.positions[idx];
-        const end = r.positions[idx + 1];
-        const mid = midpoint(start, end);
-        const dx = end[0] - start[0];
-        const dy = end[1] - start[1];
-        // canonicalize direction so same physical segment has the same canonical direction
-        // compare tuples to pick a canonical ordering independent of traversal direction
-        const forward =
-          start[0] < end[0] || (start[0] === end[0] && start[1] <= end[1]);
-        const cdx = forward ? dx : -dx;
-        const cdy = forward ? dy : -dy;
-        const clen = Math.sqrt(cdx * cdx + cdy * cdy) || 1e-9;
-        const canonDir: [number, number] = [cdx / clen, cdy / clen];
-        allSegments.push({
-          mid,
-          dir: canonDir,
-          index: idx + 1,
-          key: `${r.id}-seg-${idx}`,
-        });
-      }
-    }
-
-    // cluster midpoints by proximity (meters)
-    const groups: Seg[][] = [];
-    const tolMeters = 4; // midpoints closer than this are considered overlapping
-    const metersBetween = (a: [number, number], b: [number, number]) => {
-      const latAvg = (a[0] + b[0]) / 2;
-      const mx = (a[0] - b[0]) * 111320;
-      const my = (a[1] - b[1]) * 111320 * Math.cos((latAvg * Math.PI) / 180);
-      return Math.sqrt(mx * mx + my * my);
-    };
-
-    for (const s of allSegments) {
-      let placed = false;
-      for (const g of groups) {
-        if (metersBetween(g[0].mid, s.mid) <= tolMeters) {
-          g.push(s);
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) groups.push([s]);
-    }
-
-    const spacingMeters = 10;
-    for (const g of groups) {
-      if (g.length === 1) {
-        labeledPositions.push({
-          pos: g[0].mid,
-          index: g[0].index,
-          key: g[0].key,
-        });
-        continue;
-      }
-      const m = g.length;
-      for (let i = 0; i < m; i++) {
-        const s = g[i];
-        const offsetMeters = (i - (m - 1) / 2) * spacingMeters;
-        const lat = s.mid[0];
-        const mperdegLat = 111320;
-        const mperdegLng = 111320 * Math.cos((lat * Math.PI) / 180);
-        const dLatPerMeter = 1 / mperdegLat;
-        const dLngPerMeter = 1 / (mperdegLng || mperdegLat);
-        // offset along the perpendicular to the canonical direction so opposite traversals don't cancel
-        const normal: [number, number] = [-s.dir[1], s.dir[0]];
-        const deltaLat = normal[0] * offsetMeters * dLatPerMeter;
-        const deltaLng = normal[1] * offsetMeters * dLngPerMeter;
-        labeledPositions.push({
-          pos: [s.mid[0] + deltaLat, s.mid[1] + deltaLng],
-          index: s.index,
-          key: s.key + `-o${i}`,
-        });
-      }
-    }
-  }
+  const labeledPositions = calculateLabeledPositions(routes || []);
 
   return (
     <>
       <MapContainer center={center} zoom={zoom} style={style}>
-        <MapClickHandler />
+        <MapClickHandler onMapClick={() => setHighlightedPoints(new Set())} />
         {/* Right-click listener */}
         <MapRightClickHandler onContextMenu={handleMapContextMenu} />
         <MapCenterUpdater target={center ?? [48.8566, 2.3522]} />
@@ -551,150 +264,17 @@ export default function DeliveryMap({
       </MapContainer>
 
       {/* Context dropdown menu at cursor position */}
-      <DropdownMenu
-        open={ctxMenu.open}
-        onOpenChange={(o) => setCtxMenu((s) => ({ ...s, open: o }))}
-      >
-        <DropdownMenuContent
-          align="start"
-          sideOffset={4}
-          // Position absolutely at the cursor using a fixed portal
-          style={{
-            position: "fixed",
-            left: ctxMenu.x,
-            top: ctxMenu.y,
-            zIndex: 1000,
-          }}
-          className="min-w-[14rem] p-2 rounded-md border shadow-md bg-white text-neutral-900 border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-700"
-          onCloseAutoFocus={(e) => e.preventDefault()}
-        >
-          <DropdownMenuLabel className="text-xs opacity-70">
-            {pendingPickup
-              ? `Pickup fixé: ${pendingPickup[0].toFixed(
-                  5
-                )}, ${pendingPickup[1].toFixed(5)}`
-              : ctxMenu.latlng
-              ? `Lat: ${ctxMenu.latlng[0].toFixed(
-                  5
-                )}  Lng: ${ctxMenu.latlng[1].toFixed(5)}`
-              : "Position inconnue"}
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-
-          {/* Step-specific duration editor (seconds) */}
-          {pendingPickup === null ? (
-            <div className="mb-2 text-sm">
-              <label className="flex items-center justify-between gap-3">
-                <span className="text-neutral-700 dark:text-neutral-200">
-                  Durée pickup (sec)
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  step={5}
-                  value={pickupDurationSec}
-                  onChange={(e) =>
-                    setPickupDurationSec(Math.max(0, Number(e.target.value)))
-                  }
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
-                  className="w-24 rounded border px-2 py-1 text-right bg-white text-neutral-900 border-neutral-300 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-neutral-800 dark:text-neutral-100 dark:border-neutral-600 dark:placeholder:text-neutral-500 dark:focus:ring-blue-400"
-                />
-              </label>
-            </div>
-          ) : (
-            <div className="mb-2 text-sm">
-              <label className="flex items-center justify-between gap-3">
-                <span className="text-neutral-700 dark:text-neutral-200">
-                  Durée delivery (sec)
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  step={5}
-                  value={deliveryDurationSec}
-                  onChange={(e) =>
-                    setDeliveryDurationSec(Math.max(0, Number(e.target.value)))
-                  }
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
-                  className="w-24 rounded border px-2 py-1 text-right bg-white text-neutral-900 border-neutral-300 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-neutral-800 dark:text-neutral-100 dark:border-neutral-600 dark:placeholder:text-neutral-500 dark:focus:ring-blue-400"
-                />
-              </label>
-            </div>
-          )}
-
-          <DropdownMenuSeparator />
-          {pendingPickup === null ? (
-            <DropdownMenuItem
-              onClick={() => {
-                if (ctxMenu.latlng) {
-                  setPendingPickup(ctxMenu.latlng);
-                }
-                setCtxMenu((s) => ({ ...s, open: false }));
-              }}
-            >
-              <Package />
-              Commencer une demande: fixer le pickup ici
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem
-              onClick={async () => {
-                if (ctxMenu.latlng && pendingPickup) {
-                  try {
-                    await onCreateRequestFromCoords?.(
-                      pendingPickup,
-                      ctxMenu.latlng,
-                      {
-                        pickup_service_s: pickupDurationSec,
-                        delivery_service_s: deliveryDurationSec,
-                      }
-                    );
-                  } catch (err) {
-                    console.error("Create request from coords failed", err);
-                  } finally {
-                    setPendingPickup(null);
-                  }
-                }
-                setCtxMenu((s) => ({ ...s, open: false }));
-              }}
-            >
-              <Building2 />
-              Terminer la demande: fixer la livraison ici
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={async () => {
-              if (ctxMenu.latlng) {
-                try {
-                  await navigator.clipboard.writeText(
-                    `${ctxMenu.latlng[0]}, ${ctxMenu.latlng[1]}`
-                  );
-                } catch (err) {
-                  console.error("Clipboard error", err);
-                }
-              }
-              setCtxMenu((s) => ({ ...s, open: false }));
-            }}
-          >
-            <Clipboard />
-            Copier les coordonnées
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          {pendingPickup !== null && (
-            <DropdownMenuItem
-              onClick={() => {
-                setPendingPickup(null);
-                setCtxMenu((s) => ({ ...s, open: false }));
-              }}
-            >
-              <X />
-              Annuler la demande en cours
-            </DropdownMenuItem>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <DeliveryMapContextMenu
+        ctxMenu={ctxMenu}
+        setCtxMenu={setCtxMenu}
+        pendingPickup={pendingPickup}
+        setPendingPickup={setPendingPickup}
+        pickupDurationSec={pickupDurationSec}
+        setPickupDurationSec={setPickupDurationSec}
+        deliveryDurationSec={deliveryDurationSec}
+        setDeliveryDurationSec={setDeliveryDurationSec}
+        onCreateRequestFromCoords={onCreateRequestFromCoords}
+      />
     </>
   );
 }

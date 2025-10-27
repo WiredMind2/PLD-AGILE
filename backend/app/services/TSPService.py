@@ -21,7 +21,7 @@ class TSPService:
         G = nx.DiGraph()
         # add nodes
         for inter in mp.intersections:
-            node_id = inter.id
+            node_id = getattr(inter, "id", inter)
             G.add_node(str(node_id))
         # add edges
         for seg in mp.road_segments:

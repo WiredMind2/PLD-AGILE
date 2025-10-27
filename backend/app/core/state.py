@@ -154,7 +154,7 @@ def save_snapshot(name: str) -> Dict[str, Any]:
         stat = os.stat(path)
         return {
             "name": safe,
-            "saved_at": payload["saved_at"].isoformat() + "Z",
+            "saved_at": payload["saved_at"].strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
             "size_bytes": stat.st_size,
         }
 
@@ -172,7 +172,7 @@ def list_snapshots() -> List[Dict[str, Any]]:
             name = payload.get('name') or os.path.splitext(fname)[0]
             saved_at = payload.get('saved_at')
             if isinstance(saved_at, datetime):
-                saved_str = f"{saved_at.isoformat()}Z"
+                saved_str = saved_at.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
             else:
                 saved_str = str(saved_at)
             stat = os.stat(fpath)
