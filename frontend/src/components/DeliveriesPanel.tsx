@@ -11,7 +11,6 @@ import {
   Package,
 } from "lucide-react";
 import { DeliveryPoint } from "@/components/ui/delivery-map-types";
-import { useState } from "react";
 import NewDeliverySheet from "./NewDeliverySheet";
 import DeliveryListItem from "./DeliveryListItem";
 import { Delivery, Intersection, Map } from "@/types/api";
@@ -29,6 +28,8 @@ interface DeliveriesPanelProps {
   createRequestFromCoords: (pickup: [number, number], delivery: [number, number], options?: { pickup_service_s?: number; delivery_service_s?: number }) => Promise<{ created: Delivery; pickupNode: Intersection; deliveryNode: Intersection }>;
   setSuccessAlert: (message: string | null) => void;
   onRequestUpload: () => void;
+  openNewReq: boolean;
+  setOpenNewReq: (open: boolean) => void;
 }
 
 export default function DeliveriesPanel({
@@ -44,9 +45,9 @@ export default function DeliveriesPanel({
   createRequestFromCoords,
   setSuccessAlert,
   onRequestUpload,
+  openNewReq,
+  setOpenNewReq,
 }: DeliveriesPanelProps) {
-  // New Delivery Request Sheet state
-  const [openNewReq, setOpenNewReq] = useState(false);
 
   return (
     <>

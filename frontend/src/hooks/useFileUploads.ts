@@ -17,6 +17,7 @@ interface UseFileUploadsProps {
   setSuccessAlert: (alert: string | null) => void;
   createNewCourier: () => Promise<string | null>;
   uploadMap: (file: File) => Promise<Map>;
+  onRequestsUploaded?: () => void;
 }
 
 export function useFileUploads({
@@ -32,6 +33,7 @@ export function useFileUploads({
   setSuccessAlert,
   createNewCourier,
   uploadMap,
+  onRequestsUploaded,
 }: UseFileUploadsProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const requestsInputRef = useRef<HTMLInputElement>(null);
@@ -280,6 +282,7 @@ export function useFileUploads({
         });
         setSuccessAlert("Delivery requests imported successfully");
         setTimeout(() => setSuccessAlert(null), 5000);
+        onRequestsUploaded?.();
       }
     } catch (err) {
       console.error("Failed to upload requests:", err);

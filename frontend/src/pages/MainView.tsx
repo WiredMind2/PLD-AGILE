@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useDeliveryApp } from "@/hooks/useDeliveryApp";
 import { useMapAndDeliveries } from "@/hooks/useMapAndDeliveries";
 import { useFileUploads } from "@/hooks/useFileUploads";
@@ -12,6 +12,7 @@ import SavedToursPanel from "@/components/SavedToursPanel";
 import MapPanel from "@/components/MapPanel";
 
 export default function MainView(): JSX.Element {
+  const [openNewReq, setOpenNewReq] = useState(false);
   const {
     loading,
     error,
@@ -89,6 +90,7 @@ export default function MainView(): JSX.Element {
     setSuccessAlert,
     createNewCourier,
     uploadMap,
+    onRequestsUploaded: () => setOpenNewReq(false),
   });
 
   const { handleOptimizeTours, rebuildFromState } = useTourManagement({
@@ -232,6 +234,8 @@ export default function MainView(): JSX.Element {
           createRequestFromCoords={createRequestFromCoords}
           setSuccessAlert={setSuccessAlert}
           onRequestUpload={handleRequestUpload}
+          openNewReq={openNewReq}
+          setOpenNewReq={setOpenNewReq}
         />
 
         {/* Saved Tours Section */}
