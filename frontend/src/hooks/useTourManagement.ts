@@ -1,4 +1,3 @@
-import { useDeliveryApp } from "./useDeliveryApp";
 import { DeliveryPoint } from "@/components/ui/delivery-map-types";
 import { Route } from "./useMapAndDeliveries";
 import type { Map, Tour } from "@/types/api";
@@ -10,6 +9,7 @@ interface UseTourManagementProps {
   setRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
   setMapCenter: (center: [number, number]) => void;
   setOverworkAlert: (alert: string | null) => void;
+  computeTours: (() => Promise<any>) | undefined;
 }
 
 export function useTourManagement({
@@ -19,8 +19,8 @@ export function useTourManagement({
   setRoutes,
   setMapCenter,
   setOverworkAlert,
+  computeTours,
 }: UseTourManagementProps) {
-  const { computeTours } = useDeliveryApp();
 
   // Helper: Rebuild markers and routes from state (map + tours)
   const rebuildFromState = (currentMap: Map | null, currentTours: Tour[]) => {

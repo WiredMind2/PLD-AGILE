@@ -36,6 +36,7 @@ export default function MainView(): JSX.Element {
     deleteNamedTour,
     deleteRequest,
     uploadMap,
+    computeTours,
   } = useDeliveryApp();
 
   const {
@@ -97,6 +98,7 @@ export default function MainView(): JSX.Element {
     setRoutes,
     setMapCenter,
     setOverworkAlert,
+    computeTours,
   });
 
   useEffect(() => {
