@@ -13,7 +13,7 @@ import {
   Download,
   RefreshCw,
 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -57,6 +57,7 @@ export default function SavedToursPanel({
   setSuccessAlert,
   loading,
 }: SavedToursPanelProps) {
+  const [saveError, setSaveError] = useState<string | null>(null);
   const refreshSavedTours = async () => {
     try {
       const lst = await listSavedTours?.();
@@ -162,7 +163,12 @@ export default function SavedToursPanel({
       </Card>
 
       {/* Save Tours Sheet */}
-      <Sheet open={openSaveSheet} onOpenChange={setOpenSaveSheet}>
+      <Sheet open={openSaveSheet} onOpenChange={(open) => {
+        setOpenSaveSheet(open);
+        if (open) {
+          setSaveError(null); // Clear error when opening sheet
+        }
+      }}>
         <SheetContent side="right" className="sm:max-w-md">
           <SheetHeader>
             <SheetTitle>Save Current Tours</SheetTitle>
@@ -180,6 +186,11 @@ export default function SavedToursPanel({
                 onChange={(e) => setSaveName(e.target.value)}
               />
             </div>
+            {saveError && (
+              <div className="p-3 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                <p className="text-sm text-red-700 dark:text-red-300">{saveError}</p>
+              </div>
+            )}
             <div className="flex justify-end gap-2">
               <Button
                 type="button"
@@ -193,13 +204,18 @@ export default function SavedToursPanel({
                 disabled={!saveName || loading || !map}
                 onClick={async () => {
                   try {
+                    setSaveError(null); // Clear any previous error
                     await saveNamedTour?.(saveName);
                     setOpenSaveSheet(false);
                     setSaveName("");
                     await refreshSavedTours();
                     setSuccessAlert("Tours saved successfully");
                     setTimeout(() => setSuccessAlert(null), 3000);
-                  } catch (e) { }
+                  } catch (e) {
+                    // Display error in the sheet
+                    const errorMessage = e instanceof Error ? e.message : "Failed to save tour";
+                    setSaveError(errorMessage);
+                  }
                 }}
                 className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
               >
