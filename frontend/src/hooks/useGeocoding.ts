@@ -16,10 +16,9 @@ export function useGeocoding(setError: (error: string | null) => void) {
         }
         throw new Error(`Aucun résultat pour l'adresse: ${address}`);
       } catch (e) {
-        if (e instanceof Error) {
-          throw new Error(`${e.message}`);
-        }
-        throw new Error("Erreur inattendue lors du géocodage");
+        const errorMessage = e instanceof Error ? e.message : "Erreur inattendue lors du géocodage";
+        setError(errorMessage);
+        throw new Error(errorMessage);
       }
     },
     []

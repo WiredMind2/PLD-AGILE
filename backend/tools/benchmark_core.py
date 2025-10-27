@@ -8,7 +8,7 @@ import sys
 import time
 from dataclasses import asdict
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, cast
 
 import networkx as nx
 
@@ -70,18 +70,15 @@ class TSPBenchmark:
         for intersection in map_data.intersections:
             G.add_node(str(intersection.id), latitude=intersection.latitude, longitude=intersection.longitude)
         for segment in map_data.road_segments:
-            G.add_edge(str(segment.start.id), str(segment.end.id), weight=segment.length_m)
+            start_id = getattr(segment.start, 'id', segment.start)
+            end_id = getattr(segment.end, 'id', segment.end)
+            G.add_edge(str(start_id), str(end_id), weight=segment.length_m)
 
         # Load requests
         with open(req_path, "r", encoding="utf-8") as f:
             deliveries = parser.parse_deliveries(f.read())
 
-        delivery_pairs = []
-        for delivery in deliveries:
-            # Use string IDs to match TSP solver
-            pickup = delivery.pickup_addr
-            delivery_addr = delivery.delivery_addr
-            delivery_pairs.append((pickup, delivery_addr))
+        delivery_pairs = [(delivery.pickup_addr, delivery.delivery_addr) for delivery in deliveries]
 
         print(f"    Map: {len(G.nodes)} nodes, {len(G.edges)} edges")
         print(f"    Deliveries: {len(delivery_pairs)} ({len(delivery_pairs) * 2} nodes)")
@@ -177,6 +174,9 @@ class TSPBenchmark:
 
         elapsed = time.time() - start_time
 
+        if best_tour is None:
+            return None, None, None
+
         # Expand optimal tour to full path
         expanded_cost = 0.0
         for i in range(len(best_tour) - 1):
@@ -255,13 +255,17 @@ class TSPBenchmark:
                 error=str(e),
             )
 
+    def _print_header(self, title: str):
+        """Print a section header."""
+        print("=" * 70)
+        print(title)
+        print("=" * 70)
+
     def run_all_benchmarks(self):
         """Execute benchmarks on all test combinations."""
         combinations = self.find_test_combinations()
 
-        print("=" * 70)
-        print("TSP ALGORITHM BENCHMARK SUITE")
-        print("=" * 70)
+        self._print_header("TSP ALGORITHM BENCHMARK SUITE")
         print(f"Found {len(combinations)} test combinations")
         print(f"Include optimal solver: {self.include_optimal}")
         print("=" * 70)
@@ -286,8 +290,7 @@ class TSPBenchmark:
             return
 
         print("\n" + "=" * 70)
-        print("BENCHMARK SUMMARY")
-        print("=" * 70)
+        self._print_header("BENCHMARK SUMMARY")
 
         print(f"\nTotal tests: {len(self.results)}")
         print(f"Successful: {len(valid_results)}")
@@ -303,19 +306,19 @@ class TSPBenchmark:
         print(f"  Avg time: {sum(r.tsp_time_seconds for r in valid_results) / len(valid_results):.3f}s")
 
         if self.include_optimal:
-            optimal_results = [r for r in valid_results if r.optimal_time_seconds is not None]
-            if optimal_results:
+            if (optimal_results := [r for r in valid_results if r.optimal_time_seconds is not None]):
                 print(f"\nBrute-force optimal performance:")
                 print(f"  Tests completed: {len(optimal_results)}")
-                print(f"  Min time: {min(r.optimal_time_seconds for r in optimal_results):.3f}s")
-                print(f"  Max time: {max(r.optimal_time_seconds for r in optimal_results):.3f}s")
-                print(f"  Avg time: {sum(r.optimal_time_seconds for r in optimal_results) / len(optimal_results):.3f}s")
+                times = [cast(float, r.optimal_time_seconds) for r in optimal_results]
+                print(f"  Min time: {min(times):.3f}s")
+                print(f"  Max time: {max(times):.3f}s")
+                print(f"  Avg time: {sum(times) / len(optimal_results):.3f}s")
 
-                gap_results = [r for r in optimal_results if r.optimality_gap_percent is not None]
-                if gap_results:
+                if (gap_results := [r for r in optimal_results if r.optimality_gap_percent is not None]):
                     print(f"\nOptimality gaps:")
-                    print(f"  Min gap: {min(r.optimality_gap_percent for r in gap_results):.2f}%")
-                    print(f"  Max gap: {max(r.optimality_gap_percent for r in gap_results):.2f}%")
-                    print(f"  Avg gap: {sum(r.optimality_gap_percent for r in gap_results) / len(gap_results):.2f}%")
+                    gaps = [cast(float, r.optimality_gap_percent) for r in gap_results]
+                    print(f"  Min gap: {min(gaps):.2f}%")
+                    print(f"  Max gap: {max(gaps):.2f}%")
+                    print(f"  Avg gap: {sum(gaps) / len(gap_results):.2f}%")
 
         print("=" * 70)

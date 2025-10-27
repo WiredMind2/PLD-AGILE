@@ -317,3 +317,4 @@ __marimo__/
 backend/perf_tsp_results.json
 **/data
 count_lines.py
+backend/tools/benchmark_results/

@@ -55,7 +55,7 @@ def get_file_path(prompt: str, file_type: str, default_dir: Optional[Path] = Non
 def get_yes_no(prompt: str, default: bool = False) -> bool:
     """Get yes/no answer from user."""
     while True:
-        response = input(f"{prompt} (y/n) [{'Y' if default else 'y'}/{'n' if not default else 'N'}]: ").strip().lower()
+        response = input(f"{prompt} (y/n) [{'Y' if default else 'y'}/{'N' if default else 'n'}]: ").strip().lower()
         if not response:
             return default
         if response in ['y', 'yes']:
@@ -65,6 +65,16 @@ def get_yes_no(prompt: str, default: bool = False) -> bool:
         print("Please enter 'y' or 'n'.")
 
 
+def execute_benchmark(xml_dir: Path, output_dir: Path, include_optimal: bool):
+    """Execute the benchmark and generate results."""
+    benchmark = TSPBenchmark(xml_dir, include_optimal)
+    benchmark.run_all_benchmarks()
+    visualizer = BenchmarkVisualizer(benchmark.results, include_optimal)
+    visualizer.generate_graphs(output_dir)
+    benchmark.print_summary()
+    print(f"\nResults saved to {output_dir}")
+
+
 def run_interactive_benchmark():
     """Run interactive benchmark."""
     print("\n=== TSP Benchmark ===")
@@ -72,16 +82,14 @@ def run_interactive_benchmark():
     xml_dir = Path(BACKEND_ROOT).parent / "fichiersXMLPickupDelivery"
     if not xml_dir.exists():
         print(f"Default XML directory not found: {xml_dir}")
-        xml_dir_str = input("Enter XML directory path: ").strip()
-        if xml_dir_str:
+        if (xml_dir_str := input("Enter XML directory path: ").strip()):
             xml_dir = Path(xml_dir_str)
             if not xml_dir.exists():
                 print("Directory not found.")
                 return
 
     output_dir = Path(BACKEND_ROOT) / "tools" / "benchmark_results"
-    output_dir_str = input(f"Enter output directory (default: {output_dir}): ").strip()
-    if output_dir_str:
+    if (output_dir_str := input(f"Enter output directory (default: {output_dir}): ").strip()):
         output_dir = Path(output_dir_str)
 
     include_optimal = get_yes_no("Include optimal solver comparison? (slow for large instances)")
@@ -91,32 +99,28 @@ def run_interactive_benchmark():
     print(f"Include optimal: {include_optimal}")
 
     if get_yes_no("Proceed with benchmark?"):
-        benchmark = TSPBenchmark(xml_dir, include_optimal)
-        benchmark.run_all_benchmarks()
-        visualizer = BenchmarkVisualizer(benchmark.results, include_optimal)
-        visualizer.generate_graphs(output_dir)
-        benchmark.print_summary()
-        print(f"\nResults saved to {output_dir}")
+        execute_benchmark(xml_dir, output_dir, include_optimal)
     else:
         print("Benchmark cancelled.")
 
 
-def run_interactive_compare():
-    """Run interactive comparison."""
-    print("\n=== TSP Path Comparison ===")
-
-    xml_dir = Path(BACKEND_ROOT).parent / "fichiersXMLPickupDelivery"
-
+def get_comparison_files(xml_dir: Path) -> tuple[Optional[str], Optional[str]]:
+    """Get map and request file paths for comparison."""
     map_path = get_file_path("Enter map file path", "Map", xml_dir)
     if not map_path:
         print("Map file required.")
-        return
+        return None, None
 
     req_path = get_file_path("Enter request file path", "Request", xml_dir)
     if not req_path:
         print("Request file required.")
-        return
+        return None, None
 
+    return map_path, req_path
+
+
+def build_graph_and_deliveries(map_path: str, req_path: str):
+    """Build graph and parse deliveries."""
     tsp = TSP()
     if map_path:
         orig_builder = tsp._build_networkx_map_graph
@@ -129,42 +133,80 @@ def run_interactive_compare():
     if req_path:
         with open(req_path, "r", encoding="utf-8") as f:
             deliveries = XMLParser.parse_deliveries(f.read())
-        nodes_from_reqs = []
-        for d in deliveries:
-            nodes_from_reqs.extend([d.pickup_addr, d.delivery_addr])
+        nodes_from_reqs = [d.pickup_addr for d in deliveries] + [d.delivery_addr for d in deliveries]
         nodes_list = [n for n in nodes_from_reqs if n in all_nodes]
 
+    return tsp, G_map, all_nodes, deliveries, nodes_list
+
+
+def solve_tsp_and_expand(tsp, deliveries, G_map, nodes_list):
+    """Solve TSP and expand tour."""
     tour_pairs = [(d.pickup_addr, d.delivery_addr) for d in deliveries] if deliveries else []
-    if tour_pairs:
-        tour, compact_cost = tsp.solve(Tour(courier="test", deliveries=tour_pairs))
-    else:
-        # For nodes-only, create a tour with empty deliveries but somehow pass nodes
-        # This might not work, let's skip for now
+    if not tour_pairs:
         print("No deliveries found, skipping TSP solve.")
-        return
+        return None, None, None, None
+
+    tour, compact_cost = tsp.solve(Tour(courier="test", deliveries=tour_pairs))
     sp_graph = build_sp_graph(G_map, nodes_list)
     full_route, expanded_cost = tsp.expand_tour_with_paths(tour, sp_graph)
 
+    return tour, compact_cost, full_route, expanded_cost
+
+
+def print_tsp_results(tour, compact_cost, full_route, expanded_cost):
+    """Print TSP results."""
     print(f"\nTSP Result:")
     print(f"Compact tour: {format_path(tour)} Cost: {compact_cost:.2f}")
     print(f"Expanded route: {format_path(full_route)} Cost: {expanded_cost:.2f}")
 
-    # Manual path
-    if get_yes_no("Compare with manual path?"):
-        manual_compact = input_manual_path(set(all_nodes))
-        if manual_compact:
-            manual_expanded, manual_cost = expand_manual_path(manual_compact, G_map)
-            print(f"\nManual path: {format_path(manual_expanded)} Cost: {manual_cost:.2f}")
-            diff = manual_cost - expanded_cost
-            print(f"Manual vs TSP: {'Better' if diff < 0 else 'Worse'} by {abs(diff):.2f}")
 
-    # Optimal
-    if len(nodes_list) <= 10 and get_yes_no("Compare with optimal? (may be slow)"):
-        optimal_tour, optimal_cost = compute_optimal_brute_force(map_path, req_path, len(nodes_list))
-        if optimal_tour:
-            print(f"\nOptimal: {format_path(optimal_tour)} Cost: {optimal_cost:.2f}")
-            diff_opt = expanded_cost - optimal_cost
-            print(f"TSP vs Optimal: {'Better' if diff_opt < 0 else 'Worse'} by {abs(diff_opt):.2f}")
+def compare_manual_path(G_map, all_nodes, expanded_cost):
+    """Compare with manual path if user agrees."""
+    if not get_yes_no("Compare with manual path?"):
+        return
+
+    if (manual_compact := input_manual_path(set(all_nodes))):
+        manual_expanded, manual_cost = expand_manual_path(manual_compact, G_map)
+        print(f"\nManual path: {format_path(manual_expanded)} Cost: {manual_cost:.2f}")
+        diff = manual_cost - expanded_cost
+        print(f"Manual vs TSP: {'Better' if diff < 0 else 'Worse'} by {abs(diff):.2f}")
+
+
+def compare_optimal_path(map_path, req_path, nodes_list, expanded_cost):
+    """Compare with optimal path if conditions met."""
+    if len(nodes_list) > 10 or not get_yes_no("Compare with optimal? (may be slow)"):
+        return
+
+    optimal_tour, optimal_cost = compute_optimal_brute_force(map_path, req_path, len(nodes_list))
+    if optimal_tour:
+        print(f"\nOptimal: {format_path(optimal_tour)} Cost: {optimal_cost:.2f}")
+        diff_opt = expanded_cost - optimal_cost
+        print(f"TSP vs Optimal: {'Better' if diff_opt < 0 else 'Worse'} by {abs(diff_opt):.2f}")
+
+
+def run_interactive_compare():
+    """Run interactive comparison."""
+    print("\n=== TSP Path Comparison ===")
+
+    xml_dir = Path(BACKEND_ROOT).parent / "fichiersXMLPickupDelivery"
+
+    map_path, req_path = get_comparison_files(xml_dir)
+
+    if not map_path or not req_path:
+        return
+
+    tsp, G_map, all_nodes, deliveries, nodes_list = build_graph_and_deliveries(map_path, req_path)
+
+    tour, compact_cost, full_route, expanded_cost = solve_tsp_and_expand(tsp, deliveries, G_map, nodes_list)
+
+    if tour is None:
+        return
+
+    print_tsp_results(tour, compact_cost, full_route, expanded_cost)
+
+    compare_manual_path(G_map, all_nodes, expanded_cost)
+
+    compare_optimal_path(map_path, req_path, nodes_list, expanded_cost)
 
 
 def run_interactive_optimal():
@@ -222,12 +264,12 @@ def run_interactive_demo():
             deliveries = XMLParser.parse_deliveries(f.read())
         tour_pairs = [(d.pickup_addr, d.delivery_addr) for d in deliveries]
         sample_tour = cast(Tour, SimpleNamespace(deliveries=tour_pairs))
-        tour, compact_cost = tsp.solve(sample_tour)
     else:
         # For nodes-only demo
         print("No request file provided, using node list.")
         sample_tour = cast(Tour, SimpleNamespace(deliveries=[]))
-        tour, compact_cost = tsp.solve(sample_tour)
+
+    tour, compact_cost = tsp.solve(sample_tour)
 
     sp_graph = build_sp_graph(G_map, nodes_list)
     full_route, expanded_cost = tsp.expand_tour_with_paths(tour, sp_graph)
