@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, UploadFile
+from fastapi import APIRouter, HTTPException, status, UploadFile, Query
 from fastapi.responses import PlainTextResponse
 
 from app.models.schemas import Map, Intersection
@@ -53,5 +53,32 @@ def ack_pair(pickup_lat: float, pickup_lng: float, delivery_lat: float, delivery
     return {
         "pickup": p_node,
         "delivery": d_node,
+    }
+
+
+@router.get("/unreachable_nodes", tags=["Map"], summary="Compute unreachable nodes")
+def get_unreachable_nodes(target_node_id: str | None = Query(None, description="Optional ID of the target node. If omitted, server will pick a node automatically.")):
+    """Return a list of node IDs that cannot reach the specified target node.
+
+    If `target_node_id` is omitted the server will pick a node automatically
+    (heuristic + sampling) that maximizes how many nodes can reach it. This
+    is useful when the vast majority of nodes are reachable from a good hub.
+    """
+    map_service = MapService()
+
+    # If no target supplied, pick one automatically
+    chosen_target = target_node_id
+    if not chosen_target:
+        chosen_target = map_service.find_best_target_node()
+        if chosen_target is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No map loaded or map has no intersections")
+
+    unreachable_nodes = map_service.compute_unreachable_nodes(chosen_target)
+
+    return {
+        "target_node_id": chosen_target,
+        "chosen_automatically": target_node_id is None,
+        "unreachable_count": len(unreachable_nodes),
+        "unreachable_nodes": unreachable_nodes,
     }
 

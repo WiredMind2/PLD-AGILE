@@ -31,6 +31,9 @@ interface MapPanelProps {
     delivery: [number, number],
     options?: { pickup_service_s?: number; delivery_service_s?: number }
   ) => Promise<void>;
+  showUnreachableMarkers?: boolean;
+  onToggleUnreachableMarkers?: () => void;
+  
 }
 
 export default function MapPanel({
@@ -44,6 +47,8 @@ export default function MapPanel({
   hiddenRoutes,
   onPointClick,
   onCreateRequestFromCoords,
+  showUnreachableMarkers,
+  onToggleUnreachableMarkers,
 }: MapPanelProps) {
   return (
     <Card className="lg:col-span-2 border-blue-200 dark:border-blue-800 shadow-lg">
@@ -54,7 +59,7 @@ export default function MapPanel({
               <Map className="h-5 w-5 text-blue-600" />
               City Map & Delivery Tours
             </CardTitle>
-            <div>
+            <div className="flex gap-2">
               <Button
                 size="sm"
                 variant="outline"
@@ -62,12 +67,19 @@ export default function MapPanel({
               >
                 {showSegmentLabels ? "Hide numbers" : "Show numbers"}
               </Button>
+              <Button
+                size="sm"
+                variant={showUnreachableMarkers ? "default" : "outline"}
+                onClick={onToggleUnreachableMarkers}
+                title="Toggle unreachable nodes visibility"
+              >
+                {showUnreachableMarkers ? "Hide Unreachable" : "Show Unreachable"}
+              </Button>
             </div>
           </div>
-          <div className="mt-1">
+          <div className="mt-4">
             <CardDescription className="text-blue-600 dark:text-blue-400">
-              Load XML city map and visualize optimized bicycle delivery
-              routes
+              Load XML city map and visualize optimized bicycle delivery routes
             </CardDescription>
           </div>
         </div>

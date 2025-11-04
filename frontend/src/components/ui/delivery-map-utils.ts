@@ -57,7 +57,7 @@ export const createCircularIcon = (
 };
 
 export const getIcon = (
-  type: "pickup" | "delivery" | "courier" | "default",
+  type: "pickup" | "delivery" | "courier" | "default" | "unreachable",
   isHighlighted: boolean = false
 ): L.DivIcon => {
   const iconConfigs = {
@@ -65,6 +65,7 @@ export const getIcon = (
     delivery: { color: "#3b82f6", icon: "🏢", size: 40 },
     courier: { color: "#22c55e", icon: "🚴", size: 40 },
     default: { color: "#ff7b00ff", icon: "●", size: 15 },
+    unreachable: { color: "#dc2626", icon: "❌", size: 35 },
   };
 
   const config = iconConfigs[type];

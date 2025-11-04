@@ -2,8 +2,8 @@ export interface DeliveryPoint {
   id: string;
   position: [number, number]; // [lat, lng]
   address?: string;
-  type: "pickup" | "delivery" | "courier" | "default";
-  status?: "pending" | "in-progress" | "completed" | "active";
+  type: "pickup" | "delivery" | "courier" | "default" | "unreachable";
+  status?: "pending" | "in-progress" | "completed" | "active" | "inactive";
   deliveryId?: string; // To link pickup and delivery points together
   isHighlighted?: boolean; // NEW: For highlighting functionality
 }

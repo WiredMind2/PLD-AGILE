@@ -11,6 +11,8 @@ import CourierManagementPanel from "@/components/CourierManagementPanel";
 import DeliveriesPanel from "@/components/DeliveriesPanel";
 import SavedToursPanel from "@/components/SavedToursPanel";
 import MapPanel from "@/components/MapPanel";
+import { DeliveryPoint } from "@/components/ui/delivery-map-types";
+import { useUnreachableNodes } from "@/hooks/useUnreachableNodes";
 
 export default function MainView(): JSX.Element {
   const [openNewReq, setOpenNewReq] = useState(false);
@@ -72,6 +74,22 @@ export default function MainView(): JSX.Element {
     handlePointClick,
     addPickupDeliveryMarkers,
   } = useMapAndDeliveries();
+
+  const [unreachableNodes, setUnreachableNodes] = useState<DeliveryPoint[]>([]);
+  const [showUnreachableMarkers, setShowUnreachableMarkers] = useState<boolean>(false);
+
+  const { loadUnreachableNodes } = useUnreachableNodes({
+    map,
+    setUnreachableNodes,
+    setShowUnreachableMarkers,
+    setSuccessAlert,
+    setWarningAlert,
+  });
+
+  // Combine delivery points and unreachable nodes if showUnreachableMarkers is true
+  const allDeliveryPoints = showUnreachableMarkers 
+    ? [...deliveryPoints, ...unreachableNodes]
+    : deliveryPoints;
 
   const {
     fileInputRef,
@@ -188,7 +206,7 @@ export default function MainView(): JSX.Element {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Map Section */}
           <MapPanel
-            deliveryPoints={deliveryPoints}
+            deliveryPoints={allDeliveryPoints}
             roadSegments={roadSegments}
             mapCenter={mapCenter}
             mapZoom={mapZoom}
@@ -198,6 +216,15 @@ export default function MainView(): JSX.Element {
             hiddenRoutes={hiddenRoutes}
             onPointClick={handlePointClick}
             onCreateRequestFromCoords={onCreateRequestFromCoords}
+            showUnreachableMarkers={showUnreachableMarkers}
+            onToggleUnreachableMarkers={() => {
+              if (!showUnreachableMarkers && unreachableNodes.length === 0) {
+                // first time: compute unreachable nodes then show if any
+                loadUnreachableNodes();
+              } else {
+                setShowUnreachableMarkers(!showUnreachableMarkers);
+              }
+            }}
           />
 
           {/* Right Column */}

@@ -60,6 +60,14 @@ class ApiClient {
     });
   }
 
+  async getUnreachableNodes(targetNodeId?: string): Promise<{ target_node_id: string; unreachable_count: number; unreachable_nodes: string[] }> {
+    const url = targetNodeId ? `/map/unreachable_nodes?target_node_id=${encodeURIComponent(String(targetNodeId))}` : `/map/unreachable_nodes`;
+    // Use base request method but pass full endpoint
+    return this.request<{ target_node_id: string; unreachable_count: number; unreachable_nodes: string[] }>(url, {
+      method: "GET",
+    });
+  }
+
   // Delivery endpoints
   async uploadDeliveryRequests(file: File): Promise<Delivery[]> {
     const formData = new FormData();
