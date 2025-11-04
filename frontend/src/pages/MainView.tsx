@@ -103,6 +103,44 @@ export default function MainView(): JSX.Element {
     computeTours,
   });
 
+  const onCreateRequestFromCoords = async (
+    pickup: [number, number],
+    delivery: [number, number],
+    options?: { pickup_service_s?: number; delivery_service_s?: number }
+  ) => {
+    if (!map) return;
+    try {
+      const res = await createRequestFromCoords?.(
+        pickup,
+        delivery,
+        options
+      );
+      // Update markers immediately using returned nearest nodes
+      if (res && res.pickupNode && res.deliveryNode) {
+        const createdId = String(res.created.id);
+        const pickupPos = [
+          res.pickupNode.latitude,
+          res.pickupNode.longitude,
+        ] as [number, number];
+        const deliveryPos = [
+          res.deliveryNode.latitude,
+          res.deliveryNode.longitude,
+        ] as [number, number];
+        addPickupDeliveryMarkers(
+          createdId,
+          pickupPos,
+          deliveryPos
+        );
+        setSuccessAlert(
+          "New delivery request created from map"
+        );
+        setTimeout(() => setSuccessAlert(null), 4000);
+      }
+    } catch (e) {
+      // Error already handled in hook
+    }
+  };
+
   useEffect(() => {
     clearServerState();
   }, []);
@@ -155,43 +193,7 @@ export default function MainView(): JSX.Element {
             routes={routes}
             hiddenRoutes={hiddenRoutes}
             onPointClick={handlePointClick}
-            onCreateRequestFromCoords={async (
-              pickup,
-              delivery,
-              options
-            ) => {
-              if (!map) return;
-              try {
-                const res = await createRequestFromCoords?.(
-                  pickup,
-                  delivery,
-                  options
-                );
-                // Update markers immediately using returned nearest nodes
-                if (res && res.pickupNode && res.deliveryNode) {
-                  const createdId = String(res.created.id);
-                  const pickupPos = [
-                    res.pickupNode.latitude,
-                    res.pickupNode.longitude,
-                  ] as [number, number];
-                  const deliveryPos = [
-                    res.deliveryNode.latitude,
-                    res.deliveryNode.longitude,
-                  ] as [number, number];
-                  addPickupDeliveryMarkers(
-                    createdId,
-                    pickupPos,
-                    deliveryPos
-                  );
-                  setSuccessAlert(
-                    "New delivery request created from map"
-                  );
-                  setTimeout(() => setSuccessAlert(null), 4000);
-                }
-              } catch (e) {
-                // Error already handled in hook
-              }
-            }}
+            onCreateRequestFromCoords={onCreateRequestFromCoords}
           />
 
           {/* Right Column */}
@@ -230,6 +232,7 @@ export default function MainView(): JSX.Element {
           assignDeliveryToCourier={assignDeliveryToCourier}
           deleteRequest={deleteRequest}
           setDeliveryPoints={setDeliveryPoints}
+          onCreateRequestFromCoords={onCreateRequestFromCoords}
           geocodeAddress={geocodeAddress}
           createRequestFromCoords={createRequestFromCoords}
           setSuccessAlert={setSuccessAlert}

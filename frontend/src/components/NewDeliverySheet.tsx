@@ -20,8 +20,18 @@ interface NewDeliverySheetProps {
   geocodeAddress: (address: string) => Promise<{ lat: number; lon: number } | null>;
   createRequestFromCoords: (pickup: [number, number], delivery: [number, number], options?: { pickup_service_s?: number; delivery_service_s?: number }) => Promise<{ created: Delivery; pickupNode: Intersection; deliveryNode: Intersection }>;
   setDeliveryPoints: React.Dispatch<React.SetStateAction<DeliveryPoint[]>>;
+  addPickupDeliveryMarkers?: (
+    createdId: string,
+    pickupPos: [number, number] | null,
+    deliveryPos: [number, number] | null
+  ) => void;
   setSuccessAlert: (message: string | null) => void;
   onRequestUpload: () => void;
+  onCreateRequestFromCoords: (
+    pickup: [number, number],
+    delivery: [number, number],
+    options?: { pickup_service_s?: number; delivery_service_s?: number }
+  ) => Promise<void>;
 }
 
 export default function NewDeliverySheet({
@@ -31,8 +41,10 @@ export default function NewDeliverySheet({
   geocodeAddress,
   createRequestFromCoords,
   setDeliveryPoints,
+  addPickupDeliveryMarkers,
   setSuccessAlert,
   onRequestUpload,
+  onCreateRequestFromCoords,
 }: NewDeliverySheetProps) {
   const [pickupAddr, setPickupAddr] = useState("");
   const [deliveryAddr, setDeliveryAddr] = useState("");
@@ -85,47 +97,20 @@ export default function NewDeliverySheet({
       }
 
       // Create the request using the API in the hook: options keys expected are pickup_service_s/delivery_service_s
-      const res = await createRequestFromCoords(pickupCoord, deliveryCoord, {
-        pickup_service_s: pickupService,
-        delivery_service_s: deliveryService,
-      });
-      // update map points
-      if (res && res.pickupNode && res.deliveryNode) {
-        const createdId = String(res.created.id);
-        const pickupPos = [
-          res.pickupNode.latitude,
-          res.pickupNode.longitude,
-        ] as [number, number];
-        const deliveryPos = [
-          res.deliveryNode.latitude,
-          res.deliveryNode.longitude,
-        ] as [number, number];
-        // Add pickup/delivery markers for a manually created delivery id
-        setDeliveryPoints((prev) => {
-          const base = prev ? [...prev] : [];
-          if (pickupPos) {
-            base.push({
-              id: `pickup-${createdId}`,
-              position: pickupPos,
-              address: "Pickup Location",
-              type: "pickup",
-              status: "pending",
-            });
+      try {
+        await onCreateRequestFromCoords?.(
+          pickupCoord,
+          deliveryCoord,
+          {
+            pickup_service_s: pickupService,
+            delivery_service_s: deliveryService,
           }
-          if (deliveryPos) {
-            base.push({
-              id: `delivery-${createdId}`,
-              position: deliveryPos,
-              address: "Delivery Location",
-              type: "delivery",
-              status: "pending",
-            });
-          }
-          return base;
-        });
-        setSuccessAlert("New delivery request created from form");
-        setTimeout(() => setSuccessAlert(null), 4000);
+        );
+      } catch (err) {
+        console.error("Create request from coords failed", err);
       }
+      setSuccessAlert("New delivery request created from form");
+      setTimeout(() => setSuccessAlert(null), 4000);
 
       // reset and close
       setPickupAddr("");
