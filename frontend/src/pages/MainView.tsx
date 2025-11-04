@@ -5,6 +5,7 @@ import { useFileUploads } from "@/hooks/useFileUploads";
 import { useTourManagement } from "@/hooks/useTourManagement";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import Header from "@/components/Header";
+import { Button } from "@/components/ui/button";
 import StatsCards from "@/components/StatsCards";
 import CourierManagementPanel from "@/components/CourierManagementPanel";
 import DeliveriesPanel from "@/components/DeliveriesPanel";
@@ -65,6 +66,8 @@ export default function MainView(): JSX.Element {
     setSuccessAlert,
     overworkAlert,
     setOverworkAlert,
+    warningAlert,
+    setWarningAlert,
     toggleRouteVisibility,
     handlePointClick,
     addPickupDeliveryMarkers,
@@ -100,6 +103,7 @@ export default function MainView(): JSX.Element {
     setRoutes,
     setMapCenter,
     setOverworkAlert,
+    setWarningAlert,
     computeTours,
   });
 
@@ -311,6 +315,51 @@ export default function MainView(): JSX.Element {
               <AlertDescription className="text-sm text-red-700 dark:text-red-200">
                 {overworkAlert}
               </AlertDescription>
+            </div>
+          </Alert>
+        </div>
+      )}
+      {warningAlert && (
+        <div className="fixed right-6 bottom-24 z-50 w-96">
+          <Alert
+            variant="destructive"
+            className="border-yellow-600 bg-red-100 dark:bg-yellow-700/70"
+          >
+            <div className="flex items-start justify-between w-full">
+              <div className="flex items-start">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4 mr-2 text-yellow-700"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 9v2m0 4h.01M21 12A9 9 0 113 12a9 9 0 0118 0z"
+                  />
+                </svg>
+                <div>
+                  <AlertTitle className="text-orange-700 dark:text-red-200">
+                    Warning
+                  </AlertTitle>
+                  <AlertDescription className="text-sm text-red-700 dark:text-red-200">
+                    {warningAlert}
+                  </AlertDescription>
+                </div>
+              </div>
+              <div className="ml-4">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setWarningAlert(null)}
+                  className="text-sm text-white"
+                >
+                  Close
+                </Button>
+              </div>
             </div>
           </Alert>
         </div>

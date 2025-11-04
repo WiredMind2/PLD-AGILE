@@ -9,6 +9,7 @@ interface UseTourManagementProps {
   setRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
   setMapCenter: (center: [number, number]) => void;
   setOverworkAlert: (alert: string | null) => void;
+  setWarningAlert: (alert: string | null) => void;
   computeTours: (() => Promise<any>) | undefined;
 }
 
@@ -19,6 +20,7 @@ export function useTourManagement({
   setRoutes,
   setMapCenter,
   setOverworkAlert,
+  setWarningAlert,
   computeTours,
 }: UseTourManagementProps) {
 
@@ -194,6 +196,26 @@ export function useTourManagement({
       } catch (e) {
         // ignore formatting errors
       }
+
+      // Checks if all pickup and delivery nodes are present in the response route
+      // warns the user if some requests could not be mapped but does not crash the tour building process
+      try {
+        setWarningAlert(null);
+        if (res && Array.isArray(res)) {
+          res.forEach((t) => {
+            t.deliveries?.forEach((pair: [string, string]) => {
+              const pickupMissing = !t.route_intersections.includes(pair[0]);
+              const deliveryMissing = !t.route_intersections.includes(pair[1]);
+              if (pickupMissing || deliveryMissing) {
+                setWarningAlert(`Some delivery requests could not be mapped for Courier ${t.courier}`);
+              }
+            });
+          });
+        }
+      } catch (e) {
+        // ignore errors
+      }
+
       // clear any previous notices (deprecated)
       if (res && Array.isArray(res)) {
         const points: DeliveryPoint[] = [];
