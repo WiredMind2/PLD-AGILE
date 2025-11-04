@@ -11,14 +11,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { DeliveryPoint } from "@/components/ui/delivery-map-types";
-import { Delivery, Intersection } from "@/types/api";
 
 interface NewDeliverySheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   loading: boolean;
   geocodeAddress: (address: string) => Promise<{ lat: number; lon: number } | null>;
-  createRequestFromCoords: (pickup: [number, number], delivery: [number, number], options?: { pickup_service_s?: number; delivery_service_s?: number }) => Promise<{ created: Delivery; pickupNode: Intersection; deliveryNode: Intersection }>;
   setDeliveryPoints: React.Dispatch<React.SetStateAction<DeliveryPoint[]>>;
   addPickupDeliveryMarkers?: (
     createdId: string,
@@ -39,9 +37,6 @@ export default function NewDeliverySheet({
   onOpenChange,
   loading,
   geocodeAddress,
-  createRequestFromCoords,
-  setDeliveryPoints,
-  addPickupDeliveryMarkers,
   setSuccessAlert,
   onRequestUpload,
   onCreateRequestFromCoords,
@@ -146,7 +141,7 @@ export default function NewDeliverySheet({
           <div className="space-y-2">
             <label className="text-sm font-medium">Pickup address</label>
             <Input
-              placeholder="e.g. 10 rue de la République, 69001 Lyon"
+              placeholder="e.g. 196 Cours Émile-Zola, 69100 Villeurbanne"
               value={pickupAddressText}
               onChange={(e) => setPickupAddressText(e.target.value)}
               disabled={!!pickupAddr}
@@ -161,7 +156,7 @@ export default function NewDeliverySheet({
           <div className="space-y-2">
             <label className="text-sm font-medium">Delivery address</label>
             <Input
-              placeholder="e.g. 20 avenue Jean Jaurès, 69007 Lyon"
+              placeholder="e.g. 20 Avenue Albert Einstein, 69100 Villeurbanne"
               value={deliveryAddressText}
               onChange={(e) => setDeliveryAddressText(e.target.value)}
               disabled={!!deliveryAddr}

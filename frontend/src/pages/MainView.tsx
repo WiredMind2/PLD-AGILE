@@ -234,7 +234,6 @@ export default function MainView(): JSX.Element {
           setDeliveryPoints={setDeliveryPoints}
           onCreateRequestFromCoords={onCreateRequestFromCoords}
           geocodeAddress={geocodeAddress}
-          createRequestFromCoords={createRequestFromCoords}
           setSuccessAlert={setSuccessAlert}
           onRequestUpload={handleRequestUpload}
           openNewReq={openNewReq}
