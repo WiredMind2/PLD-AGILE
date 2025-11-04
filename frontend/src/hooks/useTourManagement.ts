@@ -207,7 +207,7 @@ export function useTourManagement({
               const pickupMissing = !t.route_intersections.includes(pair[0]);
               const deliveryMissing = !t.route_intersections.includes(pair[1]);
               if (pickupMissing || deliveryMissing) {
-                setWarningAlert(`Some delivery requests could not be mapped for Courier ${t.courier}`);
+                setWarningAlert(`Some delivery requests could not be mapped`);
               }
             });
           });
