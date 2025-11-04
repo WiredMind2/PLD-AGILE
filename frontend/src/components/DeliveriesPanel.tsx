@@ -24,9 +24,18 @@ interface DeliveriesPanelProps {
   assignDeliveryToCourier: (deliveryId: string, courierId: string | null) => Promise<void>;
   deleteRequest: (id: string) => Promise<void>;
   setDeliveryPoints: React.Dispatch<React.SetStateAction<DeliveryPoint[]>>;
+  addPickupDeliveryMarkers?: (
+    createdId: string,
+    pickupPos: [number, number] | null,
+    deliveryPos: [number, number] | null
+  ) => void;
   geocodeAddress: (address: string) => Promise<{ lat: number; lon: number } | null>;
-  createRequestFromCoords: (pickup: [number, number], delivery: [number, number], options?: { pickup_service_s?: number; delivery_service_s?: number }) => Promise<{ created: Delivery; pickupNode: Intersection; deliveryNode: Intersection }>;
   setSuccessAlert: (message: string | null) => void;
+  onCreateRequestFromCoords: (
+    pickup: [number, number],
+    delivery: [number, number],
+    options?: { pickup_service_s?: number; delivery_service_s?: number }
+  ) => Promise<void>;
   onRequestUpload: () => void;
   openNewReq: boolean;
   setOpenNewReq: (open: boolean) => void;
@@ -42,7 +51,8 @@ export default function DeliveriesPanel({
   deleteRequest,
   setDeliveryPoints,
   geocodeAddress,
-  createRequestFromCoords,
+  onCreateRequestFromCoords,
+  addPickupDeliveryMarkers,
   setSuccessAlert,
   onRequestUpload,
   openNewReq,
@@ -130,10 +140,11 @@ export default function DeliveriesPanel({
         onOpenChange={setOpenNewReq}
         loading={loading}
         geocodeAddress={geocodeAddress}
-        createRequestFromCoords={createRequestFromCoords}
         setDeliveryPoints={setDeliveryPoints}
+        addPickupDeliveryMarkers={addPickupDeliveryMarkers}
         setSuccessAlert={setSuccessAlert}
         onRequestUpload={onRequestUpload}
+        onCreateRequestFromCoords={onCreateRequestFromCoords}
       />
     </>
   );

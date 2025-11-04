@@ -30,6 +30,7 @@ export function useMapAndDeliveries() {
   const [saveName, setSaveName] = useState("");
   const [successAlert, setSuccessAlert] = useState<string | null>(null);
   const [overworkAlert, setOverworkAlert] = useState<string | null>(null);
+  const [warningAlert, setWarningAlert] = useState<string | null>(null);
 
   const toggleRouteVisibility = (courierId: string) => {
     setHiddenRoutes((prev) => ({
@@ -97,6 +98,8 @@ export function useMapAndDeliveries() {
     setSuccessAlert,
     overworkAlert,
     setOverworkAlert,
+    warningAlert,
+    setWarningAlert,
     toggleRouteVisibility,
     handlePointClick,
     addPickupDeliveryMarkers,

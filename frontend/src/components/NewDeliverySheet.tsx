@@ -11,17 +11,25 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { DeliveryPoint } from "@/components/ui/delivery-map-types";
-import { Delivery, Intersection } from "@/types/api";
 
 interface NewDeliverySheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   loading: boolean;
   geocodeAddress: (address: string) => Promise<{ lat: number; lon: number } | null>;
-  createRequestFromCoords: (pickup: [number, number], delivery: [number, number], options?: { pickup_service_s?: number; delivery_service_s?: number }) => Promise<{ created: Delivery; pickupNode: Intersection; deliveryNode: Intersection }>;
   setDeliveryPoints: React.Dispatch<React.SetStateAction<DeliveryPoint[]>>;
+  addPickupDeliveryMarkers?: (
+    createdId: string,
+    pickupPos: [number, number] | null,
+    deliveryPos: [number, number] | null
+  ) => void;
   setSuccessAlert: (message: string | null) => void;
   onRequestUpload: () => void;
+  onCreateRequestFromCoords: (
+    pickup: [number, number],
+    delivery: [number, number],
+    options?: { pickup_service_s?: number; delivery_service_s?: number }
+  ) => Promise<void>;
 }
 
 export default function NewDeliverySheet({
@@ -29,10 +37,9 @@ export default function NewDeliverySheet({
   onOpenChange,
   loading,
   geocodeAddress,
-  createRequestFromCoords,
-  setDeliveryPoints,
   setSuccessAlert,
   onRequestUpload,
+  onCreateRequestFromCoords,
 }: NewDeliverySheetProps) {
   const [pickupAddr, setPickupAddr] = useState("");
   const [deliveryAddr, setDeliveryAddr] = useState("");
@@ -85,47 +92,20 @@ export default function NewDeliverySheet({
       }
 
       // Create the request using the API in the hook: options keys expected are pickup_service_s/delivery_service_s
-      const res = await createRequestFromCoords(pickupCoord, deliveryCoord, {
-        pickup_service_s: pickupService,
-        delivery_service_s: deliveryService,
-      });
-      // update map points
-      if (res && res.pickupNode && res.deliveryNode) {
-        const createdId = String(res.created.id);
-        const pickupPos = [
-          res.pickupNode.latitude,
-          res.pickupNode.longitude,
-        ] as [number, number];
-        const deliveryPos = [
-          res.deliveryNode.latitude,
-          res.deliveryNode.longitude,
-        ] as [number, number];
-        // Add pickup/delivery markers for a manually created delivery id
-        setDeliveryPoints((prev) => {
-          const base = prev ? [...prev] : [];
-          if (pickupPos) {
-            base.push({
-              id: `pickup-${createdId}`,
-              position: pickupPos,
-              address: "Pickup Location",
-              type: "pickup",
-              status: "pending",
-            });
+      try {
+        await onCreateRequestFromCoords?.(
+          pickupCoord,
+          deliveryCoord,
+          {
+            pickup_service_s: pickupService,
+            delivery_service_s: deliveryService,
           }
-          if (deliveryPos) {
-            base.push({
-              id: `delivery-${createdId}`,
-              position: deliveryPos,
-              address: "Delivery Location",
-              type: "delivery",
-              status: "pending",
-            });
-          }
-          return base;
-        });
-        setSuccessAlert("New delivery request created from form");
-        setTimeout(() => setSuccessAlert(null), 4000);
+        );
+      } catch (err) {
+        console.error("Create request from coords failed", err);
       }
+      setSuccessAlert("New delivery request created from form");
+      setTimeout(() => setSuccessAlert(null), 4000);
 
       // reset and close
       setPickupAddr("");
@@ -161,7 +141,7 @@ export default function NewDeliverySheet({
           <div className="space-y-2">
             <label className="text-sm font-medium">Pickup address</label>
             <Input
-              placeholder="e.g. 10 rue de la République, 69001 Lyon"
+              placeholder="e.g. 196 Cours Émile-Zola, 69100 Villeurbanne"
               value={pickupAddressText}
               onChange={(e) => setPickupAddressText(e.target.value)}
               disabled={!!pickupAddr}
@@ -176,7 +156,7 @@ export default function NewDeliverySheet({
           <div className="space-y-2">
             <label className="text-sm font-medium">Delivery address</label>
             <Input
-              placeholder="e.g. 20 avenue Jean Jaurès, 69007 Lyon"
+              placeholder="e.g. 20 Avenue Albert Einstein, 69100 Villeurbanne"
               value={deliveryAddressText}
               onChange={(e) => setDeliveryAddressText(e.target.value)}
               disabled={!!deliveryAddr}
