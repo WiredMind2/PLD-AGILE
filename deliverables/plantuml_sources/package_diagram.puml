@@ -1,0 +1,98 @@
+@startuml package_diagram
+
+top to bottom direction
+skinparam linetype polyline
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam sep 30
+hide empty members
+
+skinparam nodesep 200
+skinparam ranksep 100
+skinparam packagePadding 20
+skinparam componentMargin 20
+skinparam dpi 160
+skinparam defaultFontSize 18
+skinparam roundcorner 8
+
+package "backend" #E8F4FF {
+  
+  package "api" #E3FCEF {
+    class couriers
+    class deliveries
+    class map
+    class requests
+    class saved_tours
+    class state
+    class tours
+  }
+
+  package "core" #FCE8FF {
+    class config
+    class error_handlers
+  }
+
+  package "TSP_services" #FFF0F0 {
+    class MapService
+    class TSPService
+  }
+
+  package "models" #FFF7E8 {
+    class schemas
+  }
+
+  package "services" #FFF1E6 {
+    class XMLParser
+  }
+
+  package "TSP_utils" #F0F0FF {
+    class TSP_base
+    class TSP_solver
+    class TSP_heuristics
+    class TSP_local_search
+    class TSP_metric
+  }
+}
+
+' ------------------
+' Relationships
+' ------------------
+
+' API endpoint dependencies
+map --> XMLParser : uses
+map --> schemas : uses
+map --> MapService : uses
+map --> config : uses
+
+requests --> XMLParser : uses
+requests --> schemas : uses
+requests --> config : uses
+
+deliveries --> XMLParser : uses
+deliveries --> schemas : uses
+deliveries --> config : uses
+
+couriers --> config : uses
+
+tours --> TSPService : uses
+tours --> schemas : uses
+tours --> config : uses
+
+saved_tours --> TSPService : uses
+saved_tours --> config : uses
+
+' Service dependencies
+XMLParser --> schemas : produces
+MapService --> schemas : uses
+TSPService --> schemas : uses
+TSPService --> TSP_solver : uses
+
+' TSP inheritance relationships
+TSP_solver <|-- TSP_base : extends
+TSP_solver ..> TSP_metric : uses
+TSP_solver ..> TSP_heuristics : uses
+TSP_solver ..> TSP_local_search : uses
+TSP_base ..> schemas : uses
+
+@enduml

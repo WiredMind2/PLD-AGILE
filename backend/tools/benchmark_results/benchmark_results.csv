@@ -1,0 +1,7 @@
+Map,Request,Deliveries,Nodes,TSP Time (s),TSP Cost,TSP Expanded,Optimal Time (s),Optimal Cost,Optimal Expanded,Gap (%),Error
+grandPlan.xml,demandeGrand7.xml,7,14,0.2598,28530.52,29133.70,,,,,
+grandPlan.xml,demandeGrand9.xml,9,18,0.3129,43665.93,45082.05,,,,,
+moyenPlan.xml,demandeMoyen3.xml,3,6,0.2623,11357.66,11817.41,0.0020,11817.41,11817.41,0.00,
+moyenPlan.xml,demandeMoyen5.xml,5,10,0.9388,16797.86,17960.14,5.5486,16081.22,16081.22,11.68,
+petitPlan.xml,demandePetit1.xml,1,2,0.0110,4752.51,5053.06,,5053.06,5053.06,0.00,
+petitPlan.xml,demandePetit2.xml,2,4,0.0045,3664.50,3788.89,,3788.89,3788.89,0.00,

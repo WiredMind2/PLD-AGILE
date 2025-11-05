@@ -1,0 +1,172 @@
+@startuml
+
+top to bottom direction
+skinparam linetype polyline
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam sep 40
+hide empty members
+
+skinparam nodesep 200
+skinparam ranksep 120
+skinparam packagePadding 25
+skinparam componentMargin 20
+skinparam dpi 160
+skinparam defaultFontSize 16
+skinparam roundcorner 8
+
+' ==========================================
+' UML Class Diagram - Python Backend Core Architecture
+' Public interface only (no private attributes/methods)
+' ==========================================
+
+package "Models" #FFF7E8 {
+  class Intersection {
+    - id: str
+    - latitude: float  
+    - longitude: float
+  }
+
+  class RoadSegment {
+    - start: Intersection | str
+    - end: Intersection | str
+    - length_m: float
+    - travel_time_s: int
+    - street_name: str
+    + calculate_time(): int
+  }
+
+  class Delivery {
+    - pickup_addr: str
+    - delivery_addr: str
+    - pickup_service_s: int
+    - delivery_service_s: int
+    - warehouse: Optional[str]
+    - courier: Optional[str]
+    - hour_departure: Optional[str]
+    - id: Optional[str]
+  }
+
+  class Tour {
+    - courier: str
+    - deliveries: List[Tuple[str, str]]
+    - total_travel_time_s: int
+    - total_service_time_s: int
+    - total_distance_m: float
+    - route_intersections: List[str]
+    + add_delivery(pickup_addr: str, delivery_addr: str): None
+    + add_deliveries(deliveries: List[Tuple[str, str]]): None
+  }
+
+  class Map {
+    - intersections: List[Intersection]
+    - road_segments: List[RoadSegment]
+    - couriers: List[str]
+    - deliveries: List[Delivery]
+    - adjacency_list: Dict[str, List[Tuple[Intersection, RoadSegment]]]
+    + add_intersection(intersection: Intersection): None
+    + add_road_segment(segment: RoadSegment): None
+    + add_delivery(delivery: Delivery): None
+    + add_courier(courier: str): None
+    + build_adjacency(): None
+  }
+}
+
+package "Core" #FCE8FF {
+  class State {
+    + get_map(): Optional[Map]
+    + save_tour(tour: Tour): None
+    + clear_tours(): None
+  }
+
+  class Settings {
+    - PROJECT_NAME: str
+    - VERSION: str
+    - DESCRIPTION: str
+    - API_V1_STR: str
+    - ALLOWED_HOSTS: List[str]
+    - ENVIRONMENT: str
+    - DEBUG: bool
+    - DATABASE_URL: str
+    - TRAVEL_SPEED: float
+  }
+}
+
+package "Services" #FFF1E6 {
+  class MapService {
+    + ack_pair(pickup: Tuple[float, float], delivery: Tuple[float, float]): Tuple[Intersection, Intersection]
+    + compute_unreachable_nodes(target_node_id: str): List[str]
+    + find_best_target_node(max_full_scan: int, top_k: int, random_samples: int): Optional[str]
+  }
+
+  class TSPService {
+    + compute_tours(): List[Tour]
+  }
+
+  class XMLParser {
+    + generate_id(): str
+    + parse_deliveries(xml_text: str): List[Delivery]
+    + parse_map(xml_text: str): Map
+  }
+}
+
+package "TSP Utils" #F0F0FF {
+  class TSP {
+    + solve(tour: Tour, start_node: Optional[str] = None): Tuple[List[str], float]
+  }
+
+  class TSPBase {
+    + _build_networkx_map_graph(xml_file_path: Optional[str]): Tuple[nx.DiGraph, List[str]]
+  }
+
+  class TourHeuristics {
+    + build_nearest_neighbor_tour(G, pickups, deliveries, delivery_map, tour_cost_fn, is_valid_tour_fn, start_node): Tuple[List[str], float]
+    + build_insertion_tour(G, pd_pairs, tour_cost_fn, is_valid_tour_fn, start_node): Tuple[List[str], float]
+    + build_savings_tour(G, pd_pairs, tour_cost_fn, is_valid_tour_fn, start_node): Tuple[List[str], float]
+  }
+
+  class LocalSearchOptimizer {
+    + multi_start_local_search(core, total, tour_cost_fn, is_valid_tour_fn, closed, num_restarts, iterations_per_restart, use_simulated_annealing, use_or_opt, strategy): Tuple[List[str], float]
+  }
+
+  class MetricGraphBuilder {
+    + build_metric_complete_graph(sp_graph): nx.Graph
+  }
+}
+
+' ==========================================
+' Relationships
+' ==========================================
+
+' Core model relationships
+Map "1" --> "*" Intersection : contains
+Map "1" --> "*" RoadSegment : contains
+Map "1" --> "*" Delivery : contains
+
+RoadSegment "1" --> "2" Intersection : connects
+
+' Service dependencies
+MapService --> State : uses
+MapService --> Map : operates on
+
+TSPService --> State : uses
+TSPService --> Map : operates on
+TSPService --> Tour : creates
+TSPService --> Delivery : processes
+TSPService --> TSP : uses
+
+XMLParser --> Map : creates
+XMLParser --> Delivery : creates
+
+' TSP relationships
+TSP --|> TSPBase : extends
+TSP --> TourHeuristics : uses
+TSP --> LocalSearchOptimizer : uses  
+TSP --> MetricGraphBuilder : uses
+
+' State management
+State --> Map : manages
+State --> Tour : stores
+
+@enduml
