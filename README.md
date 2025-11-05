@@ -8,7 +8,7 @@ A modular FastAPI backend built for easy extensibility and scalability.
 - Python 3.8+
 - pip or pipenv
 
-### Installation (PowerShell on Windows)
+### Installation
 
 1. **Navigate to backend directory:**
    ```powershell
