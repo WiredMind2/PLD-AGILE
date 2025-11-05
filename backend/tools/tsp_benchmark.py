@@ -101,12 +101,19 @@ class TSPBenchmark:
 
     def run_optimal_solver(self, G: nx.DiGraph, delivery_pairs: List[Tuple[str, str]], depot: str) -> Tuple[float | None, float | None, float | None]:
         """Run optimal solver."""
-        nodes = [depot] + [n for pair in delivery_pairs for n in pair]
+        # Build a deduplicated ordered list of nodes (depot + pickups/deliveries).
+        # Deduplication avoids repeated entries when depot equals a pickup node
+        # which otherwise produces self-transitions in generated tours.
+        nodes = list(dict.fromkeys([depot] + [n for pair in delivery_pairs for n in pair]))
         sp_graph = {}
         for u in nodes:
             sp_graph[u] = {}
             for v in nodes:
-                if u != v:
+                # Ensure self-costs are zero so tours containing repeated start/end
+                # nodes (e.g. start_node == pickup) are evaluated correctly.
+                if u == v:
+                    sp_graph[u][v] = 0.0
+                else:
                     try:
                         cost = nx.shortest_path_length(G, u, v, weight="weight")
                         sp_graph[u][v] = cost
