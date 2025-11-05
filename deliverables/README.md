@@ -23,8 +23,6 @@ deliverables/
 ├── generated_svgs/              # Generated SVG files from PlantUML and PDFs
 │   ├── UC_Diagram.svg
 │   ├── class_diagram.svg
-│   ├── data_model_class_diagram.svg
-│   ├── P_Diagram.svg
 │   ├── package_diagram.svg
 │   ├── parse_deliveries_sequence.svg
 │   ├── parse_map_sequence.svg
@@ -66,7 +64,10 @@ deliverables/
   - [Additional Documentation](#additional-documentation)
     - [Project Documentation](#project-documentation)
     - [Sprint Documentation](#sprint-documentation)
+    - [Project Planning](#project-planning)
   - [Quick Access](#quick-access)
+  - [Technical Tools](#technical-tools)
+    - [PlantUML Generation](#plantuml-generation)
 
 ---
 
@@ -106,15 +107,15 @@ deliverables/
 
 ### Data Model Class Diagram
 
-[![Data Model Class Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/data_model_class_diagram.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/data_model_class_diagram.svg)
+[![Data Model Class Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/class_diagram.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/class_diagram.svg)
 
-[📝 View data_model_class_diagram.puml source](plantuml_sources/data_model_class_diagram.puml)
+[📝 View class_diagram.puml source](plantuml_sources/class_diagram.puml)
 
 ### P-Diagram
 
-[![P-Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/P_Diagram.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/P_Diagram.svg)
+[![P-Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/package_diagram.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/package_diagram.svg)
 
-[📝 View P_Diagram.puml source](plantuml_sources/P_Diagram.puml)
+[📝 View package_diagram.puml source](plantuml_sources/package_diagram.puml)
 
 ---
 
