@@ -143,9 +143,8 @@ def save_snapshot(name: str) -> Dict[str, Any]:
         safe = _sanitize_name(name)
         path = os.path.join(_saved_dir, f"{safe}.pkl")
         
-        # Check if snapshot already exists
-        if os.path.exists(path):
-            raise ValueError(f"A snapshot with the name '{name}' already exists")
+        # If snapshot already exists, overwrite it (tests expect overwrite behavior)
+        # (Previously this raised an error.)
         
         payload = {
             "saved_at": datetime.now(timezone.utc),
