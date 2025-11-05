@@ -51,20 +51,6 @@ from .data_loading import load_map_graph, load_delivery_requests, build_tour_pai
 from .solution_computation import compute_tsp_solution, compute_optimal_solution
 from .user_interaction import handle_manual_path_input
 
-# Import brute-force optimal solver functions
-try:
-    import compute_optimal_brute_force
-    from compute_optimal_brute_force import (
-        generate_all_valid_tours,
-        tour_cost as brute_force_tour_cost,
-    )
-
-    BRUTE_FORCE_AVAILABLE = True
-except ImportError:
-    BRUTE_FORCE_AVAILABLE = False
-    generate_all_valid_tours = None  # type: ignore
-    brute_force_tour_cost = None  # type: ignore
-
 
 def main():
     # Parse arguments and print header

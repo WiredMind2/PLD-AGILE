@@ -16,8 +16,16 @@ from app.utils.TSP.TSP_networkx import TSP
 from app.services.XMLParser import XMLParser
 from app.models.schemas import Tour
 
-from tsp_core import build_sp_graph, expand_manual_path, input_manual_path, format_path, compute_optimal_brute_force
-from tsp_benchmark import TSPBenchmark, BenchmarkVisualizer
+# Import from canonical modules
+from .path_utils import build_sp_graph_from_map as build_sp_graph, expand_manual_path, input_manual_path, format_path
+from .tsp_benchmark import TSPBenchmark, BenchmarkVisualizer
+
+# Import compute_optimal_brute_force from its module
+try:
+    from . import compute_optimal_brute_force as optimal_module
+    compute_optimal_brute_force = optimal_module.compute_optimal_brute_force
+except ImportError:
+    compute_optimal_brute_force = None
 
 
 def get_user_choice(options: list, prompt: str) -> int:
@@ -176,6 +184,10 @@ def compare_optimal_path(map_path, req_path, nodes_list, expanded_cost):
     """Compare with optimal path if conditions met."""
     if len(nodes_list) > 10 or not get_yes_no("Compare with optimal? (may be slow)"):
         return
+    
+    if compute_optimal_brute_force is None:
+        print("Optimal solver not available")
+        return
 
     optimal_tour, optimal_cost = compute_optimal_brute_force(map_path, req_path, len(nodes_list))
     if optimal_tour:
@@ -229,6 +241,10 @@ def run_interactive_optimal():
     nodes_limit = int(nodes_limit) if nodes_limit.isdigit() else None
 
     start_node = input("Start node (press Enter for auto): ").strip() or None
+
+    if compute_optimal_brute_force is None:
+        print("Optimal solver not available")
+        return
 
     print("Computing optimal tour...")
     tour, cost = compute_optimal_brute_force(map_path, req_path, nodes_limit or 0, start_node)

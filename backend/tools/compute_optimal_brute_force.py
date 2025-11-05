@@ -39,41 +39,8 @@ import networkx as nx
 from app.utils.TSP.TSP_networkx import TSP
 from app.services.XMLParser import XMLParser
 
-
-def compute_pairwise_shortest_paths(G_map: nx.DiGraph, nodes: List[str]) -> Dict[str, Dict[str, Dict]]:
-    """Compute shortest paths between all pairs of nodes."""
-    sp_graph = {}
-    for src in nodes:
-        try:
-            lengths_raw, paths_raw = nx.single_source_dijkstra(G_map, src, weight='weight')
-            lengths = cast(Dict[str, float], lengths_raw) if isinstance(lengths_raw, dict) else {}
-            paths = cast(Dict[str, List[str]], paths_raw) if isinstance(paths_raw, dict) else {}
-        except Exception:
-            lengths = {}
-            paths = {}
-        
-        sp_graph[src] = {}
-        for tgt in nodes:
-            sp_graph[src][tgt] = {
-                'path': [src] if src == tgt else paths.get(tgt),
-                'cost': 0.0 if src == tgt else lengths.get(tgt, float('inf'))
-            }
-    
-    return sp_graph
-
-
-def tour_cost(tour: List[str], sp_graph: Dict) -> float:
-    """Calculate total cost of a tour using shortest paths."""
-    if not tour or len(tour) < 2:
-        return 0.0
-    
-    total = 0.0
-    for i in range(len(tour) - 1):
-        u, v = tour[i], tour[i + 1]
-        cost = sp_graph.get(u, {}).get(v, {}).get('cost', float('inf'))
-        total += cost
-    
-    return total
+# Import canonical implementations from path_utils
+from .path_utils import build_sp_graph_from_map as compute_pairwise_shortest_paths, tour_cost
 
 
 def is_valid_tour(tour: List[str], pd_pairs: List[Tuple[str, str]], start_node: Optional[str]) -> bool:

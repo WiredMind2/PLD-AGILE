@@ -6,11 +6,9 @@ import networkx as nx
 
 # Import brute-force optimal solver functions
 try:
-    import compute_optimal_brute_force
-    from compute_optimal_brute_force import (
-        generate_all_valid_tours,
-        tour_cost as brute_force_tour_cost,
-    )
+    from . import compute_optimal_brute_force
+    from .tsp_core import generate_all_valid_tours
+    from .path_utils import tour_cost as brute_force_tour_cost
 
     BRUTE_FORCE_AVAILABLE = True
 except ImportError:
@@ -18,7 +16,8 @@ except ImportError:
     generate_all_valid_tours = None  # type: ignore
     brute_force_tour_cost = None  # type: ignore
 
-from .tsp_utils import solve_tsp_tour, expand_tour_with_paths
+from .tsp_utils import solve_tsp_tour
+from .path_utils import expand_tour_with_paths
 from .path_utils import build_sp_graph_from_map
 from .cache_utils import load_cached_optimal_tour, save_cached_optimal_tour
 from .comparison_utils import display_heuristic_vs_optimal_comparison

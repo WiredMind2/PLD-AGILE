@@ -1,4 +1,11 @@
-"""Path utility functions for TSP path comparison tool."""
+"""Path utility functions for TSP path comparison tool.
+
+This module provides the canonical implementations of path-related functions:
+- build_sp_graph_from_map: Build shortest path graph
+- expand_path: Expand compact path to full route
+- calculate_path_cost: Calculate total path cost
+- format_path, validate_path, input_manual_path: Display and input utilities
+"""
 
 from __future__ import annotations
 
@@ -6,8 +13,19 @@ import networkx as nx
 from typing import List, Dict, Tuple, cast, Optional
 
 
-def build_sp_graph_from_map(G_map: nx.DiGraph, nodes_list: List[str]):
-    """Utility: compute pairwise shortest-path lengths and paths among nodes_list."""
+def build_sp_graph_from_map(G_map: nx.DiGraph, nodes_list: List[str]) -> Dict:
+    """Build shortest path graph for given nodes.
+    
+    Computes pairwise shortest-path lengths and paths among nodes_list.
+    This is the canonical implementation used by all tools.
+    
+    Args:
+        G_map: NetworkX directed graph representing the map
+        nodes_list: List of node IDs to include in the graph
+        
+    Returns:
+        Dictionary mapping src -> tgt -> {'path': List[str], 'cost': float}
+    """
     sp_graph = {}
     for src in nodes_list:
         try:
@@ -37,6 +55,30 @@ def build_sp_graph_from_map(G_map: nx.DiGraph, nodes_list: List[str]):
     return sp_graph
 
 
+def tour_cost(tour: List[str], sp_graph: Dict) -> float:
+    """Calculate total cost of a tour using shortest path graph.
+    
+    This is the canonical implementation used by all optimization algorithms.
+    
+    Args:
+        tour: List of node IDs in visit order
+        sp_graph: Shortest path graph with costs between nodes
+        
+    Returns:
+        Total cost of the tour
+    """
+    if not tour or len(tour) < 2:
+        return 0.0
+    
+    total = 0.0
+    for i in range(len(tour) - 1):
+        u, v = tour[i], tour[i + 1]
+        cost = sp_graph.get(u, {}).get(v, {}).get('cost', float('inf'))
+        total += cost
+    
+    return total
+
+
 def calculate_path_cost(
     path: List[str], sp_graph: Optional[Dict] = None, G_map: Optional[nx.DiGraph] = None
 ) -> float:
@@ -44,6 +86,14 @@ def calculate_path_cost(
 
     If sp_graph is provided and contains all necessary nodes, use it for fast lookup.
     Otherwise, use G_map to calculate shortest paths on-the-fly.
+    
+    Args:
+        path: List of node IDs in visit order
+        sp_graph: Optional shortest path graph
+        G_map: Optional NetworkX graph
+        
+    Returns:
+        Total cost of the path
     """
     if not path or len(path) < 2:
         return 0.0
@@ -83,18 +133,22 @@ def calculate_path_cost(
     return total_cost
 
 
-def expand_manual_path(path: List[str], G_map: nx.DiGraph) -> Tuple[List[str], float]:
-    """Expand a manual path to include all intermediate nodes using shortest paths.
-
+def expand_path(path: List[str], G_map: Optional[nx.DiGraph] = None, sp_graph: Optional[Dict] = None) -> Tuple[List[str], float]:
+    """Expand a compact path to include all intermediate nodes.
+    
+    Can use either a pre-computed shortest path graph (faster) or compute
+    shortest paths on-the-fly using the map graph.
+    
     Args:
-        path: List of waypoint node IDs
-        G_map: NetworkX graph representing the map
-
+        path: List of waypoint node IDs to visit in order
+        G_map: NetworkX graph (required if sp_graph not provided)
+        sp_graph: Pre-computed shortest path graph (optional, faster if available)
+        
     Returns:
         Tuple of (expanded_path, total_cost)
     """
     if not path or len(path) < 2:
-        return path, 0.0
+        return path or [], 0.0
 
     expanded_path = []
     total_cost = 0.0
@@ -103,25 +157,78 @@ def expand_manual_path(path: List[str], G_map: nx.DiGraph) -> Tuple[List[str], f
         src = path[i]
         tgt = path[i + 1]
 
-        try:
-            # Get shortest path between consecutive waypoints
-            segment = nx.shortest_path(G_map, src, tgt, weight="weight")
-            segment_cost = nx.shortest_path_length(G_map, src, tgt, weight="weight")
+        # Try using sp_graph first if available
+        if sp_graph and src in sp_graph and tgt in sp_graph[src]:
+            segment_info = sp_graph[src][tgt]
+            segment = segment_info.get("path")
+            segment_cost = segment_info.get("cost", float("inf"))
+            
+            if not segment or segment_cost == float("inf"):
+                if G_map:
+                    # Fallback to G_map
+                    try:
+                        segment = nx.shortest_path(G_map, src, tgt, weight="weight")
+                        segment_cost = nx.shortest_path_length(G_map, src, tgt, weight="weight")
+                    except (nx.NetworkXNoPath, nx.NodeNotFound):
+                        return [], float("inf")
+                else:
+                    return [], float("inf")
+        elif G_map:
+            # Use G_map directly
+            try:
+                segment = nx.shortest_path(G_map, src, tgt, weight="weight")
+                segment_cost = nx.shortest_path_length(G_map, src, tgt, weight="weight")
+            except (nx.NetworkXNoPath, nx.NodeNotFound):
+                return [], float("inf")
+        else:
+            raise ValueError("Either G_map or sp_graph must be provided")
 
-            # Add segment to expanded path (avoid duplicating nodes at junctions)
-            if i == 0:
-                expanded_path.extend(segment)
-            else:
-                # Skip first node of segment as it's already the last node of previous segment
-                expanded_path.extend(segment[1:])
+        # Add segment to expanded path (avoid duplicating nodes at junctions)
+        if i == 0:
+            expanded_path.extend(segment)
+        else:
+            # Skip first node of segment as it's already the last node of previous segment
+            expanded_path.extend(segment[1:])
 
-            total_cost += segment_cost
-
-        except (nx.NetworkXNoPath, nx.NodeNotFound) as e:
-            print(f"Warning: No path found from {src} to {tgt}: {e}")
-            return [], float("inf")
+        total_cost += segment_cost
 
     return expanded_path, total_cost
+
+
+def expand_manual_path(path: List[str], G_map: nx.DiGraph) -> Tuple[List[str], float]:
+    """Expand a manual path to include all intermediate nodes using shortest paths.
+    
+    Convenience wrapper around expand_path for manual path input.
+
+    Args:
+        path: List of waypoint node IDs
+        G_map: NetworkX graph representing the map
+
+    Returns:
+        Tuple of (expanded_path, total_cost)
+    """
+    return expand_path(path, G_map=G_map)
+
+
+def expand_tour_with_paths(tour: List[str], sp_graph: Dict) -> Tuple[List[str], float]:
+    """Expand a compact tour using a pre-computed shortest path graph.
+    
+    Convenience wrapper around expand_path for tour expansion with sp_graph.
+
+    Args:
+        tour: List of waypoint node IDs in order
+        sp_graph: Shortest path graph containing paths and costs between nodes
+
+    Returns:
+        Tuple of (expanded_path, total_cost)
+        
+    Raises:
+        ValueError: If no valid path found between waypoints
+    """
+    expanded, cost = expand_path(tour, sp_graph=sp_graph)
+    if cost == float("inf"):
+        raise ValueError(f"No valid path found in tour")
+    return expanded, cost
 
 
 def format_path(path: List[str], max_display: int = 20) -> str:

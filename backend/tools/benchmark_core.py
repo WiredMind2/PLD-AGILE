@@ -22,6 +22,8 @@ from app.utils.TSP.TSP_networkx import TSP
 from app.services.XMLParser import XMLParser
 
 from .benchmark_types import BenchmarkResult
+# Import canonical implementation from path_utils
+from .path_utils import build_sp_graph_from_map
 
 
 class TSPBenchmark:
@@ -85,22 +87,6 @@ class TSPBenchmark:
 
         return G, delivery_pairs
 
-    def build_sp_graph_from_map(self, G_map: nx.DiGraph, nodes_list: List[str]) -> Dict:
-        """Build shortest-path graph between nodes."""
-        sp_graph = {}
-        for src in nodes_list:
-            sp_graph[src] = {}
-            for tgt in nodes_list:
-                if src != tgt:
-                    try:
-                        # Use string node IDs directly (no conversion to int)
-                        path = nx.shortest_path(G_map, src, tgt, weight="weight")
-                        cost = nx.shortest_path_length(G_map, src, tgt, weight="weight")
-                        sp_graph[src][tgt] = {"path": path, "cost": cost}
-                    except (nx.NetworkXNoPath, nx.NodeNotFound):
-                        sp_graph[src][tgt] = {"path": [], "cost": float("inf")}
-        return sp_graph
-
     def run_tsp_heuristic(self, G: nx.DiGraph, delivery_pairs: List[Tuple[str, str]],
                           depot: str) -> Tuple[float, float, int, float]:
         """Run Christofides TSP and return timing + results."""
@@ -125,7 +111,7 @@ class TSPBenchmark:
         nodes_list = [depot]
         for p, d in delivery_pairs:
             nodes_list.extend([p, d])
-        sp_graph = self.build_sp_graph_from_map(G, nodes_list)
+        sp_graph = build_sp_graph_from_map(G, nodes_list)
 
         # Expand tour
         tsp_full_route, tsp_expanded_cost = tsp.expand_tour_with_paths(tour, sp_graph)

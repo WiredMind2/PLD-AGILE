@@ -22,7 +22,16 @@ from app.services.XMLParser import XMLParser
 from app.models.schemas import Tour
 from types import SimpleNamespace
 
-from tsp_core import build_sp_graph, tour_cost, generate_valid_tours, compute_optimal_brute_force
+# Import from canonical modules
+from .path_utils import build_sp_graph_from_map as build_sp_graph, tour_cost
+from .tsp_core import generate_all_valid_tours as generate_valid_tours
+
+# Import compute_optimal_brute_force from its module
+try:
+    from . import compute_optimal_brute_force as optimal_module
+    compute_optimal_brute_force = optimal_module.compute_optimal_brute_force
+except ImportError:
+    compute_optimal_brute_force = None
 
 matplotlib.use('Agg')  # Non-interactive backend
 

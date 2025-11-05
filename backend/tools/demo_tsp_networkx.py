@@ -24,41 +24,18 @@ import argparse
 from typing import List, cast, Dict
 
 from app.utils.TSP.TSP_networkx import TSP
-import networkx as nx
 from types import SimpleNamespace
 from typing import cast
 from app.models.schemas import Tour
 
-
-def build_sp_graph_from_map(G_map: nx.DiGraph, nodes_list: List[str]):
-    """Utility: compute pairwise shortest-path lengths and paths among nodes_list."""
-    sp_graph = {}
-    for src in nodes_list:
-        try:
-            lengths_raw, paths_raw = nx.single_source_dijkstra(
-                G_map, src, weight="weight"
-            )
-            if isinstance(lengths_raw, dict):
-                lengths = cast(Dict[str, float], lengths_raw)
-            else:
-                lengths = {}
-            if isinstance(paths_raw, dict):
-                paths = cast(Dict[str, List[str]], paths_raw)
-            else:
-                paths = {}
-        except Exception:
-            lengths = {}
-            paths = {}
-        sp_graph[src] = {}
-        for tgt in nodes_list:
-            if tgt == src:
-                sp_graph[src][tgt] = {"path": [src], "cost": 0.0}
-            else:
-                sp_graph[src][tgt] = {
-                    "path": paths.get(tgt),
-                    "cost": lengths.get(tgt, float("inf")),
-                }
-    return sp_graph
+# Import canonical implementation from path_utils
+try:
+    from .path_utils import build_sp_graph_from_map
+except ImportError:
+    # Fallback for direct script execution
+    import sys
+    sys.path.insert(0, os.path.join(HERE, '..'))
+    from tools.path_utils import build_sp_graph_from_map
 
 
 def pretty_format_path(
