@@ -30,7 +30,6 @@ deliverables/
 │   ├── Sprint1Code.svg
 │   ├── Sprint2.svg
 │   └── Sprint3.svg
-├── tsp_performance_analysis.png # TSP performance analysis diagram
 └── documentation/               # Additional documentation
     ├── Glossary_AGILE.pdf
     ├── Use_case_description.pdf
@@ -53,11 +52,10 @@ deliverables/
   - [Use Case Diagram](#use-case-diagram)
   - [Class Diagrams](#class-diagrams)
     - [Data Model Class Diagram](#data-model-class-diagram)
-    - [P-Diagram](#p-diagram)
+    - [Package Diagram](#package-diagram)
   - [Sequence Diagrams](#sequence-diagrams)
     - [Parse Map Sequence](#parse-map-sequence)
     - [Parse Deliveries Sequence](#parse-deliveries-sequence)
-  - [Package Diagram](#package-diagram)
   - [Performance Analysis](#performance-analysis)
     - [Performance Report](#performance-report)
     - [Performance Analysis Diagram](#performance-analysis-diagram)
@@ -66,8 +64,6 @@ deliverables/
     - [Sprint Documentation](#sprint-documentation)
     - [Project Planning](#project-planning)
   - [Quick Access](#quick-access)
-  - [Technical Tools](#technical-tools)
-    - [PlantUML Generation](#plantuml-generation)
 
 ---
 
@@ -111,9 +107,9 @@ deliverables/
 
 [📝 View class_diagram.puml source](plantuml_sources/class_diagram.puml)
 
-### P-Diagram
+### Package Diagram
 
-[![P-Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/package_diagram.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/package_diagram.svg)
+[![Package Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/package_diagram.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/package_diagram.svg)
 
 [📝 View package_diagram.puml source](plantuml_sources/package_diagram.puml)
 
@@ -135,14 +131,6 @@ deliverables/
 
 ---
 
-## Package Diagram
-
-[![Package Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/package_diagram.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/package_diagram.svg)
-
-[📝 View package_diagram.puml source](plantuml_sources/package_diagram.puml)
-
----
-
 ## Performance Analysis
 
 ### Performance Report
@@ -151,7 +139,7 @@ deliverables/
 
 ### Performance Analysis Diagram
 
-![TSP Performance Analysis](tsp_performance_analysis.png) - Visual representation of algorithm performance metrics and comparisons.
+![TSP Performance Analysis](../backend/tools/benchmark_results/tsp_performance_analysis.png) - Visual representation of algorithm performance metrics and comparisons.
 
 ---
 
@@ -162,7 +150,6 @@ deliverables/
 - 📋 [Use Case Descriptions (PDF)](documentation/Use_case_description.pdf) - Detailed use case specifications
 - 🏗️ [Architectural Design (PDF)](documentation/Opti_tour_architectural_design.pdf) - System architecture and design patterns
 - 👥 [User Stories (PDF)](documentation/Opti_tour_User_stories.pdf) - Detailed user stories and acceptance criteria
-- 📝 [Team Retrospective (DOCX)](documentation/Retrospective_Agile_Team_Photos.docx) - Sprint retrospectives and team reflections
 - 📸 [Team Retrospective (PDF)](documentation/Retrospective_Agile_Team_Photos.pdf) - Sprint retrospectives (PDF version)
 - 📊 [Sprint Feedback (PDF)](documentation/Sprint_Feedback.pdf) - Comprehensive sprint feedback and retrospective analysis
 
@@ -185,16 +172,7 @@ deliverables/
 | **PlantUML Sources** | [plantuml_sources/](plantuml_sources/) |
 | **Generated SVGs** | [generated_svgs/](generated_svgs/) |
 | **Documentation** | [documentation/](documentation/) |
-| **Performance Analysis** | [tsp_performance_report.tex](tsp_performance_report.tex), [tsp_performance_analysis.png](tsp_performance_analysis.png) |
-
----
-
-## Technical Tools
-
-### PlantUML Generation
-- 🔧 [convert_plantuml.py](convert_plantuml.py) - Script for converting PlantUML files to SVG and PDF formats
-- 📐 PlantUML source files available in [plantuml_sources/](plantuml_sources/)
-- 🎨 Generated diagrams available in [generated_svgs/](generated_svgs/)
+| **Performance Analysis** | [tsp_performance_report.tex](tsp_performance_report.tex), [tsp_performance_analysis.png](../backend/tools/benchmark_results/tsp_performance_analysis.png) |
 
 ---
 
