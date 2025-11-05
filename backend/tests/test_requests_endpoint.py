@@ -3,7 +3,7 @@ import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import Mock, patch
 import io
-from app.models.schemas import Map, Delivery, Courrier, Intersection
+from app.models.schemas import Map, Delivery, Intersection
 from app.core import state
 from main import app
 
@@ -87,7 +87,7 @@ def test_delete_request_endpoint(setup_map):
     
     # Verify it's deleted
     deliveries = state.list_deliveries()
-    assert not any(d.id == "d1" for d in deliveries)
+    assert all(d.id != "d1" for d in deliveries)
 
 
 def test_delete_request_not_found(setup_map):
@@ -143,7 +143,7 @@ def test_upload_requests_file_invalid_xml(setup_map):
 def test_assign_courier_to_delivery(setup_map):
     """Test PATCH /requests/{delivery_id}/assign endpoint"""
     # Add a courier
-    courier = Courrier(id="c1", name="Test Courier")
+    courier = "c1"
     state.add_courier(courier)
     
     # Add a delivery
@@ -160,14 +160,13 @@ def test_assign_courier_to_delivery(setup_map):
     deliveries = state.list_deliveries()
     delivery = next((d for d in deliveries if d.id == "d1"), None)
     assert delivery is not None
-    assert delivery.courier is not None
-    assert delivery.courier.id == "c1"
+    assert delivery.courier == "c1"
 
 
 def test_assign_courier_unassign(setup_map):
     """Test unassigning a courier from delivery"""
     # Add a courier
-    courier = Courrier(id="c1", name="Test Courier")
+    courier = "c1"
     state.add_courier(courier)
     
     # Add a delivery with courier
@@ -201,10 +200,10 @@ def test_assign_courier_not_found(setup_map):
     # Add a delivery
     delivery = Delivery(id="d1", pickup_addr="1", delivery_addr="2", pickup_service_s=300, delivery_service_s=600)
     state.add_delivery(delivery)
-    
+
     # Try to assign non-existent courier
     response = client.patch("/api/v1/requests/d1/assign", json={"courier_id": "nonexistent"})
-    
+
     assert response.status_code == 404
     assert "Courier not found" in response.json()["detail"]
 
@@ -212,7 +211,7 @@ def test_assign_courier_not_found(setup_map):
 def test_assign_courier_delivery_not_found(setup_map):
     """Test PATCH /requests/{delivery_id}/assign with non-existent delivery"""
     # Add a courier
-    courier = Courrier(id="c1", name="Test Courier")
+    courier = "c1"
     state.add_courier(courier)
     
     # Try to assign to non-existent delivery

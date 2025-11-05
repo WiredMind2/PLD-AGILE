@@ -70,7 +70,9 @@ class TSPBenchmark:
         for inter in map_data.intersections:
             G.add_node(str(inter.id))
         for seg in map_data.road_segments:
-            G.add_edge(str(seg.start.id), str(seg.end.id), weight=seg.length_m)
+            start_id = getattr(seg.start, 'id', seg.start)  # Ensure `id` is accessed if available
+            end_id = getattr(seg.end, 'id', seg.end)      # Ensure `id` is accessed if available
+            G.add_edge(str(start_id), str(end_id), weight=seg.length_m)
         with open(req_path, "r", encoding="utf-8") as f:
             deliveries = parser.parse_deliveries(f.read())
         delivery_pairs = [(d.pickup_addr, d.delivery_addr) for d in deliveries]

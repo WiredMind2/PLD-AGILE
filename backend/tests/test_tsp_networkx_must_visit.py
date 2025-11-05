@@ -4,14 +4,14 @@ from typing import cast
 from app.models.schemas import Tour
 
 try:
-    from app.utils.TSP.TSP_networkx import TSP
+    from app.utils.TSP.TSP_solver import TSP
     HAS_NX = True
 except Exception:
     TSP = None
     HAS_NX = False
 
 
-@pytest.mark.skipif(not HAS_NX, reason="networkx or TSP_networkx unavailable")
+@pytest.mark.skipif(not HAS_NX, reason="networkx or TSP_solver unavailable")
 def test_must_visit_in_tour():
     if TSP is None:
         pytest.skip("TSP class unavailable")

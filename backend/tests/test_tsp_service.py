@@ -234,10 +234,8 @@ class TestTSPService:
         inter3 = "3"
 
         # Deliveries for different couriers
-        del1 = Mock(courier=courier1, pickup_addr="1", delivery_addr="2",
-                    pickup_service_s=60, delivery_service_s=60)
-        del2 = Mock(courier=courier2, pickup_addr="2", delivery_addr="3",
-                    pickup_service_s=60, delivery_service_s=60)
+        del1 = Mock(courier=courier1, pickup_addr="1", delivery_addr="2", pickup_service_s=300, delivery_service_s=600)
+        del2 = Mock(courier=courier2, pickup_addr="2", delivery_addr="3", pickup_service_s=200, delivery_service_s=400)
 
         seg1 = Mock(start="1", end="2", length_m=100.0, street_name="St1")
         seg2 = Mock(start="2", end="3", length_m=150.0, street_name="St2")
@@ -323,7 +321,7 @@ class TestTSPService:
             with patch('app.core.state.clear_tours'):
                 with patch('app.core.state.save_tour'):
                     # Mock TSP to raise exception
-                    with patch('app.utils.TSP.TSP_networkx.TSP.solve', side_effect=Exception("TSP Error")):
+                    with patch('app.utils.TSP.TSP_solver.TSP.solve', side_effect=Exception("TSP Error")):
                         tours = service.compute_tours()
 
                         # Should still return tours (with fallback)

@@ -33,9 +33,10 @@ def test_map_upload_and_get(tmp_path):
 
 def test_add_courier_and_request_and_compute():
     # add a courier
-    courier = "C1"
-    r = client.post("/api/v1/couriers/", json=courier)
+    courier_id = "C1"
+    r = client.post("/api/v1/couriers/", json=courier_id)
     assert r.status_code == 200
+    assert r.json() == courier_id
 
     # add a delivery request
     req = {

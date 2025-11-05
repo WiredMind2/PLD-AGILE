@@ -32,9 +32,10 @@ def test_full_api_flow(tmp_path):
     assert r.json().get("intersections")
 
     # add courier
-    courier = "C1"
-    r = client.post("/api/v1/couriers/", json=courier)
+    courier_id = "C1"
+    r = client.post("/api/v1/couriers/", json=courier_id)
     assert r.status_code == 200
+    assert r.json() == courier_id
 
     # add single request via JSON
     req = {

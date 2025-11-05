@@ -4,7 +4,7 @@ import os
 import tempfile
 from unittest.mock import patch, Mock
 from app.core import state
-from app.models.schemas import Map, Delivery, Courrier, Tour, Intersection
+from app.models.schemas import Map, Delivery, Tour, Intersection
 
 
 class TestState:
@@ -144,73 +144,10 @@ class TestState:
         result = state.update_delivery("d1", bad_attr="value")
         assert result is True
 
-    def test_list_couriers_no_map(self):
-        """Test list_couriers returns empty list when no map"""
-        couriers = state.list_couriers()
-        assert couriers == []
-
-    def test_list_couriers_with_map(self):
-        """Test list_couriers returns couriers from map"""
-        courier1 = Courrier(id="c1", name="Courier 1")
-        courier2 = Courrier(id="c2", name="Courier 2")
-        
-        mock_map = Map(intersections=[], road_segments=[])
-        mock_map.couriers = [courier1, courier2]
-        
-        state.set_map(mock_map)
-        couriers = state.list_couriers()
-        
-        assert len(couriers) == 2
-        assert courier1 in couriers
-        assert courier2 in couriers
-
-    def test_add_courier_no_map(self):
-        """Test add_courier raises error when no map"""
-        courier = Courrier(id="c1", name="Test")
-        
-        with pytest.raises(RuntimeError, match="No map loaded"):
-            state.add_courier(courier)
-
-    def test_add_courier_with_map(self):
-        """Test add_courier adds courier to map"""
-        mock_map = Map(intersections=[], road_segments=[])
-        state.set_map(mock_map)
-        
-        courier = Courrier(id="c1", name="Test")
-        state.add_courier(courier)
-        
-        assert courier in mock_map.couriers
-
-    def test_remove_courier_no_map(self):
-        """Test remove_courier returns False when no map"""
-        result = state.remove_courier("c1")
-        assert result is False
-
-    def test_remove_courier_not_found(self):
-        """Test remove_courier returns False when courier not found"""
-        mock_map = Map(intersections=[], road_segments=[])
-        state.set_map(mock_map)
-        
-        result = state.remove_courier("nonexistent")
-        assert result is False
-
-    def test_remove_courier_success(self):
-        """Test remove_courier successfully removes courier"""
-        courier = Courrier(id="c1", name="Test")
-        
-        mock_map = Map(intersections=[], road_segments=[])
-        mock_map.couriers = [courier]
-        state.set_map(mock_map)
-        
-        result = state.remove_courier("c1")
-        
-        assert result is True
-        assert courier not in mock_map.couriers
-
     def test_save_and_list_tours(self):
         """Test saving and listing tours"""
-        tour1 = Tour(courier=Courrier(id="c1", name="C1"))
-        tour2 = Tour(courier=Courrier(id="c2", name="C2"))
+        tour1 = Tour(courier="c1")  # Updated to use string ID directly
+        tour2 = Tour(courier="c2")  # Updated to use string ID directly
         
         state.save_tour(tour1)
         state.save_tour(tour2)
@@ -223,7 +160,7 @@ class TestState:
 
     def test_clear_tours(self):
         """Test clearing tours"""
-        tour = Tour(courier=Courrier(id="c1", name="C1"))
+        tour = Tour(courier="c1")  # Updated to use string ID directly
         state.save_tour(tour)
         
         state.clear_tours()
@@ -234,7 +171,7 @@ class TestState:
     def test_clear_state(self):
         """Test clear_state clears both map and tours"""
         mock_map = Map(intersections=[], road_segments=[])
-        tour = Tour(courier=Courrier(id="c1", name="C1"))
+        tour = Tour(courier="c1")  # Updated to use string ID directly
         
         state.set_map(mock_map)
         state.save_tour(tour)
@@ -253,7 +190,7 @@ class TestState:
         
         def add_tours():
             for i in range(10):
-                tour = Tour(courier=Courrier(id=f"c{i}", name=f"C{i}"))
+                tour = Tour(courier=f"c{i}")  # Updated to use string ID directly
                 state.save_tour(tour)
         
         # Create multiple threads

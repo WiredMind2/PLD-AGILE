@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from main import app
 from app.core import state
-from app.models.schemas import Courrier, Map, Intersection
+from app.models.schemas import Map, Intersection
 
 client = TestClient(app)
 
@@ -46,63 +46,52 @@ def test_list_couriers_empty(setup_map):
 
 def test_add_courier_success(setup_map):
     """Test POST /couriers/ successfully adds a courier"""
-    courier_data = {
-        "id": "c1",
-        "name": "Test Courier"
-    }
-    
-    response = client.post("/api/v1/couriers/", json=courier_data)
-    
+    courier_id = "c1"
+
+    response = client.post("/api/v1/couriers/", json=courier_id)
+
     assert response.status_code == 200
-    data = response.json()
-    assert data["id"] == "c1"
-    assert data["name"] == "Test Courier"
-    
+    assert response.json() == courier_id
+
     # Verify courier was added
     couriers = state.list_couriers()
     assert len(couriers) == 1
-    assert couriers[0].id == "c1"
+    assert couriers[0] == courier_id
 
 
 def test_add_courier_no_map():
     """Test POST /couriers/ fails when no map loaded"""
     state.clear_map()
-    
-    courier_data = {
-        "id": "c1",
-        "name": "Test Courier"
-    }
-    
-    response = client.post("/api/v1/couriers/", json=courier_data)
-    
+
+    courier_id = "c1"
+
+    response = client.post("/api/v1/couriers/", json=courier_id)
+
     assert response.status_code == 400
     assert "No map loaded" in response.json()["detail"]
 
 
 def test_add_multiple_couriers(setup_map):
     """Test adding multiple couriers"""
-    couriers_data = [
-        {"id": "c1", "name": "Courier 1"},
-        {"id": "c2", "name": "Courier 2"},
-        {"id": "c3", "name": "Courier 3"},
-    ]
-    
-    for courier_data in couriers_data:
-        response = client.post("/api/v1/couriers/", json=courier_data)
+    courier_ids = ["c1", "c2", "c3"]
+
+    for courier_id in courier_ids:
+        response = client.post("/api/v1/couriers/", json=courier_id)
         assert response.status_code == 200
-    
+        assert response.json() == courier_id
+
     # Verify all couriers were added
     response = client.get("/api/v1/couriers/")
     assert response.status_code == 200
     couriers = response.json()
     assert len(couriers) == 3
-    assert set(c["id"] for c in couriers) == {"c1", "c2", "c3"}
+    assert set(couriers) == set(courier_ids)
 
 
 def test_delete_courier_success(setup_map):
     """Test DELETE /couriers/{courier_id} successfully deletes a courier"""
     # Add a courier first
-    courier = Courrier(id="c1", name="Test Courier")
+    courier = "c1"
     state.add_courier(courier)
     
     response = client.delete("/api/v1/couriers/c1")
@@ -127,7 +116,7 @@ def test_delete_courier_from_multiple(setup_map):
     """Test deleting one courier when multiple exist"""
     # Add multiple couriers
     for i in range(3):
-        courier = Courrier(id=f"c{i+1}", name=f"Courier {i+1}")
+        courier = f"c{i+1}"
         state.add_courier(courier)
     
     # Delete one
@@ -137,32 +126,32 @@ def test_delete_courier_from_multiple(setup_map):
     # Verify only the correct one was deleted
     couriers = state.list_couriers()
     assert len(couriers) == 2
-    assert set(c.id for c in couriers) == {"c1", "c3"}
+    assert set(couriers) == {"c1", "c3"}
 
 
 def test_add_courier_with_special_characters(setup_map):
-    """Test adding courier with special characters in name"""
-    courier_data = {
-        "id": "c1",
-        "name": "Courier Jean-François #1 (Priority)"
-    }
-    
-    response = client.post("/api/v1/couriers/", json=courier_data)
-    
+    """Test adding courier with special characters in ID"""
+    courier_id = "Jean-François#1"
+
+    response = client.post("/api/v1/couriers/", json=courier_id)
+
     assert response.status_code == 200
-    assert response.json()["name"] == courier_data["name"]
+    assert response.json() == courier_id
 
 
 def test_courier_persistence_across_requests(setup_map):
     """Test that couriers persist across multiple API calls"""
+    # Verify map is set
+    assert state.get_map() is not None, "Map is not set in state"
+
     # Add courier
-    courier_data = {"id": "c1", "name": "Test Courier"}
-    client.post("/api/v1/couriers/", json=courier_data)
-    
+    courier_id = "c1"
+    client.post("/api/v1/couriers/", json=courier_id)
+
     # Get couriers multiple times
     for _ in range(3):
         response = client.get("/api/v1/couriers/")
         assert response.status_code == 200
         couriers = response.json()
         assert len(couriers) == 1
-        assert couriers[0]["id"] == "c1"
+        assert couriers[0] == courier_id

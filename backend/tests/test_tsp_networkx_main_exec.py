@@ -4,8 +4,8 @@ import networkx as nx
 from types import SimpleNamespace
 
 
-def test_tsp_networkx_main_exec(monkeypatch):
-    """Execute the TSP_networkx module as __main__ while monkeypatching
+def test_tsp_solver_main_exec(monkeypatch):
+    """Execute the TSP_solver module as __main__ while monkeypatching
     TSP building and solving methods to ensure the demo code runs.
     """
     # Prepare a small graph and nodes
@@ -27,4 +27,4 @@ def test_tsp_networkx_main_exec(monkeypatch):
     monkeypatch.setattr(mod_solver.TSP, 'solve', fake_solve, raising=True)
 
     # Running the module as __main__ should execute the demo section without error
-    runpy.run_module('app.utils.TSP.TSP_networkx', run_name='__main__')
+    runpy.run_module('app.utils.TSP.TSP_solver', run_name='__main__')

@@ -15,10 +15,10 @@ def list_couriers():
 @router.post("/", response_model=str, tags=["Couriers"], summary="Add courier")
 def add_courier(courier: str = Body(...)):
     """Register a new courier (id, name) if a map is loaded. Raises 400 if no map is loaded."""
-    mp = state.get_map()
-    if mp is None:
-        raise HTTPException(status_code=400, detail='No map loaded')
-    state.add_courier(courier)
+    try:
+        state.add_courier(courier)
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return courier
 
 

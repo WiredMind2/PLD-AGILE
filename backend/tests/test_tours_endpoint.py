@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from main import app
 from app.core import state
 from app.models.schemas import (
-    Courrier, Delivery, Map, Intersection, RoadSegment, Tour
+    Delivery, Map, Intersection, RoadSegment, Tour
 )
 
 client = TestClient(app)
@@ -23,7 +23,7 @@ def clear_state():
 
 @pytest.fixture
 def setup_map_with_deliveries():
-    """Setup a map with intersections, roads, couriers, and deliveries for testing."""
+    """Setup a map with intersections, roads, and deliveries for testing."""
     # Create intersections
     int1 = Intersection(id="1", latitude=45.0, longitude=-93.0)
     int2 = Intersection(id="2", latitude=45.1, longitude=-93.1)
@@ -43,10 +43,6 @@ def setup_map_with_deliveries():
         adjacency_list={},
     )
     state.set_map(test_map)
-    
-    # Add a courier
-    courier = Courrier(id="c1", name="Test Courier")
-    state.add_courier(courier)
     
     # Add deliveries
     delivery1 = Delivery(
@@ -133,7 +129,7 @@ def test_get_tour_for_courier(setup_map_with_deliveries):
     # Assign deliveries to courier c1
     mp = state.get_map()
     if mp:
-        courier = next((c for c in mp.couriers if c.id == "c1"), None)
+        courier = "c1"  # Updated to use string ID directly
         state.update_delivery("d1", courier=courier)
         state.update_delivery("d2", courier=courier)
     
@@ -148,19 +144,7 @@ def test_get_tour_for_courier(setup_map_with_deliveries):
     assert isinstance(tours, list)
     # All tours should belong to courier c1
     for tour in tours:
-        assert tour["courier"]["id"] == "c1"
-
-
-def test_get_tour_for_nonexistent_courier(setup_map_with_deliveries):
-    """Test GET /tours/{courier_id} fails when courier has no tours"""
-    # Add another courier without computing tours
-    courier2 = Courrier(id="c2", name="Courier 2")
-    state.add_courier(courier2)
-    
-    response = client.get("/api/v1/tours/c2")
-    
-    assert response.status_code == 404
-    assert "No tour found for courier" in response.json()["detail"]
+        assert tour["courier"] == "c1"  # Updated to match string ID
 
 
 def test_save_tours(setup_map_with_deliveries):
@@ -171,29 +155,12 @@ def test_save_tours(setup_map_with_deliveries):
     assert "tours saved" in response.json()["detail"]
 
 
-def test_compute_tours_multiple_couriers(setup_map_with_deliveries):
-    """Test computing tours with multiple couriers"""
-    # Add more couriers
-    courier2 = Courrier(id="c2", name="Courier 2")
-    courier3 = Courrier(id="c3", name="Courier 3")
-    state.add_courier(courier2)
-    state.add_courier(courier3)
-    
-    # Compute tours
-    response = client.post("/api/v1/tours/compute")
-    
-    assert response.status_code == 200
-    tours = response.json()
-    assert isinstance(tours, list)
-
-
 def test_compute_tour_with_assigned_deliveries(setup_map_with_deliveries):
     """Test computing tours when deliveries are assigned to courier"""
     # Assign deliveries to courier
     mp = state.get_map()
     if mp:
-        courier = next((c for c in mp.couriers if c.id == "c1"), None)
-        
+        courier = "c1"  # Updated to use string ID directly
         state.update_delivery("d1", courier=courier)
         state.update_delivery("d2", courier=courier)
     

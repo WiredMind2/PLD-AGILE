@@ -3,7 +3,7 @@ import os
 import sys
 from unittest.mock import Mock, patch, MagicMock
 import networkx as nx
-from app.utils.TSP.TSP_networkx import TSP
+from app.utils.TSP.TSP_solver import TSP
 from types import SimpleNamespace
 from typing import cast
 from app.models.schemas import Tour

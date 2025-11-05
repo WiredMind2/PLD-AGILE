@@ -125,6 +125,9 @@ def assign_courier(delivery_id: str, payload: AssignCourierPayload):
     if mp is None:
         raise HTTPException(status_code=400, detail="No map loaded")
 
+    if payload.courier_id and payload.courier_id not in state.list_couriers():
+        raise HTTPException(status_code=404, detail="Courier not found")
+
     if state.update_delivery(delivery_id, courier=payload.courier_id):
         return {"detail": "assigned"}
     else:
