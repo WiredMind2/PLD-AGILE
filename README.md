@@ -1,14 +1,24 @@
-# User Manual
+# PLD-AGILE
 
-## Backend
+## Team Member
+- William MICHAUD
+- Elise BACHET
+- Louis LABORY
+- Lou REINA--KUNTZIGER
+- Jason LAVAL
+- Andy GONZALES
+
+## User Manual
+
+### Backend
 
 A modular FastAPI backend built for easy extensibility and scalability.
 
-### Prerequisites
+#### Prerequisites
 - Python 3.8+
 - pip or pipenv
 
-### Installation
+#### Installation
 
 1. **Navigate to backend directory:**
    ```powershell
@@ -37,13 +47,13 @@ The API will be available at:
 - **Interactive docs**: http://localhost:8000/docs
 - **Alternative docs**: http://localhost:8000/redoc
 
-## Frontend
+### Frontend
 
 ### Prerequisites
 - Node.js 14+
 - npm or yarn
 
-### Installation
+#### Installation
 
 1. **Navigate to frontend directory:**
    ```powershell
@@ -63,5 +73,5 @@ The API will be available at:
 The frontend will be available at:
 - **Frontend**: http://localhost:3000
 
-# Deliverables
+## Deliverables
 [Click Here](https://github.com/WiredMind2/PLD-AGILE/tree/main/deliverables#readme)
