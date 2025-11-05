@@ -1,4 +1,4 @@
-# PLD-AGILE
+# User Manual
 
 ## Backend
 
@@ -62,3 +62,6 @@ The API will be available at:
 
 The frontend will be available at:
 - **Frontend**: http://localhost:3000
+
+# Deliverables
+[Click Here](https://github.com/WiredMind2/PLD-AGILE/tree/main/deliverables#readme)
