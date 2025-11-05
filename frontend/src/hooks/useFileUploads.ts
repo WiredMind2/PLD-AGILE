@@ -85,7 +85,7 @@ export function useFileUploads({
             points.push({
               id: `pickup-${delivery.id}`,
               position: p1,
-              address: "Pickup Location",
+              address: `Pickup Location ${delivery.id}`,
               type: "pickup",
               status: "pending",
             });
@@ -95,7 +95,7 @@ export function useFileUploads({
             points.push({
               id: `delivery-${delivery.id}`,
               position: p2,
-              address: "Delivery Location",
+              address: `Delivery Location ${delivery.id}`,
               type: "delivery",
               status: "pending",
             });
@@ -110,7 +110,7 @@ export function useFileUploads({
                 points.push({
                   id: courierId,
                   position: pwh,
-                  address: "Courier start (warehouse)",
+                  address: `Courier start (warehouse) ${courierId}`,
                   type: "courier",
                   status: "active",
                 });
@@ -207,7 +207,7 @@ export function useFileUploads({
                 base.push({
                   id: `pickup-${d.id}`,
                   position: [lat, lng],
-                  address: "Pickup Location",
+                  address: `Pickup Location ${d.id}`,
                   type: "pickup",
                   status: "pending",
                 });
@@ -220,7 +220,7 @@ export function useFileUploads({
                 base.push({
                   id: `delivery-${d.id}`,
                   position: [lat, lng],
-                  address: "Delivery Location",
+                  address: `Delivery Location ${d.id}`,
                   type: "delivery",
                   status: "pending",
                 });
@@ -239,7 +239,7 @@ export function useFileUploads({
                     base.push({
                       id: courierId,
                       position: [lat, lng],
-                      address: "Courier start (warehouse)",
+                      address: `Courier start (warehouse)`,
                       type: "courier",
                       status: "active",
                     });

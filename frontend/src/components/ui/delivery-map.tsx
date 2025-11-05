@@ -190,11 +190,11 @@ export default function DeliveryMap({
                       : "Unknown"}
                   </strong>
                   {p.address && <div style={{ marginTop: 6 }}>{p.address}</div>}
-                  {p.status && (
+                  {/* {p.status && (
                     <div style={{ marginTop: 6, fontSize: 12 }}>
                       Status: {p.status}
                     </div>
-                  )}
+                  )} */}
                 </div>
               </Popup>
             </Marker>

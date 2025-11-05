@@ -55,7 +55,7 @@ export function useMapAndDeliveries() {
         base.push({
           id: `pickup-${createdId}`,
           position: pickupPos,
-          address: "Pickup Location",
+          address: `Pickup Location ${createdId}`,
           type: "pickup",
           status: "pending",
         });
@@ -64,7 +64,7 @@ export function useMapAndDeliveries() {
         base.push({
           id: `delivery-${createdId}`,
           position: deliveryPos,
-          address: "Delivery Location",
+          address: `Delivery Location ${createdId}`,
           type: "delivery",
           status: "pending",
         });

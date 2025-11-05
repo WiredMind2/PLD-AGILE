@@ -51,7 +51,7 @@ export function useTourManagement({
           points.push({
             id: `pickup-${d.id}`,
             position: p1,
-            address: "Pickup Location",
+            address: `Pickup Location ${d.id}`,
             type: "pickup",
             status: "pending",
           });
@@ -59,7 +59,7 @@ export function useTourManagement({
           points.push({
             id: `delivery-${d.id}`,
             position: p2,
-            address: "Delivery Location",
+            address: `Delivery Location ${d.id}`,
             type: "delivery",
             status: "pending",
           });
@@ -283,7 +283,7 @@ export function useTourManagement({
                     pickupInter.latitude,
                     pickupInter.longitude,
                   ],
-                  address: "Pickup Location",
+                  address: `Pickup Location ${deliveryId}`,
                   type: "pickup",
                   status: "pending",
                 });
@@ -295,7 +295,7 @@ export function useTourManagement({
                     deliveryInter.latitude,
                     deliveryInter.longitude,
                   ],
-                  address: "Delivery Location",
+                  address: `Delivery Location ${deliveryId}`,
                   type: "delivery",
                   status: "pending",
                 });
