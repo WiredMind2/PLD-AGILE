@@ -8,7 +8,6 @@ This document contains all the deliverables (UML diagrams, sprint boards, docume
 deliverables/
 ├── README.md                    # This file
 ├── convert_plantuml.py          # Script to generate SVG from PlantUML and PDF files
-├── tsp_performance_report.tex   # LaTeX performance analysis report
 ├── sprint_diagrams/             # Sprint kanban boards (PDFs)
 │   ├── Sprint1.pdf
 │   ├── Sprint1Code.pdf
@@ -64,6 +63,7 @@ deliverables/
     - [Sprint Documentation](#sprint-documentation)
     - [Project Planning](#project-planning)
   - [Quick Access](#quick-access)
+  - [AI Disclaimer](#ai-disclaimer)
 
 ---
 
@@ -72,22 +72,22 @@ deliverables/
 ### Sprint 1
 [![Sprint 1 Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/Sprint1.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/Sprint1.svg)
 
-[📄 View Sprint 1 PDF](sprint_diagrams/Sprint1.pdf)
+[View Sprint 1 PDF](sprint_diagrams/Sprint1.pdf)
 
 ### Sprint 1 Code
 [![Sprint 1 Code Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/Sprint1Code.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/Sprint1Code.svg)
 
-[📄 View Sprint 1 Code PDF](sprint_diagrams/Sprint1Code.pdf)
+[View Sprint 1 Code PDF](sprint_diagrams/Sprint1Code.pdf)
 
 ### Sprint 2
 [![Sprint 2 Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/Sprint2.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/Sprint2.svg)
 
-[📄 View Sprint 2 PDF](sprint_diagrams/Sprint2.pdf)
+[View Sprint 2 PDF](sprint_diagrams/Sprint2.pdf)
 
 ### Sprint 3
 [![Sprint 3 Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/Sprint3.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/Sprint3.svg)
 
-[📄 View Sprint 3 PDF](sprint_diagrams/Sprint3.pdf)
+[View Sprint 3 PDF](sprint_diagrams/Sprint3.pdf)
 
 ---
 
@@ -95,7 +95,7 @@ deliverables/
 
 [![Use Case Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/UC_Diagram.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/UC_Diagram.svg)
 
-[📝 View UC_Diagram.puml source](plantuml_sources/UC_Diagram.puml)
+[View UC_Diagram.puml source](plantuml_sources/UC_Diagram.puml)
 
 ---
 
@@ -105,13 +105,13 @@ deliverables/
 
 [![Data Model Class Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/class_diagram.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/class_diagram.svg)
 
-[📝 View class_diagram.puml source](plantuml_sources/class_diagram.puml)
+[View class_diagram.puml source](plantuml_sources/class_diagram.puml)
 
 ### Package Diagram
 
 [![Package Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/package_diagram.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/package_diagram.svg)
 
-[📝 View package_diagram.puml source](plantuml_sources/package_diagram.puml)
+[View package_diagram.puml source](plantuml_sources/package_diagram.puml)
 
 ---
 
@@ -121,13 +121,13 @@ deliverables/
 
 [![Parse Map Sequence Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/parse_map_sequence.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/parse_map_sequence.svg)
 
-[📝 View parse_map_sequence.puml source](plantuml_sources/parse_map_sequence.puml)
+[View parse_map_sequence.puml source](plantuml_sources/parse_map_sequence.puml)
 
 ### Parse Deliveries Sequence
 
 [![Parse Deliveries Sequence Diagram](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/parse_deliveries_sequence.svg)](https://raw.githubusercontent.com/WiredMind2/PLD-AGILE/main/deliverables/generated_svgs/parse_deliveries_sequence.svg)
 
-[📝 View parse_deliveries_sequence.puml source](plantuml_sources/parse_deliveries_sequence.puml)
+[View parse_deliveries_sequence.puml source](plantuml_sources/parse_deliveries_sequence.puml)
 
 ---
 
@@ -135,7 +135,7 @@ deliverables/
 
 ### Performance Report
 
-[📄 View TSP Performance Report (LaTeX)](tsp_performance_report.tex) - Comprehensive analysis of TSP algorithm performance across different problem sizes and methods.
+[View TSP Implementation Report (Markdown)](tsp_perfo../backend/tools/TSP_implementation.md) - Comprehensive analysis of our TSP implementation.
 
 ### Performance Analysis Diagram
 
@@ -146,21 +146,21 @@ deliverables/
 ## Additional Documentation
 
 ### Project Documentation
-- 📖 [Glossary (PDF)](documentation/Glossary_AGILE.pdf) - Project terminology and definitions
-- 📋 [Use Case Descriptions (PDF)](documentation/Use_case_description.pdf) - Detailed use case specifications
-- 🏗️ [Architectural Design (PDF)](documentation/Opti_tour_architectural_design.pdf) - System architecture and design patterns
-- 👥 [User Stories (PDF)](documentation/Opti_tour_User_stories.pdf) - Detailed user stories and acceptance criteria
-- 📸 [Team Retrospective (PDF)](documentation/Retrospective_Agile_Team_Photos.pdf) - Sprint retrospectives (PDF version)
-- 📊 [Sprint Feedback (PDF)](documentation/Sprint_Feedback.pdf) - Comprehensive sprint feedback and retrospective analysis
+- [Glossary (PDF)](documentation/Glossary_AGILE.pdf) - Project terminology and definitions
+- [Use Case Descriptions (PDF)](documentation/Use_case_description.pdf) - Detailed use case specifications
+- [Architectural Design (PDF)](documentation/Opti_tour_architectural_design.pdf) - System architecture and design patterns
+- [User Stories (PDF)](documentation/Opti_tour_User_stories.pdf) - Detailed user stories and acceptance criteria
+- [Team Retrospective (PDF)](documentation/Retrospective_Agile_Team_Photos.pdf) - Sprint retrospectives (PDF version)
+- [Sprint Feedback (PDF)](documentation/Sprint_Feedback.pdf) - Comprehensive sprint feedback and retrospective analysis
 
 ### Sprint Documentation
-- 📊 [Sprint 1 PDF](sprint_diagrams/Sprint1.pdf)
-- 📊 [Sprint 1 Code PDF](sprint_diagrams/Sprint1Code.pdf)
-- 📊 [Sprint 2 PDF](sprint_diagrams/Sprint2.pdf)
-- 📊 [Sprint 3 PDF](sprint_diagrams/Sprint3.pdf)
+- [Sprint 1 PDF](sprint_diagrams/Sprint1.pdf)
+- [Sprint 1 Code PDF](sprint_diagrams/Sprint1Code.pdf)
+- [Sprint 2 PDF](sprint_diagrams/Sprint2.pdf)
+- [Sprint 3 PDF](sprint_diagrams/Sprint3.pdf)
 
 ### Project Planning
-- 📅 [Iteration Planning (PDF)](documentation/iteration_planning.pdf) - Sprint planning and milestone documentation
+- [Iteration Planning (PDF)](documentation/iteration_planning.pdf) - Sprint planning and milestone documentation
 
 ---
 
@@ -172,7 +172,12 @@ deliverables/
 | **PlantUML Sources** | [plantuml_sources/](plantuml_sources/) |
 | **Generated SVGs** | [generated_svgs/](generated_svgs/) |
 | **Documentation** | [documentation/](documentation/) |
-| **Performance Analysis** | [tsp_performance_report.tex](tsp_performance_report.tex), [tsp_performance_analysis.png](../backend/tools/benchmark_results/tsp_performance_analysis.png) |
+| **TSP Algorithm Analysis** | [TSP_implementation.md](../backend/tools/TSP_implementation.md), [tsp_performance_analysis.png](../backend/tools/benchmark_results/tsp_performance_analysis.png) |
+
+---
+
+## AI Disclaimer
+We have used generative AI to help us in this project, for both our scripts and our deliverables.
 
 ---
 
