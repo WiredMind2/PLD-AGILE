@@ -36,7 +36,7 @@ if BACKEND_ROOT not in sys.path:
     sys.path.insert(0, BACKEND_ROOT)
 
 import networkx as nx
-from app.utils.TSP.TSP_networkx import TSP
+from app.utils.TSP.TSP_solver import TSP
 from app.services.XMLParser import XMLParser
 
 # Import canonical implementations from path_utils

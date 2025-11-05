@@ -30,12 +30,6 @@ from .path_utils import (
     validate_path,
     input_manual_path,
 )
-from .cache_utils import (
-    compute_file_hash,
-    get_cache_key,
-    load_cached_optimal_tour,
-    save_cached_optimal_tour,
-)
 
 # Re-export for backwards compatibility
 __all__ = [
@@ -47,10 +41,6 @@ __all__ = [
     'format_path',
     'validate_path',
     'input_manual_path',
-    'compute_file_hash',
-    'get_cache_key',
-    'load_cached_optimal_tour',
-    'save_cached_optimal_tour',
     'generate_all_valid_tours',
     'is_valid_tour',
     'compute_optimal_brute_force',

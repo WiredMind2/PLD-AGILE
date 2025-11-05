@@ -5,7 +5,6 @@ import sys
 import time
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional, cast
-from dataclasses import dataclass
 
 import networkx as nx
 import matplotlib
@@ -17,7 +16,7 @@ BACKEND_ROOT = os.path.abspath(os.path.join(HERE, ".."))
 if BACKEND_ROOT not in sys.path:
     sys.path.insert(0, BACKEND_ROOT)
 
-from app.utils.TSP.TSP_networkx import TSP
+from app.utils.TSP.TSP_solver import TSP
 from app.services.XMLParser import XMLParser
 from app.models.schemas import Tour
 from types import SimpleNamespace
@@ -25,6 +24,7 @@ from types import SimpleNamespace
 # Import from canonical modules
 from .path_utils import build_sp_graph_from_map as build_sp_graph, tour_cost
 from .tsp_core import generate_all_valid_tours as generate_valid_tours
+from .benchmark_types import BenchmarkResult
 
 # Import compute_optimal_brute_force from its module
 try:
@@ -34,24 +34,6 @@ except ImportError:
     compute_optimal_brute_force = None
 
 matplotlib.use('Agg')  # Non-interactive backend
-
-
-@dataclass
-class BenchmarkResult:
-    """Result of a single benchmark run."""
-    map_file: str
-    request_file: str
-    num_deliveries: int
-    num_nodes: int
-    tsp_time_seconds: float
-    tsp_cost: float
-    tsp_expanded_nodes: int
-    tsp_expanded_cost: float
-    optimal_time_seconds: Optional[float] = None
-    optimal_cost: Optional[float] = None
-    optimal_expanded_cost: Optional[float] = None
-    optimality_gap_percent: Optional[float] = None
-    error: Optional[str] = None
 
 
 class TSPBenchmark:
@@ -190,73 +172,11 @@ class TSPBenchmark:
         print(f"Time range: {min(r.tsp_time_seconds for r in valid_results):.3f}s - {max(r.tsp_time_seconds for r in valid_results):.3f}s")
 
 
-class BenchmarkVisualizer:
-    """Handles visualization of benchmark results."""
+# Import the enhanced visualizer from the dedicated module
+from .benchmark_visualization import BenchmarkVisualizer as _BenchmarkVisualizer
 
-    def __init__(self, results: List[BenchmarkResult], include_optimal: bool = False):
-        self.results = results
-        self.include_optimal = include_optimal
-
-    def generate_graphs(self, output_dir: Path):
-        """Generate visualization graphs."""
-        output_dir.mkdir(parents=True, exist_ok=True)
-        valid_results = [r for r in self.results if r.error is None]
-        if not valid_results:
-            print("No valid results to plot")
-            return
-        valid_results.sort(key=lambda r: r.num_nodes)
-        num_nodes = [r.num_nodes for r in valid_results]
-        tsp_times = [r.tsp_time_seconds for r in valid_results]
-        tsp_costs = [r.tsp_cost for r in valid_results]
-
-        # Time vs size
-        plt.figure(figsize=(10, 6))
-        plt.plot(num_nodes, tsp_times, 'o-', linewidth=2, markersize=8, label='Christofides TSP')
-        if self.include_optimal:
-            opt_times = [r.optimal_time_seconds for r in valid_results if r.optimal_time_seconds]
-            opt_nodes = [r.num_nodes for r in valid_results if r.optimal_time_seconds]
-            if opt_times:
-                plt.plot(opt_nodes, opt_times, 's-', linewidth=2, markersize=8, label='Brute-Force Optimal')
-        plt.xlabel('Number of Nodes')
-        plt.ylabel('Time (seconds)')
-        plt.title('TSP Performance: Time vs Problem Size')
-        plt.grid(True, alpha=0.3)
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(output_dir / "tsp_time_vs_size.png", dpi=300, bbox_inches='tight')
-        plt.close()
-
-        # Cost vs size
-        plt.figure(figsize=(10, 6))
-        plt.plot(num_nodes, tsp_costs, 'o-', linewidth=2, markersize=8, color='green', label='TSP Cost')
-        if self.include_optimal:
-            opt_costs = [r.optimal_cost for r in valid_results if r.optimal_cost]
-            opt_nodes = [r.num_nodes for r in valid_results if r.optimal_cost]
-            if opt_costs:
-                plt.plot(opt_nodes, opt_costs, 's-', linewidth=2, markersize=8, color='red', label='Optimal Cost')
-        plt.xlabel('Number of Nodes')
-        plt.ylabel('Cost (meters)')
-        plt.title('TSP Quality: Cost vs Problem Size')
-        plt.grid(True, alpha=0.3)
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(output_dir / "tsp_cost_vs_size.png", dpi=300, bbox_inches='tight')
-        plt.close()
-
-        # Optimality gap
-        if self.include_optimal:
-            gap_data = [(r.num_nodes, r.optimality_gap_percent) for r in valid_results if r.optimality_gap_percent is not None]
-            if gap_data:
-                nodes, gaps = zip(*gap_data)
-                plt.figure(figsize=(10, 6))
-                plt.bar(nodes, gaps, width=0.6, color='orange', alpha=0.7)
-                plt.xlabel('Number of Nodes')
-                plt.ylabel('Gap (%)')
-                plt.title('TSP Quality: Gap from Optimal')
-                plt.grid(True, alpha=0.3, axis='y')
-                plt.tight_layout()
-                plt.savefig(output_dir / "tsp_optimality_gap.png", dpi=300, bbox_inches='tight')
-                plt.close()
+# Use the imported visualizer
+BenchmarkVisualizer = _BenchmarkVisualizer
 
 
 def run_benchmark(args):

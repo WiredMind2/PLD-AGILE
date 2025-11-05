@@ -12,13 +12,18 @@ BACKEND_ROOT = os.path.abspath(os.path.join(HERE, ".."))
 if BACKEND_ROOT not in sys.path:
     sys.path.insert(0, BACKEND_ROOT)
 
-from app.utils.TSP.TSP_networkx import TSP
+from app.utils.TSP.TSP_solver import TSP
 from app.services.XMLParser import XMLParser
 from app.models.schemas import Tour
 
 # Import from canonical modules
-from .path_utils import build_sp_graph_from_map as build_sp_graph, expand_manual_path, input_manual_path, format_path
-from .tsp_benchmark import TSPBenchmark, BenchmarkVisualizer
+try:
+    from .path_utils import build_sp_graph_from_map as build_sp_graph, expand_manual_path, input_manual_path, format_path
+    from .benchmark_core import TSPBenchmark
+    from .benchmark_visualization import BenchmarkVisualizer
+except ImportError:
+    print('Please run the run_benchmark file instead!')
+    raise
 
 # Import compute_optimal_brute_force from its module
 try:

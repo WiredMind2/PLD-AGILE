@@ -2,7 +2,6 @@ from fastapi import APIRouter, HTTPException, status, UploadFile, Query
 from fastapi.responses import PlainTextResponse
 
 from app.models.schemas import Map, Intersection
-from app.core.env import map
 
 from app.services.XMLParser import XMLParser
 from app.services.MapService import MapService

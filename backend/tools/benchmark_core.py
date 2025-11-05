@@ -18,7 +18,7 @@ BACKEND_ROOT = os.path.abspath(os.path.join(HERE, ".."))
 if BACKEND_ROOT not in sys.path:
     sys.path.insert(0, BACKEND_ROOT)
 
-from app.utils.TSP.TSP_networkx import TSP
+from app.utils.TSP.TSP_solver import TSP
 from app.services.XMLParser import XMLParser
 
 from .benchmark_types import BenchmarkResult
@@ -105,6 +105,8 @@ class TSPBenchmark:
 
         # Time the solving phase
         start_time = time.time()
+        # Don't pass depot as start_node since the algorithm finds optimal ordering
+        # We'll compare costs on the same set of nodes
         tour, compact_cost = tsp.solve(sample_tour)
 
         # Build shortest-path graph for TSP nodes
@@ -121,20 +123,26 @@ class TSPBenchmark:
 
     def run_optimal_solver(self, G: nx.DiGraph, delivery_pairs: List[Tuple[str, str]], 
                           depot: str) -> Tuple[float | None, float | None, float | None]:
-        """Run brute-force optimal solver (WARNING: Exponential complexity!)."""
+        """Run brute-force optimal solver (WARNING: Exponential complexity!).
+        
+        Solves the same problem as TSP heuristic: find the shortest cycle through
+        all pickup/delivery nodes (no depot constraint).
+        """
         try:
-            from compute_optimal_brute_force import (
-                generate_all_valid_tours,
-                tour_cost as brute_force_tour_cost,
-            )
+            from .tsp_core import generate_all_valid_tours
+            from .path_utils import tour_cost as brute_force_tour_cost
         except ImportError:
             return None, None, None
 
-        nodes = [depot]
+        # Build list of all pickup/delivery nodes (no depot - same as TSP)
+        nodes = []
         for pickup, delivery in delivery_pairs:
-            nodes.extend([pickup, delivery])
+            if pickup not in nodes:
+                nodes.append(pickup)
+            if delivery not in nodes:
+                nodes.append(delivery)
 
-        # Build shortest path graph
+        # Build shortest path graph in the correct format for tour_cost
         sp_graph = {}
         for u in nodes:
             sp_graph[u] = {}
@@ -142,9 +150,9 @@ class TSPBenchmark:
                 if u != v:
                     try:
                         path_length = nx.shortest_path_length(G, u, v, weight="weight")
-                        sp_graph[u][v] = path_length
+                        sp_graph[u][v] = {'cost': path_length, 'path': []}
                     except nx.NetworkXNoPath:
-                        sp_graph[u][v] = float("inf")
+                        sp_graph[u][v] = {'cost': float("inf"), 'path': []}
 
         # Time the brute-force search
         start_time = time.time()
@@ -152,7 +160,8 @@ class TSPBenchmark:
         best_cost = float("inf")
         best_tour = None
 
-        for tour in generate_all_valid_tours(delivery_pairs, depot):
+        # Don't pass depot - generate cycles just like TSP
+        for tour in generate_all_valid_tours(delivery_pairs, start_node=None):
             cost = brute_force_tour_cost(tour, sp_graph)
             if cost < best_cost:
                 best_cost = cost
@@ -163,7 +172,7 @@ class TSPBenchmark:
         if best_tour is None:
             return None, None, None
 
-        # Expand optimal tour to full path
+        # Expand optimal tour to full path (already a cycle)
         expanded_cost = 0.0
         for i in range(len(best_tour) - 1):
             u, v = best_tour[i], best_tour[i + 1]
@@ -205,10 +214,11 @@ class TSPBenchmark:
                 optimal_time, optimal_cost, optimal_expanded_cost = self.run_optimal_solver(
                     G, delivery_pairs, depot
                 )
-                if optimal_cost:
-                    optimality_gap = ((tsp_cost - optimal_cost) / optimal_cost) * 100
-                    print(f"    ✓ Completed in {optimal_time:.3f}s, cost: {optimal_cost:.2f}")
-                    print(f"    Gap: {optimality_gap:.2f}%")
+                if optimal_expanded_cost:
+                    # Compare expanded costs (actual path lengths), not compact costs
+                    optimality_gap = ((tsp_expanded_cost - optimal_expanded_cost) / optimal_expanded_cost) * 100
+                    print(f"    ✓ Completed in {optimal_time:.3f}s, expanded cost: {optimal_expanded_cost:.2f}m")
+                    print(f"    Gap: {optimality_gap:+.2f}%")
             elif self.include_optimal:
                 print(f"  ⚠️  Skipping optimal solver (too large: {num_nodes} nodes)")
 
@@ -228,7 +238,11 @@ class TSPBenchmark:
             )
 
         except Exception as e:
+            import traceback
             print(f"    ✗ Error: {e}")
+            print(f"    Exception type: {type(e).__name__}")
+            print("    Traceback:")
+            traceback.print_exc()
             return BenchmarkResult(
                 map_file=Path(map_path).name,
                 request_file=Path(req_path).name,

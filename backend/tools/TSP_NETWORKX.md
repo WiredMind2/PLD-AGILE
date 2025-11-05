@@ -1,6 +1,6 @@
 # NetworkX-based TSP — Implementation Guide (updated)
 
-This document explains the current behavior of `app/utils/TSP/TSP_networkx.py`, the available solver options, how to call the solver from the service layer, and important caveats.
+This document explains the current behavior of `app/utils/TSP/TSP_solver.py`, the available solver options, how to call the solver from the service layer, and important caveats.
 
 Target audience: Developers integrating or maintaining the TSP solver and service code.
 
@@ -38,7 +38,7 @@ These changes trade a small bit of code complexity for better solution quality a
 
 ## 2. Algorithm overview (new pipeline)
 
-High-level pipeline used by `TSP_networkx.TSP.solve()`:
+High-level pipeline used by `TSP_solver.TSP.solve()`:
 
 1. Build `G_map` (directed) from parsed XML map data.
 2. Compute pairwise shortest paths between requested nodes in parallel; store `sp_graph` with path and cost for each ordered pair.
@@ -104,7 +104,7 @@ Outputs (expanded):
 Basic (heuristic) usage — default behavior returns improved tours via 2-opt:
 
 ```python
-from app.utils.TSP.TSP_networkx import TSP
+from app.utils.TSP.TSP_solver import TSP
 
 tsp = TSP()
 nodes = ['A', 'B', 'C', 'D']
